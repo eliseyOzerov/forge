@@ -1,0 +1,54 @@
+//
+//  Observable.swift
+//  SwiftKit
+//
+//  The reactive primitive. Models expose Observables on their data
+//  protocol so Builders can read-and-subscribe in a single explicit
+//  call via `node.watch(...)`.
+//
+//  Lifecycle: subscriptions are stored on the owning Node and cancelled
+//  when the Node unmounts. Callers don't need to hold Subscriptions
+//  themselves — hand them to the Node.
+//
+
+@MainActor public final class Observable<T> {
+    private var _value: T
+    private var nextId: Int = 0
+    private var observers: [Int: @MainActor (T) -> Void] = [:]
+
+    public init(_ value: T) {
+        self._value = value
+    }
+
+    public var value: T {
+        get { _value }
+        set {
+            _value = newValue
+            for observer in observers.values {
+                observer(newValue)
+            }
+        }
+    }
+
+    public func observe(_ callback: @escaping @MainActor (T) -> Void) -> Subscription {
+        let id = nextId
+        nextId += 1
+        observers[id] = callback
+        return Subscription { [weak self] in
+            self?.observers.removeValue(forKey: id)
+        }
+    }
+}
+
+@MainActor public final class Subscription {
+    private var cancelClosure: (() -> Void)?
+
+    init(cancel: @escaping () -> Void) {
+        self.cancelClosure = cancel
+    }
+
+    public func cancel() {
+        cancelClosure?()
+        cancelClosure = nil
+    }
+}
