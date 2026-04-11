@@ -6,41 +6,58 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		3C705FFF2F8A9ACC00462315 /* ForgeSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 3C705FFE2F8A9ACC00462315 /* ForgeSwift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
-		3C705FA12F8A996400462315 /* PBXContainerItemProxy */ = {
+		3C705FE02F8A9ABD00462315 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
-			containerPortal = 3C705F8B2F8A996300462315 /* Project object */;
+			containerPortal = 3C705FC12F8A9ABC00462315 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 3C705F922F8A996300462315;
+			remoteGlobalIDString = 3C705FC82F8A9ABC00462315;
 			remoteInfo = ForgeSwiftDemo;
 		};
-		3C705FAB2F8A996400462315 /* PBXContainerItemProxy */ = {
+		3C705FEA2F8A9ABD00462315 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
-			containerPortal = 3C705F8B2F8A996300462315 /* Project object */;
+			containerPortal = 3C705FC12F8A9ABC00462315 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 3C705F922F8A996300462315;
+			remoteGlobalIDString = 3C705FC82F8A9ABC00462315;
 			remoteInfo = ForgeSwiftDemo;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		3C705F932F8A996300462315 /* ForgeSwiftDemo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ForgeSwiftDemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		3C705FA02F8A996400462315 /* ForgeSwiftDemoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ForgeSwiftDemoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		3C705FAA2F8A996400462315 /* ForgeSwiftDemoUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ForgeSwiftDemoUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		3C705FC92F8A9ABC00462315 /* ForgeSwiftDemo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ForgeSwiftDemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		3C705FDF2F8A9ABD00462315 /* ForgeSwiftDemoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ForgeSwiftDemoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		3C705FE92F8A9ABD00462315 /* ForgeSwiftDemoUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ForgeSwiftDemoUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		3C705FF12F8A9ABD00462315 /* Exceptions for "ForgeSwiftDemo" folder in "ForgeSwiftDemo" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 3C705FC82F8A9ABC00462315 /* ForgeSwiftDemo */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		3C705F952F8A996300462315 /* ForgeSwiftDemo */ = {
+		3C705FCB2F8A9ABC00462315 /* ForgeSwiftDemo */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				3C705FF12F8A9ABD00462315 /* Exceptions for "ForgeSwiftDemo" folder in "ForgeSwiftDemo" target */,
+			);
 			path = ForgeSwiftDemo;
 			sourceTree = "<group>";
 		};
-		3C705FA32F8A996400462315 /* ForgeSwiftDemoTests */ = {
+		3C705FE22F8A9ABD00462315 /* ForgeSwiftDemoTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = ForgeSwiftDemoTests;
 			sourceTree = "<group>";
 		};
-		3C705FAD2F8A996400462315 /* ForgeSwiftDemoUITests */ = {
+		3C705FEC2F8A9ABD00462315 /* ForgeSwiftDemoUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = ForgeSwiftDemoUITests;
 			sourceTree = "<group>";
@@ -48,21 +65,22 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		3C705F902F8A996300462315 /* Frameworks */ = {
+		3C705FC62F8A9ABC00462315 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3C705FFF2F8A9ACC00462315 /* ForgeSwift in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		3C705FDC2F8A9ABD00462315 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		3C705F9D2F8A996400462315 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		3C705FA72F8A996400462315 /* Frameworks */ = {
+		3C705FE62F8A9ABD00462315 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -72,22 +90,22 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		3C705F8A2F8A996300462315 = {
+		3C705FC02F8A9ABC00462315 = {
 			isa = PBXGroup;
 			children = (
-				3C705F952F8A996300462315 /* ForgeSwiftDemo */,
-				3C705FA32F8A996400462315 /* ForgeSwiftDemoTests */,
-				3C705FAD2F8A996400462315 /* ForgeSwiftDemoUITests */,
-				3C705F942F8A996300462315 /* Products */,
+				3C705FCB2F8A9ABC00462315 /* ForgeSwiftDemo */,
+				3C705FE22F8A9ABD00462315 /* ForgeSwiftDemoTests */,
+				3C705FEC2F8A9ABD00462315 /* ForgeSwiftDemoUITests */,
+				3C705FCA2F8A9ABC00462315 /* Products */,
 			);
 			sourceTree = "<group>";
 		};
-		3C705F942F8A996300462315 /* Products */ = {
+		3C705FCA2F8A9ABC00462315 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				3C705F932F8A996300462315 /* ForgeSwiftDemo.app */,
-				3C705FA02F8A996400462315 /* ForgeSwiftDemoTests.xctest */,
-				3C705FAA2F8A996400462315 /* ForgeSwiftDemoUITests.xctest */,
+				3C705FC92F8A9ABC00462315 /* ForgeSwiftDemo.app */,
+				3C705FDF2F8A9ABD00462315 /* ForgeSwiftDemoTests.xctest */,
+				3C705FE92F8A9ABD00462315 /* ForgeSwiftDemoUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -95,134 +113,138 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		3C705F922F8A996300462315 /* ForgeSwiftDemo */ = {
+		3C705FC82F8A9ABC00462315 /* ForgeSwiftDemo */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 3C705FB42F8A996400462315 /* Build configuration list for PBXNativeTarget "ForgeSwiftDemo" */;
+			buildConfigurationList = 3C705FF22F8A9ABD00462315 /* Build configuration list for PBXNativeTarget "ForgeSwiftDemo" */;
 			buildPhases = (
-				3C705F8F2F8A996300462315 /* Sources */,
-				3C705F902F8A996300462315 /* Frameworks */,
-				3C705F912F8A996300462315 /* Resources */,
+				3C705FC52F8A9ABC00462315 /* Sources */,
+				3C705FC62F8A9ABC00462315 /* Frameworks */,
+				3C705FC72F8A9ABC00462315 /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				3C705F952F8A996300462315 /* ForgeSwiftDemo */,
+				3C705FCB2F8A9ABC00462315 /* ForgeSwiftDemo */,
 			);
 			name = ForgeSwiftDemo;
 			packageProductDependencies = (
+				3C705FFE2F8A9ACC00462315 /* ForgeSwift */,
 			);
 			productName = ForgeSwiftDemo;
-			productReference = 3C705F932F8A996300462315 /* ForgeSwiftDemo.app */;
+			productReference = 3C705FC92F8A9ABC00462315 /* ForgeSwiftDemo.app */;
 			productType = "com.apple.product-type.application";
 		};
-		3C705F9F2F8A996400462315 /* ForgeSwiftDemoTests */ = {
+		3C705FDE2F8A9ABD00462315 /* ForgeSwiftDemoTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 3C705FB72F8A996400462315 /* Build configuration list for PBXNativeTarget "ForgeSwiftDemoTests" */;
+			buildConfigurationList = 3C705FF72F8A9ABD00462315 /* Build configuration list for PBXNativeTarget "ForgeSwiftDemoTests" */;
 			buildPhases = (
-				3C705F9C2F8A996400462315 /* Sources */,
-				3C705F9D2F8A996400462315 /* Frameworks */,
-				3C705F9E2F8A996400462315 /* Resources */,
+				3C705FDB2F8A9ABD00462315 /* Sources */,
+				3C705FDC2F8A9ABD00462315 /* Frameworks */,
+				3C705FDD2F8A9ABD00462315 /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				3C705FA22F8A996400462315 /* PBXTargetDependency */,
+				3C705FE12F8A9ABD00462315 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				3C705FA32F8A996400462315 /* ForgeSwiftDemoTests */,
+				3C705FE22F8A9ABD00462315 /* ForgeSwiftDemoTests */,
 			);
 			name = ForgeSwiftDemoTests;
 			packageProductDependencies = (
 			);
 			productName = ForgeSwiftDemoTests;
-			productReference = 3C705FA02F8A996400462315 /* ForgeSwiftDemoTests.xctest */;
+			productReference = 3C705FDF2F8A9ABD00462315 /* ForgeSwiftDemoTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		3C705FA92F8A996400462315 /* ForgeSwiftDemoUITests */ = {
+		3C705FE82F8A9ABD00462315 /* ForgeSwiftDemoUITests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 3C705FBA2F8A996400462315 /* Build configuration list for PBXNativeTarget "ForgeSwiftDemoUITests" */;
+			buildConfigurationList = 3C705FFA2F8A9ABD00462315 /* Build configuration list for PBXNativeTarget "ForgeSwiftDemoUITests" */;
 			buildPhases = (
-				3C705FA62F8A996400462315 /* Sources */,
-				3C705FA72F8A996400462315 /* Frameworks */,
-				3C705FA82F8A996400462315 /* Resources */,
+				3C705FE52F8A9ABD00462315 /* Sources */,
+				3C705FE62F8A9ABD00462315 /* Frameworks */,
+				3C705FE72F8A9ABD00462315 /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				3C705FAC2F8A996400462315 /* PBXTargetDependency */,
+				3C705FEB2F8A9ABD00462315 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				3C705FAD2F8A996400462315 /* ForgeSwiftDemoUITests */,
+				3C705FEC2F8A9ABD00462315 /* ForgeSwiftDemoUITests */,
 			);
 			name = ForgeSwiftDemoUITests;
 			packageProductDependencies = (
 			);
 			productName = ForgeSwiftDemoUITests;
-			productReference = 3C705FAA2F8A996400462315 /* ForgeSwiftDemoUITests.xctest */;
+			productReference = 3C705FE92F8A9ABD00462315 /* ForgeSwiftDemoUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		3C705F8B2F8A996300462315 /* Project object */ = {
+		3C705FC12F8A9ABC00462315 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 2640;
 				LastUpgradeCheck = 2640;
 				TargetAttributes = {
-					3C705F922F8A996300462315 = {
+					3C705FC82F8A9ABC00462315 = {
 						CreatedOnToolsVersion = 26.4;
 					};
-					3C705F9F2F8A996400462315 = {
+					3C705FDE2F8A9ABD00462315 = {
 						CreatedOnToolsVersion = 26.4;
-						TestTargetID = 3C705F922F8A996300462315;
+						TestTargetID = 3C705FC82F8A9ABC00462315;
 					};
-					3C705FA92F8A996400462315 = {
+					3C705FE82F8A9ABD00462315 = {
 						CreatedOnToolsVersion = 26.4;
-						TestTargetID = 3C705F922F8A996300462315;
+						TestTargetID = 3C705FC82F8A9ABC00462315;
 					};
 				};
 			};
-			buildConfigurationList = 3C705F8E2F8A996300462315 /* Build configuration list for PBXProject "ForgeSwiftDemo" */;
+			buildConfigurationList = 3C705FC42F8A9ABC00462315 /* Build configuration list for PBXProject "ForgeSwiftDemo" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
 				Base,
 			);
-			mainGroup = 3C705F8A2F8A996300462315;
+			mainGroup = 3C705FC02F8A9ABC00462315;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				3C705FFD2F8A9ACC00462315 /* XCLocalSwiftPackageReference "../ForgeSwift" */,
+			);
 			preferredProjectObjectVersion = 77;
-			productRefGroup = 3C705F942F8A996300462315 /* Products */;
+			productRefGroup = 3C705FCA2F8A9ABC00462315 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				3C705F922F8A996300462315 /* ForgeSwiftDemo */,
-				3C705F9F2F8A996400462315 /* ForgeSwiftDemoTests */,
-				3C705FA92F8A996400462315 /* ForgeSwiftDemoUITests */,
+				3C705FC82F8A9ABC00462315 /* ForgeSwiftDemo */,
+				3C705FDE2F8A9ABD00462315 /* ForgeSwiftDemoTests */,
+				3C705FE82F8A9ABD00462315 /* ForgeSwiftDemoUITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		3C705F912F8A996300462315 /* Resources */ = {
+		3C705FC72F8A9ABC00462315 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		3C705F9E2F8A996400462315 /* Resources */ = {
+		3C705FDD2F8A9ABD00462315 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		3C705FA82F8A996400462315 /* Resources */ = {
+		3C705FE72F8A9ABD00462315 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -232,21 +254,21 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		3C705F8F2F8A996300462315 /* Sources */ = {
+		3C705FC52F8A9ABC00462315 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		3C705F9C2F8A996400462315 /* Sources */ = {
+		3C705FDB2F8A9ABD00462315 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		3C705FA62F8A996400462315 /* Sources */ = {
+		3C705FE52F8A9ABD00462315 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -256,20 +278,86 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		3C705FA22F8A996400462315 /* PBXTargetDependency */ = {
+		3C705FE12F8A9ABD00462315 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 3C705F922F8A996300462315 /* ForgeSwiftDemo */;
-			targetProxy = 3C705FA12F8A996400462315 /* PBXContainerItemProxy */;
+			target = 3C705FC82F8A9ABC00462315 /* ForgeSwiftDemo */;
+			targetProxy = 3C705FE02F8A9ABD00462315 /* PBXContainerItemProxy */;
 		};
-		3C705FAC2F8A996400462315 /* PBXTargetDependency */ = {
+		3C705FEB2F8A9ABD00462315 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 3C705F922F8A996300462315 /* ForgeSwiftDemo */;
-			targetProxy = 3C705FAB2F8A996400462315 /* PBXContainerItemProxy */;
+			target = 3C705FC82F8A9ABC00462315 /* ForgeSwiftDemo */;
+			targetProxy = 3C705FEA2F8A9ABD00462315 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		3C705FB22F8A996400462315 /* Debug */ = {
+		3C705FF32F8A9ABD00462315 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = B436S7J3T5;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ForgeSwiftDemo/Info.plist;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
+				INFOPLIST_KEY_UIMainStoryboardFile = Main;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.eliseyozerov.ForgeSwiftDemo;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		3C705FF42F8A9ABD00462315 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = B436S7J3T5;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ForgeSwiftDemo/Info.plist;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
+				INFOPLIST_KEY_UIMainStoryboardFile = Main;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.eliseyozerov.ForgeSwiftDemo;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		3C705FF52F8A9ABD00462315 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -322,16 +410,18 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
 			name = Debug;
 		};
-		3C705FB32F8A996400462315 /* Release */ = {
+		3C705FF62F8A9ABD00462315 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -378,102 +468,17 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
 		};
-		3C705FB52F8A996400462315 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = B436S7J3T5;
-				ENABLE_APP_SANDBOX = YES;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
-				GENERATE_INFOPLIST_FILE = YES;
-				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
-				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
-				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
-				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphonesimulator*]" = YES;
-				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphoneos*]" = YES;
-				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphonesimulator*]" = YES;
-				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
-				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
-				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
-				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 26.4;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.eliseyozerov.ForgeSwiftDemo;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				REGISTER_APP_GROUPS = YES;
-				SDKROOT = auto;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2,7";
-				XROS_DEPLOYMENT_TARGET = 26.4;
-			};
-			name = Debug;
-		};
-		3C705FB62F8A996400462315 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = B436S7J3T5;
-				ENABLE_APP_SANDBOX = YES;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
-				GENERATE_INFOPLIST_FILE = YES;
-				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
-				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
-				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
-				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphonesimulator*]" = YES;
-				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphoneos*]" = YES;
-				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphonesimulator*]" = YES;
-				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
-				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
-				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
-				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 26.4;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.eliseyozerov.ForgeSwiftDemo;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				REGISTER_APP_GROUPS = YES;
-				SDKROOT = auto;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2,7";
-				XROS_DEPLOYMENT_TARGET = 26.4;
-			};
-			name = Release;
-		};
-		3C705FB82F8A996400462315 /* Debug */ = {
+		3C705FF82F8A9ABD00462315 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -482,24 +487,20 @@
 				DEVELOPMENT_TEAM = B436S7J3T5;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
-				MACOSX_DEPLOYMENT_TARGET = 26.4;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.eliseyozerov.ForgeSwiftDemoTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2,7";
+				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ForgeSwiftDemo.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/ForgeSwiftDemo";
-				XROS_DEPLOYMENT_TARGET = 26.4;
 			};
 			name = Debug;
 		};
-		3C705FB92F8A996400462315 /* Release */ = {
+		3C705FF92F8A9ABD00462315 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -508,113 +509,113 @@
 				DEVELOPMENT_TEAM = B436S7J3T5;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
-				MACOSX_DEPLOYMENT_TARGET = 26.4;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.eliseyozerov.ForgeSwiftDemoTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2,7";
+				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ForgeSwiftDemo.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/ForgeSwiftDemo";
-				XROS_DEPLOYMENT_TARGET = 26.4;
 			};
 			name = Release;
 		};
-		3C705FBB2F8A996400462315 /* Debug */ = {
+		3C705FFB2F8A9ABD00462315 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = B436S7J3T5;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
-				MACOSX_DEPLOYMENT_TARGET = 26.4;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.eliseyozerov.ForgeSwiftDemoUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2,7";
+				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = ForgeSwiftDemo;
-				XROS_DEPLOYMENT_TARGET = 26.4;
 			};
 			name = Debug;
 		};
-		3C705FBC2F8A996400462315 /* Release */ = {
+		3C705FFC2F8A9ABD00462315 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = B436S7J3T5;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
-				MACOSX_DEPLOYMENT_TARGET = 26.4;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.eliseyozerov.ForgeSwiftDemoUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2,7";
+				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = ForgeSwiftDemo;
-				XROS_DEPLOYMENT_TARGET = 26.4;
 			};
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		3C705F8E2F8A996300462315 /* Build configuration list for PBXProject "ForgeSwiftDemo" */ = {
+		3C705FC42F8A9ABC00462315 /* Build configuration list for PBXProject "ForgeSwiftDemo" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				3C705FB22F8A996400462315 /* Debug */,
-				3C705FB32F8A996400462315 /* Release */,
+				3C705FF52F8A9ABD00462315 /* Debug */,
+				3C705FF62F8A9ABD00462315 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		3C705FB42F8A996400462315 /* Build configuration list for PBXNativeTarget "ForgeSwiftDemo" */ = {
+		3C705FF22F8A9ABD00462315 /* Build configuration list for PBXNativeTarget "ForgeSwiftDemo" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				3C705FB52F8A996400462315 /* Debug */,
-				3C705FB62F8A996400462315 /* Release */,
+				3C705FF32F8A9ABD00462315 /* Debug */,
+				3C705FF42F8A9ABD00462315 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		3C705FB72F8A996400462315 /* Build configuration list for PBXNativeTarget "ForgeSwiftDemoTests" */ = {
+		3C705FF72F8A9ABD00462315 /* Build configuration list for PBXNativeTarget "ForgeSwiftDemoTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				3C705FB82F8A996400462315 /* Debug */,
-				3C705FB92F8A996400462315 /* Release */,
+				3C705FF82F8A9ABD00462315 /* Debug */,
+				3C705FF92F8A9ABD00462315 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		3C705FBA2F8A996400462315 /* Build configuration list for PBXNativeTarget "ForgeSwiftDemoUITests" */ = {
+		3C705FFA2F8A9ABD00462315 /* Build configuration list for PBXNativeTarget "ForgeSwiftDemoUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				3C705FBB2F8A996400462315 /* Debug */,
-				3C705FBC2F8A996400462315 /* Release */,
+				3C705FFB2F8A9ABD00462315 /* Debug */,
+				3C705FFC2F8A9ABD00462315 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		3C705FFD2F8A9ACC00462315 /* XCLocalSwiftPackageReference "../ForgeSwift" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../ForgeSwift;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		3C705FFE2F8A9ACC00462315 /* ForgeSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ForgeSwift;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
-	rootObject = 3C705F8B2F8A996300462315 /* Project object */;
+	rootObject = 3C705FC12F8A9ABC00462315 /* Project object */;
 }

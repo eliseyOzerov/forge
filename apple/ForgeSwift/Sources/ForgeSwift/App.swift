@@ -11,6 +11,20 @@ open class App: UIResponder, UIApplicationDelegate, UISceneDelegate {
         fatalError("Must override body property in your App subclass")
     }
 
+    /// Entry point for `@main`. `UIResponder` doesn't provide `main()`, so
+    /// subclasses annotated with `@main` would fail to compile without this.
+    /// Uses `NSStringFromClass(self)` — dynamic dispatch through `class func`
+    /// resolves `self` to the actual subclass at call time, so UIKit instantiates
+    /// the correct delegate.
+    public class func main() {
+        UIApplicationMain(
+            CommandLine.argc,
+            CommandLine.unsafeArgv,
+            nil,
+            NSStringFromClass(self)
+        )
+    }
+
     open func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         return true
     }
