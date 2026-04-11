@@ -24,8 +24,16 @@ import AppKit
 @MainActor public final class Resolver {
     public init() {}
 
+    /// The root node is retained here so the entire tree (models, builders,
+    /// subscriptions, timers owned by models, etc.) stays alive for the
+    /// lifetime of the Resolver. Without this, mount() would return the
+    /// root platformView while the node graph above it gets deallocated,
+    /// which silently kills all state-driven updates.
+    private var rootNode: Node?
+
     public func mount(_ view: any View) -> PlatformView {
         let node = inflate(view: view, parent: nil)
+        self.rootNode = node
         guard let platform = node.platformView else {
             fatalError("Root node produced no platform view")
         }
