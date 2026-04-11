@@ -89,7 +89,6 @@ import AppKit
     private func setupComposite<V: CompositeView>(_ view: V, node: CompositeNode) {
         let model = view.makeModel(node: node)
         let builder = view.makeBuilder(model: model)
-        builder.node = node
         node.model = model
         node.builder = builder
     }
@@ -97,7 +96,8 @@ import AppKit
     private func buildSubtree(_ node: CompositeNode) {
         guard let builder = node.builder, let wrapper = node.platformView else { return }
         node.beginBuild()
-        let childView = builder.build()
+        let context = BuildContext(node: node)
+        let childView = builder.build(context)
         let childNode = inflate(view: childView, parent: node)
         node.children = [childNode]
         if let childPlatform = childNode.platformView {

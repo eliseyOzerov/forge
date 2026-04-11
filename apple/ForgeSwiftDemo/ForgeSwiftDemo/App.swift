@@ -37,15 +37,13 @@ final class CounterModel: ViewModel, CounterData {
 @MainActor
 final class CounterBuilder: Builder {
     let data: CounterData
-    weak var node: Node?
 
     init(data: CounterData) {
         self.data = data
     }
 
-    func build() -> any View {
-        guard let node else { return Text("—") }
-        let value = node.watch(data.count)
+    func build(_ context: BuildContext) -> any View {
+        let value = context.watch(data.count)
         return Button("Tapped \(value) times") { [weak data] in
             data?.increment()
         }

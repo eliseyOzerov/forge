@@ -46,11 +46,29 @@ public final class EmptyModel: ViewModel {
 }
 
 @MainActor public protocol Builder: AnyObject {
-    /// Set by the Resolver after construction. Builders use this to
-    /// read-and-subscribe observables via `node.watch(...)`.
-    var node: Node? { get set }
+    /// Produces the subtree View for this composite. The context is the
+    /// builder's narrow window onto its owning node: it can subscribe to
+    /// observables (driving rebuilds) and nothing else. The Node itself
+    /// is intentionally hidden so builders can't navigate the tree,
+    /// touch lifecycle, or retain node state between passes.
+    func build(_ context: BuildContext) -> any View
+}
 
-    func build() -> any View
+/// A builder's limited view of its owning Node. Instances are created
+/// by the Resolver for a single build pass — don't retain them.
+@MainActor public struct BuildContext {
+    let node: Node
+
+    init(node: Node) {
+        self.node = node
+    }
+
+    /// Read the observable's current value and register this build pass
+    /// as a dependent — a subsequent emission marks the node dirty and
+    /// schedules a rebuild.
+    public func watch<T>(_ observable: Observable<T>) -> T {
+        node.watch(observable)
+    }
 }
 
 @MainActor public protocol Renderer: AnyObject {
