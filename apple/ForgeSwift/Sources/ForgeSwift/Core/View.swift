@@ -119,6 +119,23 @@ public extension ModelView {
     open func build(context: BuildContext) -> any View {
         fatalError("ViewBuilder subclass must override build(context:)")
     }
+
+    /// Create a two-way Binding from a keypath on this builder's
+    /// model. Writes through the binding call rebuild { ... } on the
+    /// model, which marks the owning composite node dirty and
+    /// schedules a rebuild of its subtree on the next main-actor
+    /// tick. Lives on ViewBuilder (not ViewModel) because the
+    /// generic parameter T gives Swift the concrete model type it
+    /// needs for keypath inference.
+    public func bind<Value>(_ keyPath: ReferenceWritableKeyPath<T, Value>) -> Binding<Value> {
+        let model = self.model
+        return Binding(
+            get: { model[keyPath: keyPath] },
+            set: { newValue in
+                model.rebuild { model[keyPath: keyPath] = newValue }
+            }
+        )
+    }
 }
 
 // MARK: - BuildContext
