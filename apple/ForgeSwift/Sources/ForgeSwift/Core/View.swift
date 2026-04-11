@@ -144,6 +144,75 @@ public extension ModelView {
     }
 }
 
+// MARK: - Container
+
+/// A View with a fixed list of child views and a native container
+/// platform view (UIStackView, etc.). Distinct from ComposedView —
+/// children are declared data, not produced by a build function.
+/// Reconciliation is handled by ContainerNode, which matches children
+/// by id (if provided via `.id(_:)`) or by position + type.
+@MainActor public protocol ContainerView: View {
+    var children: [any View] { get }
+    func makeRenderer() -> ContainerRenderer
+}
+
+public extension ContainerView {
+    func makeNode() -> Node { ContainerNode() }
+}
+
+/// Renderer for ContainerView. Adds insert/remove/move/index methods
+/// so the framework can manipulate the container's child list without
+/// knowing about UIStackView / NSStackView / flex container details.
+@MainActor public protocol ContainerRenderer: Renderer {
+    func insert(_ platformView: PlatformView, at index: Int, into container: PlatformView)
+    func remove(_ platformView: PlatformView, from container: PlatformView)
+    func move(_ platformView: PlatformView, to index: Int, in container: PlatformView)
+    func index(of platformView: PlatformView, in container: PlatformView) -> Int?
+}
+
+public extension ContainerRenderer {
+    /// Default move: remove then reinsert. Renderers whose underlying
+    /// container supports a direct move op can override for efficiency.
+    func move(_ platformView: PlatformView, to index: Int, in container: PlatformView) {
+        remove(platformView, from: container)
+        insert(platformView, at: index, into: container)
+    }
+}
+
+// MARK: - Identified
+
+/// A view wrapped with an explicit identity, so the reconciler can
+/// match it across rebuilds even if its position in a list changes.
+/// Created via `SomeView.id(42)` — the resulting IdentifiedView is
+/// transparent to everything except the reconciler, which extracts
+/// the id for matching.
+@MainActor public protocol Identified {
+    var id: AnyHashable { get }
+    var child: any View { get }
+}
+
+public struct IdentifiedView<Inner: View>: View, Identified {
+    public let id: AnyHashable
+    public let inner: Inner
+
+    public var child: any View { inner }
+
+    public func makeNode() -> Node {
+        inner.makeNode()
+    }
+}
+
+public extension View {
+    /// Attach an explicit identity to this view. The reconciler uses
+    /// ids for move detection and cross-rebuild identity preservation.
+    /// If the same id appears across rebuilds, the underlying Node
+    /// (and any state it holds) is preserved, even if the view moved
+    /// to a different position in its parent's children list.
+    func id(_ id: some Hashable) -> IdentifiedView<Self> {
+        IdentifiedView(id: AnyHashable(id), inner: self)
+    }
+}
+
 // MARK: - Renderer
 
 @MainActor public protocol Renderer: AnyObject {

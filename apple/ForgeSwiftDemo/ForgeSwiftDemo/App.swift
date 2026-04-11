@@ -16,10 +16,11 @@ class ForgeDemo: App {
 // MARK: - Counter
 //
 // Tap-driven composite using the ViewModel + rebuild { ... } pattern.
-// CounterModel holds plain state (`var count = 0`), mutates it via
-// `rebuild { }`, which triggers the owning node to re-run its build.
-// CounterBuilder reads `model.count` directly — no observable, no
-// subscription, no watch.
+// Builder returns a VStack of three children: a count label and two
+// buttons. Every rebuild produces a new VStack with new Text + Button
+// structs; the ContainerNode reconciles them against the existing
+// child nodes — updating the Text's label in place and replacing the
+// Buttons' tap handlers without tearing down the UIButtons.
 
 final class CounterModel: ViewModel {
     var count = 0
@@ -27,13 +28,19 @@ final class CounterModel: ViewModel {
     func increment() {
         rebuild { count += 1 }
     }
+
+    func decrement() {
+        rebuild { count -= 1 }
+    }
 }
 
 final class CounterBuilder: ViewBuilder<CounterModel> {
     override func build(context: BuildContext) -> any View {
-        Button("Tapped \(model.count) times") { [weak model] in
-            model?.increment()
-        }
+        VStack(spacing: 16, children: [
+            Text("Count: \(model.count)"),
+            Button("Increment") { [weak model] in model?.increment() },
+            Button("Decrement") { [weak model] in model?.decrement() },
+        ])
     }
 }
 
