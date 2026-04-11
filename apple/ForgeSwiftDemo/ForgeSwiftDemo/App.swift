@@ -45,7 +45,7 @@ final class ShuffleBuilder: ViewBuilder<ShuffleModel> {
     override func build(context: BuildContext) -> any View {
         VStack(spacing: 12) {
             for id in model.ids {
-                ItemCounter(tag: id).id(id)
+                ItemCounter(tag: id)
             }
             Button("Shuffle") { [weak model] in
                 model?.shuffle()
