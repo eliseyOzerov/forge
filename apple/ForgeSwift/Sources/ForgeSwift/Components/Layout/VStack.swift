@@ -16,9 +16,21 @@ public struct VStack: ContainerView {
     public let spacing: CGFloat
     public let children: [any View]
 
+    /// Canonical portable init — takes an explicit children array.
     public init(spacing: CGFloat = 0, children: [any View]) {
         self.spacing = spacing
         self.children = children
+    }
+
+    /// Swift ergonomic init — uses the ChildrenBuilder result builder
+    /// so children can be declared in a trailing closure without
+    /// brackets or commas.
+    public init(
+        spacing: CGFloat = 0,
+        @ChildrenBuilder content: () -> [any View]
+    ) {
+        self.spacing = spacing
+        self.children = content()
     }
 
     public func makeRenderer() -> ContainerRenderer {

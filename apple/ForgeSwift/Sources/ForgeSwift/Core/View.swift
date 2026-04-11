@@ -179,6 +179,48 @@ public extension ContainerRenderer {
     }
 }
 
+// MARK: - ChildrenBuilder
+
+/// Result builder for concise children-list construction in
+/// ContainerViews. Enables trailing-closure syntax:
+///
+///     VStack(spacing: 16) {
+///         Text("Hello")
+///         Button("Tap") { ... }
+///     }
+///
+/// This is a Swift-specific convenience on top of the canonical
+/// `init(children: [any View])` API. Other language implementations
+/// of Forge use their own idiomatic patterns (Kotlin trailing
+/// lambdas, Dart child lists, etc.); the shape of the underlying
+/// data is what stays consistent across platforms.
+@resultBuilder
+public struct ChildrenBuilder {
+    public static func buildExpression(_ view: any View) -> [any View] {
+        [view]
+    }
+
+    public static func buildBlock(_ components: [any View]...) -> [any View] {
+        components.flatMap { $0 }
+    }
+
+    public static func buildOptional(_ component: [any View]?) -> [any View] {
+        component ?? []
+    }
+
+    public static func buildEither(first component: [any View]) -> [any View] {
+        component
+    }
+
+    public static func buildEither(second component: [any View]) -> [any View] {
+        component
+    }
+
+    public static func buildArray(_ components: [[any View]]) -> [any View] {
+        components.flatMap { $0 }
+    }
+}
+
 // MARK: - Identified
 
 /// A view wrapped with an explicit identity, so the reconciler can

@@ -36,11 +36,11 @@ final class CounterModel: ViewModel {
 
 final class CounterBuilder: ViewBuilder<CounterModel> {
     override func build(context: BuildContext) -> any View {
-        VStack(spacing: 16, children: [
-            Text("Count: \(model.count)"),
-            Button("Increment") { [weak model] in model?.increment() },
-            Button("Decrement") { [weak model] in model?.decrement() },
-        ])
+        VStack(spacing: 16) {
+            Text("Count: \(model.count)")
+            Button("Increment") { [weak model] in model?.increment() }
+            Button("Decrement") { [weak model] in model?.decrement() }
+        }
     }
 }
 
