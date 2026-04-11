@@ -15,36 +15,22 @@ class ForgeDemo: App {
 
 // MARK: - Counter
 //
-// The first composite view in ForgeSwift. Proves: CompositeView protocol,
-// Model/Builder separation, Observable → markDirty → rebuild, and that
-// the wrapper-based identity-stable layout survives repeated rebuilds.
-//
-// An auto-incrementing timer drives the observable; the Builder reads
-// it through the data protocol via `node.watch(...)` so the node
-// subscribes + reads in one explicit call.
+// Tap-driven composite. Proves: Button leaf, CompositeView + Model +
+// Builder, Observable → markDirty → rebuild, and that the rebuild
+// loop survives re-entrancy from the button's own action handler.
 
 @MainActor
 protocol CounterData: AnyObject {
     var count: Observable<Int> { get }
+    func increment()
 }
 
 @MainActor
 final class CounterModel: ViewModel, CounterData {
     let count = Observable(0)
-    private var task: Task<Void, Never>?
 
-    init() {
-        task = Task { @MainActor [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 1_000_000_000)
-                guard let self else { break }
-                self.count.value += 1
-            }
-        }
-    }
-
-    deinit {
-        task?.cancel()
+    func increment() {
+        count.value += 1
     }
 }
 
@@ -60,7 +46,9 @@ final class CounterBuilder: Builder {
     func build() -> any View {
         guard let node else { return Text("—") }
         let value = node.watch(data.count)
-        return Text("Seconds elapsed: \(value)")
+        return Button("Tapped \(value) times") { [weak data] in
+            data?.increment()
+        }
     }
 }
 

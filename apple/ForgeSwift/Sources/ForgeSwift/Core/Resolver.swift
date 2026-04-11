@@ -70,9 +70,16 @@ import AppKit
         node.view = view
         setupComposite(view, node: node)
 
+        // Defer rebuild to the next main-actor tick. If a rebuild is
+        // triggered by an input event (button tap), the handler needs
+        // to fully unwind before we tear down the view it's attached to
+        // — otherwise we'd remove the button from its superview while
+        // still inside its own tap handler.
         node.onDirty = { [weak self, weak node] in
-            guard let self, let node else { return }
-            self.rebuild(node)
+            Task { @MainActor [weak self, weak node] in
+                guard let self, let node else { return }
+                self.rebuild(node)
+            }
         }
 
         buildSubtree(node)

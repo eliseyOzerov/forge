@@ -9,8 +9,6 @@ import UIKit
 
 nonisolated(unsafe) private var actionKey: UInt8 = 0
 
-typealias Button = UIButton
-
 
 // MARK: - Handlers
 
