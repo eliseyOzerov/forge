@@ -49,13 +49,22 @@ public final class ButtonRenderer: Renderer {
     }
 
     private func apply(to button: UIButton) {
-        button.setTitle(title, for: .normal)
-        button.removeAction(identifiedBy: Self.tapActionId, for: .touchUpInside)
-        let handler = onTap
-        button.addAction(
-            UIAction(identifier: Self.tapActionId) { _ in handler() },
-            for: .touchUpInside
-        )
+        // UIButton implicitly cross-fades its titleLabel on setTitle
+        // since iOS 15. When our rebuild lands mid-way through the
+        // button's own highlighted→normal state animation, the two
+        // stack and the label ends up fading from 0 to 1 over ~0.5s.
+        // Suppressing implicit animations + forcing immediate layout
+        // makes the title change instant.
+        UIView.performWithoutAnimation {
+            button.setTitle(title, for: .normal)
+            button.removeAction(identifiedBy: Self.tapActionId, for: .touchUpInside)
+            let handler = onTap
+            button.addAction(
+                UIAction(identifier: Self.tapActionId) { _ in handler() },
+                for: .touchUpInside
+            )
+            button.layoutIfNeeded()
+        }
     }
 }
 
