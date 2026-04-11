@@ -1,25 +1,33 @@
 //
 //  View.swift
-//  SwiftKit
+//  ForgeSwift
 //
 //  The five-object decomposition:
-//    View       — value, cheap, rebuilt on every resolve. Factory for the
-//                 rest of the objects. Holds props.
-//    Node       — long-lived identity anchor. Owns Model, Builder/Renderer,
-//                 platform view, and child nodes. The thing the resolver walks.
-//    Renderer   — leaf views only. Translates props to a platform view.
-//    Model      — composite views, optional. Long-lived state container.
-//                 Holds observables, talks to context/DI.
-//    Builder    — composite views. Dumb build function. Depends on a
-//                 narrow data protocol, not on the Model directly.
+//    View       — value, cheap, rebuilt on every resolve. Factory for
+//                 the rest of the objects. Holds props.
+//    Node       — long-lived identity anchor. Owns Model, Builder/
+//                 Renderer, platform view, and child nodes. The thing
+//                 the resolver walks.
+//    Renderer   — leaf views only. Translates props to a platform view,
+//                 both at mount and on in-place updates.
+//    ViewModel  — composite views with state. Long-lived state
+//                 container. Has a rebuild(_:) method that mutates
+//                 state and schedules a rebuild of the owning node
+//                 (Flutter's setState pattern).
+//    Builder    — composite views. Dumb build function over a
+//                 ViewModel. ViewBuilder<T> is the convenience base.
 //
-//  A View is either Leaf or Composite. These are mutually exclusive and
-//  enforced at the protocol level, not at runtime.
+//  A View is either Leaf or Composed. A ComposedView without state
+//  implements build(context:) directly. A ComposedView with state
+//  conforms to ModelView — the framework routes its build through
+//  a Builder created via makeBuilder(model:).
 //
 
 @MainActor public protocol View {
     func makeNode() -> Node
 }
+
+// MARK: - Leaf
 
 @MainActor public protocol LeafView: View {
     func makeRenderer() -> Renderer
@@ -29,33 +37,96 @@ public extension LeafView {
     func makeNode() -> Node { LeafNode() }
 }
 
-@MainActor public protocol CompositeView: View {
+// MARK: - Composed
+
+/// A View composed of other views via a build function. Stateless
+/// composites implement `build(context:)` directly. Stateful
+/// composites conform to `ModelView` instead.
+@MainActor public protocol ComposedView: View {
+    func build(context: BuildContext) -> any View
+}
+
+public extension ComposedView {
+    func makeNode() -> Node { ComposedNode() }
+}
+
+/// A ComposedView with a persistent ViewModel and Builder. The
+/// framework routes build requests through the Builder returned by
+/// `makeBuilder(model:)` — implementers should not override
+/// `build(context:)` themselves (its default is a fatalError stub).
+@MainActor public protocol ModelView: ComposedView {
     associatedtype ModelType: ViewModel
-    func makeModel(node: Node) -> ModelType
+    func makeModel(context: BuildContext) -> ModelType
     func makeBuilder(model: ModelType) -> Builder
 }
 
-public extension CompositeView {
-    func makeNode() -> Node { CompositeNode() }
+public extension ModelView {
+    /// Stub. The framework calls the Builder's build directly; this
+    /// default exists only to satisfy the ComposedView requirement
+    /// and should never be invoked at runtime. ModelView implementers
+    /// should not override it.
+    func build(context: BuildContext) -> any View {
+        fatalError(
+            "ModelView.build(context:) should never be called directly. " +
+            "The framework routes builds through the Builder returned " +
+            "by makeBuilder(model:)."
+        )
+    }
 }
 
-@MainActor public protocol ViewModel: AnyObject {}
+// MARK: - ViewModel
 
-public final class EmptyModel: ViewModel {
+/// Base class for composite state. Holds a weak reference to the
+/// owning node (set by the framework after makeModel returns) and
+/// provides the `rebuild(_:)` method — call it with a mutation
+/// closure to update state and schedule a rebuild of the owning
+/// composite node's subtree.
+///
+/// Single-inheritance class instead of a protocol so users can
+/// subclass without boilerplate (`weak var node`, `init`, etc.).
+@MainActor open class ViewModel {
+    public weak var node: Node?
+
     public init() {}
+
+    /// Flutter-style setState. Runs the mutation closure synchronously,
+    /// then marks the owning node dirty — which schedules a rebuild
+    /// on the next main-actor tick.
+    public func rebuild(_ mutation: () -> Void) {
+        mutation()
+        node?.markDirty()
+    }
 }
+
+// MARK: - Builder
 
 @MainActor public protocol Builder: AnyObject {
-    /// Produces the subtree View for this composite. The context is the
-    /// builder's narrow window onto its owning node: it can subscribe to
-    /// observables (driving rebuilds) and nothing else. The Node itself
-    /// is intentionally hidden so builders can't navigate the tree,
-    /// touch lifecycle, or retain node state between passes.
-    func build(_ context: BuildContext) -> any View
+    /// Produces the subtree View for this composite. The context is
+    /// a narrow window onto the owning node.
+    func build(context: BuildContext) -> any View
 }
 
-/// A builder's limited view of its owning Node. Instances are created
-/// by the Resolver for a single build pass — don't retain them.
+/// Convenience base class for builders that operate on a specific
+/// ViewModel subclass. Captures the model at init, exposes it as
+/// `self.model`, and leaves build() for the subclass to override.
+@MainActor open class ViewBuilder<T: ViewModel>: Builder {
+    public let model: T
+
+    public init(model: T) {
+        self.model = model
+    }
+
+    open func build(context: BuildContext) -> any View {
+        fatalError("ViewBuilder subclass must override build(context:)")
+    }
+}
+
+// MARK: - BuildContext
+
+/// A builder's limited view of its owning Node. Instances are
+/// created by the framework per build pass — don't retain them.
+/// Also passed to ModelView.makeModel so models can do one-time
+/// context-aware setup (DI lookups, etc., once we grow those APIs).
 @MainActor public struct BuildContext {
     let node: Node
 
@@ -63,13 +134,17 @@ public final class EmptyModel: ViewModel {
         self.node = node
     }
 
-    /// Read the observable's current value and register this build pass
-    /// as a dependent — a subsequent emission marks the node dirty and
-    /// schedules a rebuild.
+    /// Read an Observable's current value and subscribe this build
+    /// pass to its changes. Currently vestigial — the preferred
+    /// pattern for local state is a ViewModel + rebuild { ... }, not
+    /// observables. Kept for cases where a leaf needs to subscribe
+    /// to an externally-owned observable.
     public func watch<T>(_ observable: Observable<T>) -> T {
         node.watch(observable)
     }
 }
+
+// MARK: - Renderer
 
 @MainActor public protocol Renderer: AnyObject {
     /// Create a fresh PlatformView from this renderer's props.
@@ -77,7 +152,6 @@ public final class EmptyModel: ViewModel {
 
     /// Apply this renderer's props to an already-mounted PlatformView.
     /// Called during rebuild when the leaf node's type hasn't changed —
-    /// preserves PlatformView identity and any native state it carries
-    /// (scroll position, first responder, in-flight animations, etc.).
+    /// preserves PlatformView identity and any native state it carries.
     func update(_ platformView: PlatformView)
 }

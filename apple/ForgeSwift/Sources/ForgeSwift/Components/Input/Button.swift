@@ -26,7 +26,7 @@ public struct Button: LeafView {
     }
 }
 
-@MainActor public final class ButtonRenderer: Renderer {
+public final class ButtonRenderer: Renderer {
     let title: String
     let onTap: @MainActor () -> Void
 

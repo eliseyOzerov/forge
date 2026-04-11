@@ -15,47 +15,34 @@ class ForgeDemo: App {
 
 // MARK: - Counter
 //
-// Tap-driven composite. Proves: Button leaf, CompositeView + Model +
-// Builder, Observable → markDirty → rebuild, and that the rebuild
-// loop survives re-entrancy from the button's own action handler.
+// Tap-driven composite using the ViewModel + rebuild { ... } pattern.
+// CounterModel holds plain state (`var count = 0`), mutates it via
+// `rebuild { }`, which triggers the owning node to re-run its build.
+// CounterBuilder reads `model.count` directly — no observable, no
+// subscription, no watch.
 
-@MainActor
-protocol CounterData: AnyObject {
-    var count: Observable<Int> { get }
-    func increment()
-}
-
-@MainActor
-final class CounterModel: ViewModel, CounterData {
-    let count = Observable(0)
+final class CounterModel: ViewModel {
+    var count = 0
 
     func increment() {
-        count.value += 1
+        rebuild { count += 1 }
     }
 }
 
-@MainActor
-final class CounterBuilder: Builder {
-    let data: CounterData
-
-    init(data: CounterData) {
-        self.data = data
-    }
-
-    func build(_ context: BuildContext) -> any View {
-        let value = context.watch(data.count)
-        return Button("Tapped \(value) times") { [weak data] in
-            data?.increment()
+final class CounterBuilder: ViewBuilder<CounterModel> {
+    override func build(context: BuildContext) -> any View {
+        Button("Tapped \(model.count) times") { [weak model] in
+            model?.increment()
         }
     }
 }
 
-struct Counter: CompositeView {
-    func makeModel(node: Node) -> CounterModel {
+struct Counter: ModelView {
+    func makeModel(context: BuildContext) -> CounterModel {
         CounterModel()
     }
 
     func makeBuilder(model: CounterModel) -> Builder {
-        CounterBuilder(data: model)
+        CounterBuilder(model: model)
     }
 }

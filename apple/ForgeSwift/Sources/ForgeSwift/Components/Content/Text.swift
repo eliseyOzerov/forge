@@ -32,7 +32,7 @@ public struct Text: LeafView {
 #if canImport(UIKit)
 import UIKit
 
-@MainActor public final class UIKitTextRenderer: Renderer {
+public final class UIKitTextRenderer: Renderer {
     let content: String
 
     init(content: String) {
@@ -65,7 +65,7 @@ import UIKit
 #if canImport(AppKit)
 import AppKit
 
-@MainActor public final class AppKitTextRenderer: Renderer {
+public final class AppKitTextRenderer: Renderer {
     let content: String
 
     init(content: String) {

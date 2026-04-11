@@ -3,25 +3,19 @@
 //  ForgeSwift
 //
 //  Node is the long-lived identity anchor. It owns the Model, the
-//  Builder/Renderer, the PlatformView, and subscriptions to observables.
+//  Builder/Renderer, the PlatformView, and subscriptions.
 //
-//  Lifecycle methods are defined here and overridden by subclasses —
-//  LeafNode and CompositeNode each know how to set themselves up,
+//  Lifecycle methods live here and are overridden by subclasses —
+//  LeafNode and ComposedNode each know how to set themselves up,
 //  update in place when a parent re-renders them, and tear down.
 //  The Resolver is just an entry point + retention root.
 //
-//  Subscription lifecycle: during a build pass, the Builder calls
-//  `context.watch(...)` for each observable it reads. These subscriptions
-//  are accumulated on the Node and replace the previous pass's set,
-//  so "dependencies" = "observables actually read in the most recent
-//  build()". On unmount, all subscriptions are cancelled.
-//
-//  Identity stability: CompositeNode owns a wrapper PlatformView created
-//  at mount time. Its child subtree is placed inside the wrapper. The
-//  wrapper identity is stable across rebuilds — only its contents swap.
-//  LeafNode preserves its PlatformView across rebuilds too, as long as
-//  the new View is the same concrete type; the renderer's `update` path
-//  applies new props without tearing down the native object.
+//  Identity stability: ComposedNode owns a wrapper PlatformView
+//  created at mount time. Its child subtree is placed inside the
+//  wrapper; only the contents swap on rebuild. LeafNode preserves
+//  its PlatformView across rebuilds too, as long as the new View is
+//  the same concrete type — the renderer's `update` path applies
+//  new props without tearing down the native object.
 //
 
 #if canImport(UIKit)
@@ -72,8 +66,10 @@ import AppKit
         return type(of: current) == type(of: newView)
     }
 
-    /// Read the observable's current value and register this node as
-    /// a dependent so a subsequent emission marks the node dirty.
+    /// Read an observable's current value and register this node as
+    /// a dependent so a subsequent emission marks it dirty. Used by
+    /// BuildContext.watch; the local-state rebuild pattern doesn't
+    /// use this — it calls markDirty() directly from ViewModel.rebuild.
     public func watch<T>(_ observable: Observable<T>) -> T {
         let sub = observable.observe { [weak self] _ in
             self?.markDirty()
@@ -107,7 +103,7 @@ import AppKit
 
 // MARK: - LeafNode
 
-@MainActor public final class LeafNode: Node {
+public final class LeafNode: Node {
     public var renderer: Renderer?
 
     override func setup(from view: any View) {
@@ -136,9 +132,9 @@ import AppKit
     }
 }
 
-// MARK: - CompositeNode
+// MARK: - ComposedNode
 
-@MainActor public final class CompositeNode: Node {
+public final class ComposedNode: Node {
     public var model: ViewModel?
     public var builder: Builder?
     public var child: Node?
@@ -150,22 +146,24 @@ import AppKit
 
     override func setup(from view: any View) {
         super.setup(from: view)
-        guard let composite = view as? any CompositeView else {
-            fatalError("CompositeNode.setup called with non-CompositeView: \(type(of: view))")
+        guard view is any ComposedView else {
+            fatalError("ComposedNode.setup called with non-ComposedView: \(type(of: view))")
         }
-        makeModelAndBuilder(composite)
+        if let modelView = view as? any ModelView {
+            makeModelAndBuilder(modelView)
+        }
         wireOnDirty()
         performBuild()
     }
 
     override func update(from view: any View) {
         super.update(from: view)
-        guard let composite = view as? any CompositeView else {
-            fatalError("CompositeNode.update called with non-CompositeView: \(type(of: view))")
+        guard view is any ComposedView else {
+            fatalError("ComposedNode.update called with non-ComposedView: \(type(of: view))")
         }
-        // Model is preserved across prop changes; builder is remade
-        // from the new view so any new props are captured.
-        remakeBuilder(composite)
+        if let modelView = view as? any ModelView {
+            remakeBuilder(modelView)
+        }
         performBuild()
     }
 
@@ -174,24 +172,27 @@ import AppKit
         child = nil
     }
 
-    private func makeModelAndBuilder<V: CompositeView>(_ view: V) {
-        let model = view.makeModel(node: self)
+    private func makeModelAndBuilder<V: ModelView>(_ view: V) {
+        let context = BuildContext(node: self)
+        let model = view.makeModel(context: context)
+        model.node = self
         let builder = view.makeBuilder(model: model)
         self.model = model
         self.builder = builder
     }
 
-    private func remakeBuilder<V: CompositeView>(_ view: V) {
+    private func remakeBuilder<V: ModelView>(_ view: V) {
         guard let existingModel = self.model as? V.ModelType else {
-            fatalError("Model type mismatch during CompositeNode.update")
+            fatalError("Model type mismatch during ComposedNode.update")
         }
         self.builder = view.makeBuilder(model: existingModel)
     }
 
     private func wireOnDirty() {
-        // Deferred to the next main-actor tick so that if a rebuild is
-        // triggered by an input event (button tap), the handler fully
-        // unwinds before we touch the views it's attached to.
+        // Deferred to the next main-actor tick so that if a rebuild
+        // is triggered by an input event (button tap) or a ViewModel
+        // mutation, the caller fully unwinds before we touch the
+        // views it's attached to.
         self.onDirty = { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
@@ -201,14 +202,23 @@ import AppKit
     }
 
     private func performBuild() {
-        guard let builder, let wrapper = self.platformView else { return }
+        guard let wrapper = self.platformView else { return }
         beginBuild()
         let context = BuildContext(node: self)
-        let newChildView = builder.build(context)
+
+        let newChildView: any View
+        if let builder = self.builder {
+            // ModelView path — route through the stored Builder.
+            newChildView = builder.build(context: context)
+        } else if let composed = self.view as? any ComposedView {
+            // Stateless ComposedView — call the view's build directly.
+            newChildView = composed.build(context: context)
+        } else {
+            fatalError("ComposedNode has no build path")
+        }
 
         if let existingChild = self.child, existingChild.canUpdate(to: newChildView) {
-            // Same type at the same position — preserve identity, apply
-            // new props through the child's own update path.
+            // Same concrete type — preserve identity, apply new props.
             existingChild.update(from: newChildView)
         } else {
             // Type changed or no existing child — blow away and recreate.
