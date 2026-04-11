@@ -78,7 +78,7 @@ open class App: NSObject, NSApplicationDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "SwiftKit App"
+        window.title = "ForgeSwift App"
         window.center()
         self.window = window
 

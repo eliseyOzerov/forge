@@ -1,0 +1,26 @@
+// swift-tools-version: 6.1
+
+import PackageDescription
+
+let package = Package(
+    name: "ForgeSwift",
+    platforms: [
+        .iOS(.v15),
+        .macOS(.v12),
+        .tvOS(.v15),
+        .visionOS(.v1)
+    ],
+    products: [
+        .library(
+            name: "ForgeSwift",
+            targets: ["ForgeSwift"]),
+    ],
+    targets: [
+        .target(
+            name: "ForgeSwift"),
+        .testTarget(
+            name: "ForgeSwiftTests",
+            dependencies: ["ForgeSwift"]
+        ),
+    ]
+)

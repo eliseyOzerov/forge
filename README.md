@@ -16,8 +16,8 @@ forge/
   docs/                    Shared spec: vocabulary, semantics, taxonomy.
                            The contract every implementation must honor.
   apple/                   Swift (UIKit + AppKit)
-    SwiftKit/              Library
-    SwiftKitDemo/          Host app (pending)
+    ForgeSwift/            Library
+    ForgeSwiftDemo/        Host app
   android/                 Kotlin + Compose (future)
   web/                     TypeScript + DOM (future)
 ```
