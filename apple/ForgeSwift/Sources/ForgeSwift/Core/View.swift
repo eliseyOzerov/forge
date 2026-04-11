@@ -72,5 +72,12 @@ public final class EmptyModel: ViewModel {
 }
 
 @MainActor public protocol Renderer: AnyObject {
+    /// Create a fresh PlatformView from this renderer's props.
     func mount() -> PlatformView
+
+    /// Apply this renderer's props to an already-mounted PlatformView.
+    /// Called during rebuild when the leaf node's type hasn't changed —
+    /// preserves PlatformView identity and any native state it carries
+    /// (scroll position, first responder, in-flight animations, etc.).
+    func update(_ platformView: PlatformView)
 }

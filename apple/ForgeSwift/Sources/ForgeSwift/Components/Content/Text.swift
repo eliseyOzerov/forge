@@ -1,9 +1,6 @@
 //
 //  Text.swift
-//  SwiftKit
-//
-//  First leaf view end-to-end. Proves the protocol shape produces
-//  a visible pixel.
+//  ForgeSwift
 //
 
 #if canImport(UIKit)
@@ -34,10 +31,7 @@ public struct Text: LeafView {
     public func mount() -> PlatformView {
         #if canImport(UIKit)
         let label = UILabel()
-        label.text = content
-        label.textColor = .label
-        label.numberOfLines = 0
-        label.textAlignment = .center
+        apply(to: label)
         return label
         #elseif canImport(AppKit)
         let label = NSTextField(labelWithString: content)
@@ -45,4 +39,23 @@ public struct Text: LeafView {
         return label
         #endif
     }
+
+    public func update(_ platformView: PlatformView) {
+        #if canImport(UIKit)
+        guard let label = platformView as? UILabel else { return }
+        apply(to: label)
+        #elseif canImport(AppKit)
+        guard let label = platformView as? NSTextField else { return }
+        label.stringValue = content
+        #endif
+    }
+
+    #if canImport(UIKit)
+    private func apply(to label: UILabel) {
+        label.text = content
+        label.textColor = .label
+        label.numberOfLines = 0
+        label.textAlignment = .center
+    }
+    #endif
 }
