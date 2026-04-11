@@ -1,6 +1,6 @@
 //
 //  Node.swift
-//  SwiftKit
+//  ForgeSwift
 //
 //  Node is the long-lived identity anchor. It owns the Model, the
 //  Builder/Renderer, the PlatformView, and subscriptions to observables.
@@ -11,6 +11,18 @@
 //  so "dependencies" = "observables actually read in the most recent
 //  build()". On unmount, all subscriptions are cancelled.
 //
+//  Identity stability: CompositeNode owns a wrapper PlatformView created
+//  at mount time. Its child subtree is placed inside the wrapper. The
+//  wrapper identity is stable across rebuilds — only its contents swap.
+//  This keeps constraints attached from above (parent composite or host)
+//  from dangling when the inner subtree is replaced.
+//
+
+#if canImport(UIKit)
+import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
 @MainActor public class Node {
     public weak var parent: Node?
@@ -61,4 +73,9 @@
     public var model: ViewModel?
     public var builder: Builder?
     public var view: (any View)?
+
+    public override init() {
+        super.init()
+        self.platformView = PlatformView()
+    }
 }

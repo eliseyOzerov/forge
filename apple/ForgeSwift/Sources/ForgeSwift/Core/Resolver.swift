@@ -1,15 +1,25 @@
 //
 //  Resolver.swift
-//  SwiftKit
+//  ForgeSwift
 //
 //  The reconciler. Walks a View tree, creating Nodes/Models/Builders/
 //  Renderers as it goes, and wires up dirty handlers so subsequent
 //  rebuilds re-run the smallest affected subtree.
 //
-//  v2 day 1: naive rebuild. On dirty, unmount the composite node's
-//  entire child subtree and re-run its builder. Prop-diffing and
-//  structural diffing come later.
+//  v2 day 2: composite nodes own a stable wrapper PlatformView. Rebuilds
+//  replace the contents of the wrapper, not the wrapper itself. This
+//  keeps parent-side constraints intact across rebuilds.
 //
+//  Still naive on structural diffing: rebuild tears down the entire
+//  child subtree and re-runs the builder. Prop-diffing and key-based
+//  reconciliation come later.
+//
+
+#if canImport(UIKit)
+import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
 @MainActor public final class Resolver {
     public init() {}
@@ -70,26 +80,34 @@
     }
 
     private func buildSubtree(_ node: CompositeNode) {
-        guard let builder = node.builder else { return }
+        guard let builder = node.builder, let wrapper = node.platformView else { return }
         node.beginBuild()
         let childView = builder.build()
         let childNode = inflate(view: childView, parent: node)
         node.children = [childNode]
-        node.platformView = childNode.platformView
+        if let childPlatform = childNode.platformView {
+            attach(childPlatform, inside: wrapper)
+        }
     }
 
     private func rebuild(_ node: CompositeNode) {
-        let oldPlatform = node.platformView
-        let superview = oldPlatform?.superview
-
         for child in node.children { child.unmount() }
         node.children.removeAll()
-
         buildSubtree(node)
+    }
 
-        if let superview, let new = node.platformView, new !== oldPlatform {
-            oldPlatform?.removeFromSuperview()
-            superview.addSubview(new)
-        }
+    /// Pin `child` to fill `parent`. Parent sizes to child's intrinsic
+    /// content via the pinning constraints, so a composite wrapper
+    /// inherits its content's natural size without needing explicit
+    /// size constraints.
+    private func attach(_ child: PlatformView, inside parent: PlatformView) {
+        child.translatesAutoresizingMaskIntoConstraints = false
+        parent.addSubview(child)
+        NSLayoutConstraint.activate([
+            child.leadingAnchor.constraint(equalTo: parent.leadingAnchor),
+            child.trailingAnchor.constraint(equalTo: parent.trailingAnchor),
+            child.topAnchor.constraint(equalTo: parent.topAnchor),
+            child.bottomAnchor.constraint(equalTo: parent.bottomAnchor),
+        ])
     }
 }

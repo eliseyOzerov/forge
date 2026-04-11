@@ -24,7 +24,11 @@
         get { _value }
         set {
             _value = newValue
-            for observer in observers.values {
+            // Snapshot before iterating: observer callbacks may trigger
+            // rebuilds that cancel subscriptions, mutating `observers` —
+            // iterating a Dictionary while mutating it is UB in Swift.
+            let snapshot = Array(observers.values)
+            for observer in snapshot {
                 observer(newValue)
             }
         }
