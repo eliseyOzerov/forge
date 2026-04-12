@@ -1,7 +1,8 @@
 import CoreGraphics
 
 /// Converts an SVGDocument into a Surface by walking the element tree
-/// and producing layers for each SVG element's fill and stroke.
+/// and producing layers using the SurfaceBuilder API. No platform-specific
+/// rendering code — the Surface is rendered by SurfaceRenderer.
 public struct SVGSurfaceBuilder {
     public let document: SVGDocument
     public let overrides: [String: GraphicOverride]
@@ -13,123 +14,153 @@ public struct SVGSurfaceBuilder {
         self.globalColor = globalColor
     }
 
-    /// Build a Surface that renders the entire SVG, fitted into whatever
-    /// bounds it's given (viewBox scaling is baked into a transform layer).
     public func build() -> Surface {
-        Surface(layers: [ViewBoxLayer(document: document, overrides: overrides, globalColor: globalColor, elements: document.elements)])
-    }
-}
-
-// MARK: - GraphicOverride
-
-public struct GraphicOverride {
-    public var fill: Color?
-    public var stroke: Color?
-    public var strokeWidth: CGFloat?
-    public var opacity: CGFloat?
-    public var isHidden: Bool
-
-    public init(fill: Color? = nil, stroke: Color? = nil, strokeWidth: CGFloat? = nil, opacity: CGFloat? = nil, isHidden: Bool = false) {
-        self.fill = fill; self.stroke = stroke; self.strokeWidth = strokeWidth; self.opacity = opacity; self.isHidden = isHidden
-    }
-}
-
-// MARK: - ViewBox Layer
-
-/// Top-level layer that applies viewBox → canvas scaling then renders elements.
-#if canImport(UIKit)
-import UIKit
-
-struct ViewBoxLayer: Layer {
-    let document: SVGDocument
-    let overrides: [String: GraphicOverride]
-    let globalColor: Color?
-    let elements: [SVGElement]
-
-    func render(in ctx: CGContext, path: CGPath, bounds: CGRect) {
-        let vb = document.viewBox
-        guard vb.width > 0, vb.height > 0 else { return }
-
-        let scaleX = bounds.width / vb.width, scaleY = bounds.height / vb.height
-        let scale = min(scaleX, scaleY)
-        let offsetX = (bounds.width - vb.width * scale) / 2
-        let offsetY = (bounds.height - vb.height * scale) / 2
-
-        ctx.saveGState()
-        ctx.translateBy(x: bounds.minX + offsetX, y: bounds.minY + offsetY)
-        ctx.scaleBy(x: scale, y: scale)
-        ctx.translateBy(x: -vb.origin.x, y: -vb.origin.y)
-
-        for element in elements {
-            renderElement(element, in: ctx)
+        var elementLayers: [any Layer] = []
+        for element in document.elements {
+            buildElement(element, into: &elementLayers)
         }
-        ctx.restoreGState()
+
+        let vb = document.viewBox
+        guard vb.width > 0, vb.height > 0 else { return Surface(layers: elementLayers) }
+
+        // Wrap all element layers in a viewBox → canvas transform
+        let viewBoxLayer = TransformLayer(children: elementLayers, apply: { ctx, _, bounds in
+            #if canImport(UIKit)
+            let scaleX = bounds.width / vb.width, scaleY = bounds.height / vb.height
+            let scale = min(scaleX, scaleY)
+            let offsetX = (bounds.width - vb.width * scale) / 2
+            let offsetY = (bounds.height - vb.height * scale) / 2
+            ctx.translateBy(x: bounds.minX + offsetX, y: bounds.minY + offsetY)
+            ctx.scaleBy(x: scale, y: scale)
+            ctx.translateBy(x: -vb.origin.x, y: -vb.origin.y)
+            #endif
+        }, cleanup: nil)
+
+        return Surface(layers: [viewBoxLayer])
     }
 
-    private func renderElement(_ element: SVGElement, in ctx: CGContext) {
+    // MARK: - Element → Layers
+
+    private func buildElement(_ element: SVGElement, into layers: inout [any Layer]) {
         switch element {
         case .path(let data):
-            let p = SVGPathDataParser.parse(data.d)
-            drawPath(p.cgPath, attributes: data.attributes, id: data.id, in: ctx)
+            let path = SVGPathDataParser.parse(data.d)
+            buildPath(path, attributes: data.attributes, id: data.id, into: &layers)
+
         case .rect(let data):
-            let rect = CGRect(x: data.x, y: data.y, width: data.width, height: data.height)
-            let cgPath: CGPath
+            let shape: Shape
             if data.rx > 0 || data.ry > 0 {
-                cgPath = CGPath(roundedRect: rect, cornerWidth: data.rx > 0 ? data.rx : data.ry, cornerHeight: data.ry > 0 ? data.ry : data.rx, transform: nil)
-            } else { cgPath = CGPath(rect: rect, transform: nil) }
-            drawPath(cgPath, attributes: data.attributes, id: data.id, in: ctx)
+                let r = data.rx > 0 ? data.rx : data.ry
+                shape = Shape({ _ in
+                    var p = Path()
+                    p.addRoundedRect(CGRect(x: data.x, y: data.y, width: data.width, height: data.height), cornerWidth: r, cornerHeight: r)
+                    return p
+                })
+            } else {
+                shape = Shape({ _ in
+                    var p = Path(); p.addRect(CGRect(x: data.x, y: data.y, width: data.width, height: data.height)); return p
+                })
+            }
+            buildShape(shape, attributes: data.attributes, id: data.id, into: &layers)
+
         case .circle(let data):
-            let rect = CGRect(x: data.cx - data.r, y: data.cy - data.r, width: data.r * 2, height: data.r * 2)
-            drawPath(CGPath(ellipseIn: rect, transform: nil), attributes: data.attributes, id: data.id, in: ctx)
+            let shape = Shape({ _ in
+                var p = Path(); p.addEllipse(in: CGRect(x: data.cx - data.r, y: data.cy - data.r, width: data.r * 2, height: data.r * 2)); return p
+            })
+            buildShape(shape, attributes: data.attributes, id: data.id, into: &layers)
+
         case .ellipse(let data):
-            let rect = CGRect(x: data.cx - data.rx, y: data.cy - data.ry, width: data.rx * 2, height: data.ry * 2)
-            drawPath(CGPath(ellipseIn: rect, transform: nil), attributes: data.attributes, id: data.id, in: ctx)
+            let shape = Shape({ _ in
+                var p = Path(); p.addEllipse(in: CGRect(x: data.cx - data.rx, y: data.cy - data.ry, width: data.rx * 2, height: data.ry * 2)); return p
+            })
+            buildShape(shape, attributes: data.attributes, id: data.id, into: &layers)
+
         case .line(let data):
-            var p = Path(); p.move(to: CGPoint(x: data.x1, y: data.y1)); p.line(to: CGPoint(x: data.x2, y: data.y2))
             var attrs = data.attributes; attrs.fill = .none
             if case .none = attrs.stroke { attrs.stroke = .color(.black) }
-            drawPath(p.cgPath, attributes: attrs, id: data.id, in: ctx)
+            let path = Path.line(from: CGPoint(x: data.x1, y: data.y1), to: CGPoint(x: data.x2, y: data.y2))
+            buildPath(path, attributes: attrs, id: data.id, into: &layers)
+
         case .polygon(let data):
             guard !data.points.isEmpty else { return }
-            var p = Path(); p.move(to: data.points[0])
-            for pt in data.points.dropFirst() { p.line(to: pt) }; p.close()
-            drawPath(p.cgPath, attributes: data.attributes, id: data.id, in: ctx)
+            let path = Path.polygon(data.points)
+            buildPath(path, attributes: data.attributes, id: data.id, into: &layers)
+
         case .polyline(let data):
             guard !data.points.isEmpty else { return }
-            var p = Path(); p.move(to: data.points[0])
-            for pt in data.points.dropFirst() { p.line(to: pt) }
-            drawPath(p.cgPath, attributes: data.attributes, id: data.id, in: ctx)
+            let path = Path.polyline(data.points)
+            buildPath(path, attributes: data.attributes, id: data.id, into: &layers)
+
         case .group(let data):
             if overrides[data.id]?.isHidden == true { return }
-            ctx.saveGState()
-            if data.attributes.transform != .identity { ctx.concatenate(data.attributes.transform) }
-            ctx.setAlpha(overrides[data.id]?.opacity ?? CGFloat(data.attributes.opacity))
-            for child in data.children { renderElement(child, in: ctx) }
-            ctx.restoreGState()
+            var children: [any Layer] = []
+            for child in data.children { buildElement(child, into: &children) }
+
+            let opacity = overrides[data.id]?.opacity ?? CGFloat(data.attributes.opacity)
+            if data.attributes.transform != .identity || opacity < 1 {
+                // Wrap children in a transform+opacity layer
+                let t = Transform2D(data.attributes.transform)
+                layers.append(TransformLayer(children: children, apply: { ctx, _, _ in
+                    #if canImport(UIKit)
+                    ctx.concatenate(t.cgAffineTransform)
+                    ctx.setAlpha(opacity)
+                    #endif
+                }, cleanup: nil))
+            } else {
+                layers.append(contentsOf: children)
+            }
         }
     }
 
-    private func drawPath(_ cgPath: CGPath, attributes: SVGPaintAttributes, id: String, in ctx: CGContext) {
+    private func buildPath(_ path: Path, attributes: SVGPaintAttributes, id: String, into layers: inout [any Layer]) {
+        let shape = Shape({ _ in path })
+        buildShape(shape, attributes: attributes, id: id, into: &layers)
+    }
+
+    private func buildShape(_ shape: Shape, attributes: SVGPaintAttributes, id: String, into layers: inout [any Layer]) {
         let ov = overrides[id]
         if ov?.isHidden == true { return }
 
-        ctx.saveGState()
-        if attributes.transform != .identity { ctx.concatenate(attributes.transform) }
-        ctx.setAlpha(ov?.opacity ?? CGFloat(attributes.opacity))
+        let opacity = ov?.opacity ?? CGFloat(attributes.opacity)
+        let paint = { (fill: Fill) -> Paint in
+            Paint(fill, opacity: opacity)
+        }
 
+        // Fill
         if let fillColor = resolveFill(attributes, override: ov) {
-            ctx.addPath(cgPath); ctx.setFillColor(fillColor.cgColor); ctx.fillPath()
+            if attributes.transform != .identity {
+                // Wrap in transform
+                let t = Transform2D(attributes.transform)
+                layers.append(TransformLayer(children: [ShapeLayer(shape, paint(.color(fillColor)))], apply: { ctx, _, _ in
+                    #if canImport(UIKit)
+                    ctx.concatenate(t.cgAffineTransform)
+                    #endif
+                }, cleanup: nil))
+            } else {
+                layers.append(ShapeLayer(shape, paint(.color(fillColor))))
+            }
         }
+
+        // Stroke
         if let strokeColor = resolveStroke(attributes, override: ov) {
-            ctx.addPath(cgPath)
-            ctx.setStrokeColor(strokeColor.cgColor)
-            ctx.setLineWidth(ov?.strokeWidth ?? attributes.strokeWidth)
-            ctx.setLineCap(attributes.strokeLineCap)
-            ctx.setLineJoin(attributes.strokeLineJoin)
-            ctx.strokePath()
+            let width = ov?.strokeWidth ?? attributes.strokeWidth
+            let stroke = Stroke(width: width,
+                                cap: StrokeCap(attributes.strokeLineCap),
+                                join: StrokeJoin(attributes.strokeLineJoin))
+            if attributes.transform != .identity {
+                let t = Transform2D(attributes.transform)
+                layers.append(TransformLayer(children: [StrokeLayer(stroke, paint(.color(strokeColor)))], apply: { ctx, _, _ in
+                    #if canImport(UIKit)
+                    ctx.concatenate(t.cgAffineTransform)
+                    #endif
+                }, cleanup: nil))
+            } else {
+                layers.append(StrokeLayer(stroke, paint(.color(strokeColor))))
+            }
         }
-        ctx.restoreGState()
     }
+
+    // MARK: - Color Resolution
 
     private func resolveFill(_ attrs: SVGPaintAttributes, override ov: GraphicOverride?) -> Color? {
         if let c = ov?.fill { return c }
@@ -147,4 +178,30 @@ struct ViewBoxLayer: Layer {
     }
 }
 
-#endif
+// MARK: - GraphicOverride
+
+public struct GraphicOverride {
+    public var fill: Color?
+    public var stroke: Color?
+    public var strokeWidth: CGFloat?
+    public var opacity: CGFloat?
+    public var isHidden: Bool
+
+    public init(fill: Color? = nil, stroke: Color? = nil, strokeWidth: CGFloat? = nil, opacity: CGFloat? = nil, isHidden: Bool = false) {
+        self.fill = fill; self.stroke = stroke; self.strokeWidth = strokeWidth; self.opacity = opacity; self.isHidden = isHidden
+    }
+}
+
+// MARK: - Helpers
+
+extension StrokeCap {
+    init(_ cgLineCap: CGLineCap) {
+        switch cgLineCap { case .butt: self = .butt; case .round: self = .round; case .square: self = .square; @unknown default: self = .butt }
+    }
+}
+
+extension StrokeJoin {
+    init(_ cgLineJoin: CGLineJoin) {
+        switch cgLineJoin { case .miter: self = .miter; case .round: self = .round; case .bevel: self = .bevel; @unknown default: self = .miter }
+    }
+}
