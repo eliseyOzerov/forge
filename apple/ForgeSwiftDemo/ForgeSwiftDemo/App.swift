@@ -9,8 +9,58 @@ import ForgeSwift
 @main
 class ForgeDemo: App {
     override var body: any View {
-        Box(.fillWidth.height(100), .color(.blue)) {
-            Text("Hello World!")
+        Column(spacing: 24, alignment: .topLeft) {
+            // Packed row (default), left-aligned
+            label("packed, left")
+            Row(spacing: 8, alignment: .centerLeft) {
+                chip("A")
+                chip("B")
+                chip("C")
+            }
+
+            // Space between
+            label("between")
+            Row(spread: .between) {
+                chip("1")
+                chip("2")
+                chip("3")
+            }
+
+            // Space around
+            label("around")
+            Row(spread: .around) {
+                chip("X")
+                chip("Y")
+                chip("Z")
+            }
+
+            // Space even
+            label("even")
+            Row(spread: .even) {
+                chip("!")
+                chip("@")
+                chip("#")
+            }
+
+            // Fill child in a row
+            label("fill child")
+            Row(spacing: 8) {
+                chip("fixed")
+                Box(.width(.fill()).height(.fix(40)), .color(Color(0.2, 0.7, 0.4))) {
+                    Text("fills", style: TextStyle(font: Font(size: 14), color: .white, align: .center))
+                }
+                chip("fixed")
+            }
+        }.padded(20)
+    }
+
+    private func label(_ text: String) -> Text {
+        Text(text, style: TextStyle(font: Font(size: 12, weight: 500), color: .gray, align: .leading))
+    }
+
+    private func chip(_ text: String) -> Box {
+        Box(.fixed(40, 40), .color(Color(0.2, 0.5, 1.0)), .roundedRect(radius: 8)) {
+            Text(text, style: TextStyle(font: Font(size: 16, weight: 600), color: .white, align: .center))
         }
     }
 }
