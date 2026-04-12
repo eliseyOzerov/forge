@@ -164,18 +164,21 @@ final class BoxView: UIView, UIScrollViewDelegate {
     required init?(coder: NSCoder) { fatalError() }
 
     private func configureScrollIfNeeded() {
-        if case .scroll(let axis, let state) = boxOverflow {
+        if case .scroll(let config) = boxOverflow {
             if scrollView == nil {
                 let sv = UIScrollView()
                 sv.delegate = self
-                sv.contentInsetAdjustmentBehavior = .never
-                sv.showsHorizontalScrollIndicator = axis != .vertical
-                sv.showsVerticalScrollIndicator = axis != .horizontal
                 super.addSubview(sv)
                 scrollView = sv
             }
-            scrollState = state
-            state?.scrollCommand = { [weak self] offset, animated in
+            let sv = scrollView!
+            sv.contentInsetAdjustmentBehavior = config.safeArea ? .automatic : .never
+            sv.showsHorizontalScrollIndicator = config.showsIndicators && config.axis != .vertical
+            sv.showsVerticalScrollIndicator = config.showsIndicators && config.axis != .horizontal
+            sv.bounces = config.bounces
+            sv.isPagingEnabled = config.paging
+            scrollState = config.state
+            config.state?.scrollCommand = { [weak self] offset, animated in
                 self?.scrollView?.setContentOffset(CGPoint(x: offset.x, y: offset.y), animated: animated)
             }
         } else {
@@ -289,7 +292,7 @@ final class BoxView: UIView, UIScrollViewDelegate {
             height: bounds.height - boxPadding.top - boxPadding.bottom
         )
 
-        let scrollAxis: Axis? = if case .scroll(let axis, _) = boxOverflow { axis } else { nil }
+        let scrollAxis: Axis? = if case .scroll(let config) = boxOverflow { config.axis } else { nil }
         let isScrolling = scrollView != nil
         let children = isScrolling ? (scrollView?.subviews ?? []) : subviews.filter { $0 !== scrollView }
 

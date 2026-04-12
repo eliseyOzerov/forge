@@ -2,7 +2,33 @@
 public enum Overflow {
     case clip
     case visible
-    case scroll(Axis? = nil, ScrollState? = nil)
+    case scroll(ScrollConfig = ScrollConfig())
+}
+
+/// Configuration for scroll overflow behavior.
+public struct ScrollConfig {
+    public var axis: Axis?
+    public var state: ScrollState?
+    public var showsIndicators: Bool
+    public var bounces: Bool
+    public var paging: Bool
+    public var safeArea: Bool
+
+    public init(
+        axis: Axis? = nil,
+        state: ScrollState? = nil,
+        showsIndicators: Bool = true,
+        bounces: Bool = true,
+        paging: Bool = false,
+        safeArea: Bool = false
+    ) {
+        self.axis = axis
+        self.state = state
+        self.showsIndicators = showsIndicators
+        self.bounces = bounces
+        self.paging = paging
+        self.safeArea = safeArea
+    }
 }
 
 /// Observable scroll state for programmatic control.
@@ -21,7 +47,6 @@ public final class ScrollState {
 
     public init() {}
 
-    // Commands — set by BoxView's scroll delegate
     var scrollCommand: ((Vec2, Bool) -> Void)?
 
     public func scrollTo(_ offset: Vec2, animated: Bool = true) {
