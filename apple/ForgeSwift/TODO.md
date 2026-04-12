@@ -1,7 +1,6 @@
 # Components TODO
 
 ## Content
-- AnimatedTransform
 - Audio
 - Chart
 - Embed
@@ -71,7 +70,6 @@
 - Scaffold
 
 ## Visibility
-- AnimatedVisibility
 - Lift
 - Transition
 

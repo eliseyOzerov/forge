@@ -9,7 +9,7 @@ import ForgeSwift
 @main
 class ForgeDemo: App {
     override var body: any View {
-        VStack(spacing: 16) {
+        Column(spacing: 16) {
             Text("Hello, Forge!", style: TextStyle(
                 font: Font(size: 32, weight: 700),
                 align: .center
@@ -40,7 +40,7 @@ final class ShuffleModel: ViewModel<Shuffler> {
 
 final class ShuffleBuilder: ViewBuilder<ShuffleModel> {
     override func build(context: BuildContext) -> any View {
-        VStack(spacing: 12) {
+        Column(spacing: 12) {
             for id in model.ids {
                 ItemCounter(tag: id)
             }
