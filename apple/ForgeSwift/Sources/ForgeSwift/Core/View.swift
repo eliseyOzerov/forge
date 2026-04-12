@@ -52,12 +52,19 @@ public extension ComposedView {
 
 /// A ComposedView with a persistent ViewModel and Builder. The
 /// framework routes build requests through the Builder returned by
-/// `makeBuilder(model:)` — implementers should not override
+/// `makeBuilder()` — implementers should not override
 /// `build(context:)` themselves (its default is a fatalError stub).
+///
+/// The framework creates the model via `makeModel`, calls its
+/// lifecycle hooks (`didInit` / `didUpdate`), creates the builder
+/// via `makeBuilder()`, and wires the model onto the builder. The
+/// builder reads all data from the model — no extra constructor
+/// arguments needed.
 @MainActor public protocol ModelView: ComposedView {
-    associatedtype ModelType: ViewModel
+    associatedtype ModelType: ViewModelBase
+    associatedtype BuilderType: ViewBuilder<ModelType>
     func makeModel(context: BuildContext) -> ModelType
-    func makeBuilder(model: ModelType) -> Builder
+    func makeBuilder() -> BuilderType
 }
 
 public extension ModelView {
@@ -76,15 +83,9 @@ public extension ModelView {
 
 // MARK: - ViewModel
 
-/// Base class for composite state. Holds a weak reference to the
-/// owning node (set by the framework after makeModel returns) and
-/// provides the `rebuild(_:)` method — call it with a mutation
-/// closure to update state and schedule a rebuild of the owning
-/// composite node's subtree.
-///
-/// Single-inheritance class instead of a protocol so users can
-/// subclass without boilerplate (`weak var node`, `init`, etc.).
-@MainActor open class ViewModel {
+/// Non-generic base class for the framework's internal bookkeeping.
+/// Users should subclass `ViewModel<V>` instead.
+@MainActor open class ViewModelBase {
     public weak var node: Node?
 
     public init() {}
@@ -96,6 +97,43 @@ public extension ModelView {
         mutation()
         node?.markDirty()
     }
+
+    // Framework-internal lifecycle dispatch. Overridden by ViewModel<V>.
+    func handleDidInit(_ view: any View) {}
+    func handleDidUpdate(_ view: any View, oldView: any View) {}
+    open func willUnmount() {}
+}
+
+/// Typed ViewModel base class. Subclass this with your ModelView's
+/// type as the generic parameter to get typed access to the view's
+/// props via `self.view`.
+///
+///     final class CounterModel: ViewModel<Counter> {
+///         var count = 0
+///         override func didInit() { /* self.view.initialCount */ }
+///     }
+@MainActor open class ViewModel<V: ModelView>: ViewModelBase {
+    public private(set) var view: V!
+
+    override func handleDidInit(_ view: any View) {
+        self.view = (view as! V)
+        didInit()
+    }
+
+    override func handleDidUpdate(_ view: any View, oldView: any View) {
+        let oldView = oldView as! V
+        self.view = (view as! V)
+        didUpdate(from: oldView)
+    }
+
+    /// Called once after the model is created and wired to the node.
+    /// The view's props are available via `self.view`.
+    open func didInit() {}
+
+    /// Called when the parent rebuilds and passes new props to this
+    /// view. `self.view` is already the new view; `oldView` is the
+    /// previous instance for comparison.
+    open func didUpdate(from oldView: V) {}
 }
 
 // MARK: - Builder
@@ -107,14 +145,12 @@ public extension ModelView {
 }
 
 /// Convenience base class for builders that operate on a specific
-/// ViewModel subclass. Captures the model at init, exposes it as
-/// `self.model`, and leaves build() for the subclass to override.
-@MainActor open class ViewBuilder<T: ViewModel>: Builder {
-    public let model: T
+/// ViewModel subclass. The framework assigns `model` after
+/// construction — subclasses just override `build(context:)`.
+@MainActor open class ViewBuilder<T: ViewModelBase>: Builder {
+    public var model: T!
 
-    public init(model: T) {
-        self.model = model
-    }
+    public init() {}
 
     open func build(context: BuildContext) -> any View {
         fatalError("ViewBuilder subclass must override build(context:)")
@@ -128,7 +164,7 @@ public extension ModelView {
     /// generic parameter T gives Swift the concrete model type it
     /// needs for keypath inference.
     public func bind<Value>(_ keyPath: ReferenceWritableKeyPath<T, Value>) -> Binding<Value> {
-        let model = self.model
+        let model = self.model!
         return Binding(
             get: { model[keyPath: keyPath] },
             set: { newValue in

@@ -157,7 +157,7 @@ public final class LeafNode: Node {
 // MARK: - ComposedNode
 
 public final class ComposedNode: Node {
-    public var model: ViewModel?
+    public var model: ViewModelBase?
     public var builder: Builder?
     public var child: Node?
 
@@ -179,12 +179,13 @@ public final class ComposedNode: Node {
     }
 
     override func update(from view: any View) {
+        let oldView = self.view
         super.update(from: view)
         guard self.view is any ComposedView else {
             fatalError("ComposedNode.update called with non-ComposedView: \(type(of: self.view!))")
         }
-        if let modelView = self.view as? any ModelView {
-            remakeBuilder(modelView)
+        if self.view is any ModelView, let oldView {
+            model?.handleDidUpdate(self.view!, oldView: oldView)
         }
         performBuild()
     }
@@ -194,20 +195,20 @@ public final class ComposedNode: Node {
         child = nil
     }
 
+    override func unmount() {
+        model?.willUnmount()
+        super.unmount()
+    }
+
     private func makeModelAndBuilder<V: ModelView>(_ view: V) {
         let context = BuildContext(node: self)
         let model = view.makeModel(context: context)
         model.node = self
-        let builder = view.makeBuilder(model: model)
+        model.handleDidInit(view)
+        let builder = view.makeBuilder()
+        builder.model = model
         self.model = model
         self.builder = builder
-    }
-
-    private func remakeBuilder<V: ModelView>(_ view: V) {
-        guard let existingModel = self.model as? V.ModelType else {
-            fatalError("Model type mismatch during ComposedNode.update")
-        }
-        self.builder = view.makeBuilder(model: existingModel)
     }
 
     private func wireOnDirty() {
