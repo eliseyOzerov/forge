@@ -168,6 +168,7 @@ final class BoxView: UIView, UIScrollViewDelegate {
             if scrollView == nil {
                 let sv = UIScrollView()
                 sv.delegate = self
+                sv.contentInsetAdjustmentBehavior = .never
                 sv.showsHorizontalScrollIndicator = axis != .vertical
                 sv.showsVerticalScrollIndicator = axis != .horizontal
                 super.addSubview(sv)
