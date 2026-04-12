@@ -89,19 +89,90 @@ public struct StrokeLayer: Layer {
     }
 }
 
-// MARK: - Transforms (consume prior layers, produce a new layer)
+// MARK: - Transform Layers
 
-/// A transform layer wraps prior layers and applies a context modification.
-public struct TransformLayer: Layer {
+public struct ClipLayer: Layer {
+    public let shape: Shape
     public let children: [any Layer]
-    public let apply: (CGContext, CGPath, CGRect) -> Void
-    public let cleanup: ((CGContext) -> Void)?
-
     public func render(in ctx: CGContext, path: CGPath, bounds: CGRect) {
         ctx.saveGState()
-        apply(ctx, path, bounds)
+        ctx.addPath(shape.resolve(in: bounds).cgPath)
+        ctx.clip()
         for child in children { child.render(in: ctx, path: path, bounds: bounds) }
-        cleanup?(ctx)
+        ctx.restoreGState()
+    }
+}
+
+public struct ScaleLayer: Layer {
+    public let sx: CGFloat, sy: CGFloat
+    public let children: [any Layer]
+    public func render(in ctx: CGContext, path: CGPath, bounds: CGRect) {
+        ctx.saveGState()
+        ctx.translateBy(x: bounds.midX, y: bounds.midY)
+        ctx.scaleBy(x: sx, y: sy)
+        ctx.translateBy(x: -bounds.midX, y: -bounds.midY)
+        for child in children { child.render(in: ctx, path: path, bounds: bounds) }
+        ctx.restoreGState()
+    }
+}
+
+public struct TranslateLayer: Layer {
+    public let dx: CGFloat, dy: CGFloat
+    public let children: [any Layer]
+    public func render(in ctx: CGContext, path: CGPath, bounds: CGRect) {
+        ctx.saveGState()
+        ctx.translateBy(x: dx, y: dy)
+        for child in children { child.render(in: ctx, path: path, bounds: bounds) }
+        ctx.restoreGState()
+    }
+}
+
+public struct RotateLayer: Layer {
+    public let radians: CGFloat
+    public let children: [any Layer]
+    public func render(in ctx: CGContext, path: CGPath, bounds: CGRect) {
+        ctx.saveGState()
+        ctx.translateBy(x: bounds.midX, y: bounds.midY)
+        ctx.rotate(by: radians)
+        ctx.translateBy(x: -bounds.midX, y: -bounds.midY)
+        for child in children { child.render(in: ctx, path: path, bounds: bounds) }
+        ctx.restoreGState()
+    }
+}
+
+public struct AffineTransformLayer: Layer {
+    public let transform: Transform2D
+    public let children: [any Layer]
+    public func render(in ctx: CGContext, path: CGPath, bounds: CGRect) {
+        ctx.saveGState()
+        ctx.concatenate(transform.cgAffineTransform)
+        for child in children { child.render(in: ctx, path: path, bounds: bounds) }
+        ctx.restoreGState()
+    }
+}
+
+public struct FadeLayer: Layer {
+    public let opacity: CGFloat
+    public let children: [any Layer]
+    public func render(in ctx: CGContext, path: CGPath, bounds: CGRect) {
+        ctx.saveGState()
+        ctx.setAlpha(opacity)
+        ctx.beginTransparencyLayer(auxiliaryInfo: nil)
+        for child in children { child.render(in: ctx, path: path, bounds: bounds) }
+        ctx.endTransparencyLayer()
+        ctx.restoreGState()
+    }
+}
+
+public struct BlendLayer: Layer {
+    public let mode: BlendMode
+    public let children: [any Layer]
+    public func render(in ctx: CGContext, path: CGPath, bounds: CGRect) {
+        ctx.saveGState()
+        ctx.setBlendMode(mode.cgBlendMode)
+        ctx.beginTransparencyLayer(auxiliaryInfo: nil)
+        for child in children { child.render(in: ctx, path: path, bounds: bounds) }
+        ctx.endTransparencyLayer()
         ctx.restoreGState()
     }
 }
