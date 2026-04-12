@@ -12,23 +12,41 @@ public struct Shape {
         self.verticesFactory = nil
     }
 
-    init(_ factory: @escaping (CGRect) -> Path, vertices: @escaping (CGRect) -> [CGPoint]) {
+    /// Custom path with known vertices (for shapes where the path is
+    /// more complex than just connecting vertices — arcs, curves, etc.).
+    public init(_ factory: @escaping (CGRect) -> Path, vertices: @escaping (CGRect) -> [CGPoint]) {
         self.factory = factory
         self.verticesFactory = vertices
+    }
+
+    /// Create a shape defined by its vertices. The path is derived by
+    /// connecting the vertices and closing. Modifiers like round/chamfer
+    /// get exact vertices without heuristic extraction.
+    public init(vertices: @escaping (CGRect) -> [CGPoint]) {
+        self.verticesFactory = vertices
+        self.factory = { rect in
+            let pts = vertices(rect)
+            var p = Path()
+            for (i, pt) in pts.enumerated() {
+                if i == 0 { p.move(to: pt) } else { p.line(to: pt) }
+            }
+            p.close()
+            return p
+        }
     }
 
     public func resolve(in rect: CGRect) -> Path {
         factory(rect)
     }
 
+    public func vertices(in rect: CGRect) -> [CGPoint] {
+        verticesFactory?(rect) ?? Shape.extractVertices(from: resolve(in: rect))
+    }
+
     // MARK: - Constructors
 
     public static func rect() -> Shape {
-        Shape({ rect in
-            var p = Path()
-            p.addRect(rect)
-            return p
-        }, vertices: { rect in
+        Shape(vertices: { rect in
             [rect.origin,
              CGPoint(x: rect.maxX, y: rect.minY),
              CGPoint(x: rect.maxX, y: rect.maxY),
@@ -78,18 +96,7 @@ public struct Shape {
 
     /// Regular N-sided polygon centered in rect.
     public static func regular(sides: Int, rotation: CGFloat = -.pi / 2) -> Shape {
-        Shape({ rect in
-            let center = CGPoint(x: rect.midX, y: rect.midY)
-            let radius = min(rect.width, rect.height) / 2
-            var p = Path()
-            for i in 0..<sides {
-                let angle = rotation + (2 * .pi * CGFloat(i) / CGFloat(sides))
-                let point = CGPoint(x: center.x + cos(angle) * radius, y: center.y + sin(angle) * radius)
-                if i == 0 { p.move(to: point) } else { p.line(to: point) }
-            }
-            p.close()
-            return p
-        }, vertices: { rect in
+        Shape(vertices: { rect in
             let center = CGPoint(x: rect.midX, y: rect.midY)
             let radius = min(rect.width, rect.height) / 2
             return (0..<sides).map { i in
@@ -101,21 +108,7 @@ public struct Shape {
 
     /// Star with N outer points. innerRadius is 0-1 relative to outer radius.
     public static func star(points: Int, innerRadius: CGFloat = 0.4, rotation: CGFloat = -.pi / 2) -> Shape {
-        Shape({ rect in
-            let center = CGPoint(x: rect.midX, y: rect.midY)
-            let outerR = min(rect.width, rect.height) / 2
-            let innerR = outerR * innerRadius
-            let total = points * 2
-            var p = Path()
-            for i in 0..<total {
-                let angle = rotation + (2 * .pi * CGFloat(i) / CGFloat(total))
-                let r: CGFloat = i.isMultiple(of: 2) ? outerR : innerR
-                let point = CGPoint(x: center.x + cos(angle) * r, y: center.y + sin(angle) * r)
-                if i == 0 { p.move(to: point) } else { p.line(to: point) }
-            }
-            p.close()
-            return p
-        }, vertices: { rect in
+        Shape(vertices: { rect in
             let center = CGPoint(x: rect.midX, y: rect.midY)
             let outerR = min(rect.width, rect.height) / 2
             let innerR = outerR * innerRadius
@@ -130,15 +123,7 @@ public struct Shape {
 
     /// Closed polygon from relative points (0-1 within rect).
     public static func polygon(_ points: [Vec2]) -> Shape {
-        Shape({ rect in
-            var p = Path()
-            for (i, pt) in points.enumerated() {
-                let mapped = CGPoint(x: rect.minX + pt.x * rect.width, y: rect.minY + pt.y * rect.height)
-                if i == 0 { p.move(to: mapped) } else { p.line(to: mapped) }
-            }
-            p.close()
-            return p
-        }, vertices: { rect in
+        Shape(vertices: { rect in
             points.map { CGPoint(x: rect.minX + $0.x * rect.width, y: rect.minY + $0.y * rect.height) }
         })
     }
@@ -151,10 +136,9 @@ public struct Shape {
     /// - `smooth`: 0 = circular arc, 1 = cubic bezier squircle (iOS continuous corners)
     public func round(radii: [CGFloat], smooth: CGFloat = 0) -> Shape {
         Shape({ [self] rect in
-            let path = self.resolve(in: rect)
-            let vertices = self.verticesFactory?(rect) ?? Shape.extractVertices(from: path)
-            guard vertices.count >= 3 else { return path }
-            return Shape.roundVertices(vertices, radii: radii, smooth: smooth)
+            let verts = self.vertices(in: rect)
+            guard verts.count >= 3 else { return self.resolve(in: rect) }
+            return Shape.roundVertices(verts, radii: radii, smooth: smooth)
         })
     }
 
@@ -166,10 +150,9 @@ public struct Shape {
     /// Chamfer (flat cut) corners by size.
     public func chamfer(size: CGFloat) -> Shape {
         Shape({ [self] rect in
-            let path = self.resolve(in: rect)
-            let vertices = self.verticesFactory?(rect) ?? Shape.extractVertices(from: path)
-            guard vertices.count >= 3 else { return path }
-            return Shape.chamferVertices(vertices, size: size)
+            let verts = self.vertices(in: rect)
+            guard verts.count >= 3 else { return self.resolve(in: rect) }
+            return Shape.chamferVertices(verts, size: size)
         })
     }
 

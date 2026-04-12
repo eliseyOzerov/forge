@@ -168,4 +168,157 @@ public struct Path {
     public func symmetricDifference(_ other: Path) -> Path {
         Path(cgPath: cgPath.symmetricDifference(other.cgPath))
     }
+
+    // MARK: - Path Metrics
+
+    /// Total arc length of the path.
+    public var length: CGFloat {
+        segments.reduce(0) { $0 + $1.length }
+    }
+
+    /// Position and tangent angle at a given distance along the path.
+    public func tangent(at distance: CGFloat) -> PathTangent? {
+        let segs = segments
+        guard !segs.isEmpty else { return nil }
+
+        var remaining = max(0, distance)
+        for seg in segs {
+            if remaining <= seg.length {
+                let t = seg.length > 0 ? remaining / seg.length : 0
+                let point = CGPoint(
+                    x: seg.start.x + (seg.end.x - seg.start.x) * t,
+                    y: seg.start.y + (seg.end.y - seg.start.y) * t
+                )
+                let angle = atan2(seg.end.y - seg.start.y, seg.end.x - seg.start.x)
+                return PathTangent(point: point, angle: angle)
+            }
+            remaining -= seg.length
+        }
+
+        // Past the end — return last point
+        if let last = segs.last {
+            let angle = atan2(last.end.y - last.start.y, last.end.x - last.start.x)
+            return PathTangent(point: last.end, angle: angle)
+        }
+        return nil
+    }
+
+    /// Position at a given distance along the path.
+    public func point(at distance: CGFloat) -> CGPoint? {
+        tangent(at: distance)?.point
+    }
+
+    /// Sample the path at evenly spaced intervals.
+    public func sample(count: Int) -> [PathTangent] {
+        let totalLength = length
+        guard totalLength > 0, count > 1 else {
+            if let t = tangent(at: 0) { return [t] }
+            return []
+        }
+        return (0..<count).compactMap { i in
+            let d = totalLength * CGFloat(i) / CGFloat(count - 1)
+            return tangent(at: d)
+        }
+    }
+
+    /// Flatten the path into line segments for metric computation.
+    private var segments: [PathSegment] {
+        var result: [PathSegment] = []
+        var current = CGPoint.zero
+        var subpathStart = CGPoint.zero
+
+        cgPath.applyWithBlock { element in
+            switch element.pointee.type {
+            case .moveToPoint:
+                current = element.pointee.points[0]
+                subpathStart = current
+            case .addLineToPoint:
+                let end = element.pointee.points[0]
+                result.append(PathSegment(start: current, end: end))
+                current = end
+            case .addQuadCurveToPoint:
+                let cp = element.pointee.points[0]
+                let end = element.pointee.points[1]
+                Path.flattenQuad(from: current, control: cp, to: end, into: &result)
+                current = end
+            case .addCurveToPoint:
+                let cp1 = element.pointee.points[0]
+                let cp2 = element.pointee.points[1]
+                let end = element.pointee.points[2]
+                Path.flattenCubic(from: current, control1: cp1, control2: cp2, to: end, into: &result)
+                current = end
+            case .closeSubpath:
+                if current != subpathStart {
+                    result.append(PathSegment(start: current, end: subpathStart))
+                }
+                current = subpathStart
+            @unknown default:
+                break
+            }
+        }
+
+        return result
+    }
+
+    // MARK: - Curve Flattening
+
+    private static func flattenQuad(from p0: CGPoint, control cp: CGPoint, to p2: CGPoint, into segments: inout [PathSegment], depth: Int = 0) {
+        if depth > 8 || isFlat(p0, cp, p2) {
+            segments.append(PathSegment(start: p0, end: p2))
+            return
+        }
+        let mid01 = CGPoint(x: (p0.x + cp.x) / 2, y: (p0.y + cp.y) / 2)
+        let mid12 = CGPoint(x: (cp.x + p2.x) / 2, y: (cp.y + p2.y) / 2)
+        let mid = CGPoint(x: (mid01.x + mid12.x) / 2, y: (mid01.y + mid12.y) / 2)
+        flattenQuad(from: p0, control: mid01, to: mid, into: &segments, depth: depth + 1)
+        flattenQuad(from: mid, control: mid12, to: p2, into: &segments, depth: depth + 1)
+    }
+
+    private static func flattenCubic(from p0: CGPoint, control1 cp1: CGPoint, control2 cp2: CGPoint, to p3: CGPoint, into segments: inout [PathSegment], depth: Int = 0) {
+        if depth > 8 || isFlat(p0, cp1, cp2, p3) {
+            segments.append(PathSegment(start: p0, end: p3))
+            return
+        }
+        let mid01 = CGPoint(x: (p0.x + cp1.x) / 2, y: (p0.y + cp1.y) / 2)
+        let mid12 = CGPoint(x: (cp1.x + cp2.x) / 2, y: (cp1.y + cp2.y) / 2)
+        let mid23 = CGPoint(x: (cp2.x + p3.x) / 2, y: (cp2.y + p3.y) / 2)
+        let mid012 = CGPoint(x: (mid01.x + mid12.x) / 2, y: (mid01.y + mid12.y) / 2)
+        let mid123 = CGPoint(x: (mid12.x + mid23.x) / 2, y: (mid12.y + mid23.y) / 2)
+        let mid = CGPoint(x: (mid012.x + mid123.x) / 2, y: (mid012.y + mid123.y) / 2)
+        flattenCubic(from: p0, control1: mid01, control2: mid012, to: mid, into: &segments, depth: depth + 1)
+        flattenCubic(from: mid, control1: mid123, control2: mid23, to: p3, into: &segments, depth: depth + 1)
+    }
+
+    private static func isFlat(_ p0: CGPoint, _ p1: CGPoint, _ p2: CGPoint) -> Bool {
+        let dx = p2.x - p0.x, dy = p2.y - p0.y
+        let d = abs((p1.x - p0.x) * dy - (p1.y - p0.y) * dx)
+        return d * d <= 0.25 * (dx * dx + dy * dy)
+    }
+
+    private static func isFlat(_ p0: CGPoint, _ p1: CGPoint, _ p2: CGPoint, _ p3: CGPoint) -> Bool {
+        let dx = p3.x - p0.x, dy = p3.y - p0.y
+        let d1 = abs((p1.x - p3.x) * dy - (p1.y - p3.y) * dx)
+        let d2 = abs((p2.x - p3.x) * dy - (p2.y - p3.y) * dx)
+        let dSq = (d1 + d2) * (d1 + d2)
+        return dSq <= 0.25 * (dx * dx + dy * dy)
+    }
+}
+
+// MARK: - Supporting Types
+
+public struct PathTangent {
+    public let point: CGPoint
+    public let angle: CGFloat
+
+    /// Unit direction vector at this point.
+    public var direction: Vec2 { Vec2(cos(angle), sin(angle)) }
+
+    /// Normal (perpendicular, 90° counter-clockwise from direction).
+    public var normal: Vec2 { Vec2(-sin(angle), cos(angle)) }
+}
+
+private struct PathSegment {
+    let start: CGPoint
+    let end: CGPoint
+    var length: CGFloat { hypot(end.x - start.x, end.y - start.y) }
 }
