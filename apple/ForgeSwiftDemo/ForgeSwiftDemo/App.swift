@@ -9,6 +9,14 @@ import ForgeSwift
 @main
 class ForgeDemo: App {
     override var body: any View {
+        Box(.fill, overflow: .scroll()) {
+            Box(.fixed(1000, 1000), .color(Color(0.9, 0.9, 0.95))) {
+                Text("1000x1000", style: TextStyle(font: Font(size: 24, weight: 700), align: .center))
+            }
+        }
+    }
+
+    private func oldBody() -> any View {
         Column(spacing: 24) {
             // Packed row (default), left-aligned
             label("packed, left")
