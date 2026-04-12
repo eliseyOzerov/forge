@@ -54,7 +54,7 @@ open class App: UIResponder, UIApplicationDelegate, UISceneDelegate {
         let vc = UIViewController()
         vc.view.backgroundColor = .systemBackground
         vc.view.addSubview(rootPlatformView)
-        rootPlatformView.center(in: vc.view)
+        rootPlatformView.pin(to: vc.view)
 
         window.rootViewController = vc
         window.makeKeyAndVisible()

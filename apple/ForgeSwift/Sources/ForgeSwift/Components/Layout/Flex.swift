@@ -145,7 +145,8 @@ final class FlexView: UIView {
             let mainExtentType = isH ? childFrame?.width : childFrame?.height
 
             if case .fill(let flex, _, _) = mainExtentType {
-                let share = totalFlex > 0 ? freeSpace * flex / totalFlex : 0
+                let normalizedFlex = max(1.0, totalFlex)
+                let share = normalizedFlex > 0 ? freeSpace * flex / normalizedFlex : 0
                 let crossSize = isH ? child.sizeThatFits(CGSize(width: share, height: crossExtent)).height : child.sizeThatFits(CGSize(width: crossExtent, height: share)).width
                 sizes[i] = isH ? CGSize(width: share, height: crossSize) : CGSize(width: crossSize, height: share)
             }
@@ -190,24 +191,34 @@ final class FlexView: UIView {
         let isH = flexAxis == .horizontal
         var mainTotal: CGFloat = 0
         var crossMax: CGFloat = 0
+        var hasFillChild = false
 
         for child in children {
-            let s = child.sizeThatFits(size)
-            if isH {
-                mainTotal += s.width
-                crossMax = max(crossMax, s.height)
+            let childFrame = (child as? BoxView)?.boxFrame
+            let mainExtentType = isH ? childFrame?.width : childFrame?.height
+
+            if case .fill = mainExtentType {
+                hasFillChild = true
+                let s = child.sizeThatFits(size)
+                crossMax = max(crossMax, isH ? s.height : s.width)
             } else {
-                mainTotal += s.height
-                crossMax = max(crossMax, s.width)
+                let s = child.sizeThatFits(size)
+                if isH {
+                    mainTotal += s.width
+                    crossMax = max(crossMax, s.height)
+                } else {
+                    mainTotal += s.height
+                    crossMax = max(crossMax, s.width)
+                }
             }
         }
 
         let spacingTotal = flexSpacing * CGFloat(children.count - 1)
         mainTotal += spacingTotal
 
-        // Non-packed spread fills the available main axis
+        // Fill the available main axis if: non-packed spread OR has fill children
         let mainSize: CGFloat
-        if flexSpread != .packed {
+        if flexSpread != .packed || hasFillChild {
             mainSize = isH ? size.width : size.height
         } else {
             mainSize = mainTotal

@@ -16,7 +16,7 @@ class ForgeDemo: App {
                 chip("A")
                 chip("B")
                 chip("C")
-            }
+            }.debug(.red)
 
             // Space between
             label("between")
@@ -41,7 +41,7 @@ class ForgeDemo: App {
                 chip("@")
                 chip("#")
             }
-            .debug(.red)
+            
 
             // Fill child in a row
             label("fill child")
@@ -51,6 +51,25 @@ class ForgeDemo: App {
                     Text("fills", style: TextStyle(font: Font(size: 14), color: .white, align: .center))
                 }
                 chip("fixed")
+            }
+
+            // Multiple flex children (1:2 ratio)
+            label("flex 1:2")
+            Row(spacing: 8) {
+                Box(.width(.fill(flex: 1)).height(.fix(40)), .color(Color(0.9, 0.3, 0.3))) {
+                    Text("1", style: TextStyle(font: Font(size: 14), color: .white, align: .center))
+                }
+                Box(.width(.fill(flex: 2)).height(.fix(40)), .color(Color(0.3, 0.3, 0.9))) {
+                    Text("2", style: TextStyle(font: Font(size: 14), color: .white, align: .center))
+                }
+            }
+
+            // Single flex child with 0.5 — should take half the space
+            label("flex 0.5")
+            Row {
+                Box(.width(.fill(flex: 0.5)).height(.fix(40)), .color(Color(0.8, 0.5, 0.2))) {
+                    Text("half", style: TextStyle(font: Font(size: 14), color: .white, align: .center))
+                }
             }
         }
     }

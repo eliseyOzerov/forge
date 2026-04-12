@@ -215,8 +215,6 @@ final class BoxView: UIView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-
-        // Position children based on alignment
         let inset = CGRect(
             x: boxPadding.leading,
             y: boxPadding.top,
@@ -224,10 +222,10 @@ final class BoxView: UIView {
             height: bounds.height - boxPadding.top - boxPadding.bottom
         )
 
-        for child in subviews {
+        for (i, child) in subviews.enumerated() {
             let childSize = child.sizeThatFits(inset.size)
-            let fx = (boxAlignment.x + 1) / 2  // 0...1
-            let fy = (boxAlignment.y + 1) / 2  // 0...1
+            let fx = (boxAlignment.x + 1) / 2
+            let fy = (boxAlignment.y + 1) / 2
             let x = inset.minX + (inset.width - childSize.width) * fx
             let y = inset.minY + (inset.height - childSize.height) * fy
             child.frame = CGRect(x: x, y: y, width: childSize.width, height: childSize.height)
