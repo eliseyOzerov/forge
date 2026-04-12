@@ -31,36 +31,27 @@ public struct SVGSurfaceBuilder {
             buildDrawn(Shape({ _ in path }), attributes: data.attributes, id: data.id, on: s)
 
         case .rect(let data):
-            let shape: Shape
-            if data.rx > 0 || data.ry > 0 {
-                let r = data.rx > 0 ? data.rx : data.ry
-                shape = Shape({ _ in
-                    var p = Path()
-                    p.addRoundedRect(CGRect(x: data.x, y: data.y, width: data.width, height: data.height), cornerWidth: r, cornerHeight: r)
-                    return p
-                })
-            } else {
-                shape = Shape({ _ in
-                    var p = Path(); p.addRect(CGRect(x: data.x, y: data.y, width: data.width, height: data.height)); return p
-                })
-            }
-            buildDrawn(shape, attributes: data.attributes, id: data.id, on: s)
+            let r = Rect(x: data.x, y: data.y, width: data.width, height: data.height)
+            let shape = data.rx > 0 || data.ry > 0
+                ? Shape.roundedRect(radius: data.rx > 0 ? data.rx : data.ry).resolve(in: r)
+                : Shape.rect().resolve(in: r)
+            buildDrawn(Shape({ _ in shape }), attributes: data.attributes, id: data.id, on: s)
 
         case .circle(let data):
-            buildDrawn(Shape({ _ in
-                var p = Path(); p.addEllipse(in: CGRect(x: data.cx - data.r, y: data.cy - data.r, width: data.r * 2, height: data.r * 2)); return p
-            }), attributes: data.attributes, id: data.id, on: s)
+            let r = Rect.fromCircle(center: Point(data.cx, data.cy), radius: data.r)
+            let path = Shape.ellipse().resolve(in: r)
+            buildDrawn(Shape({ _ in path }), attributes: data.attributes, id: data.id, on: s)
 
         case .ellipse(let data):
-            buildDrawn(Shape({ _ in
-                var p = Path(); p.addEllipse(in: CGRect(x: data.cx - data.rx, y: data.cy - data.ry, width: data.rx * 2, height: data.ry * 2)); return p
-            }), attributes: data.attributes, id: data.id, on: s)
+            let r = Rect(x: data.cx - data.rx, y: data.cy - data.ry, width: data.rx * 2, height: data.ry * 2)
+            let path = Shape.ellipse().resolve(in: r)
+            buildDrawn(Shape({ _ in path }), attributes: data.attributes, id: data.id, on: s)
 
         case .line(let data):
             var attrs = data.attributes; attrs.fill = .none
             if case .none = attrs.stroke { attrs.stroke = .color(.black) }
-            buildDrawn(Shape({ _ in Path.line(from: CGPoint(x: data.x1, y: data.y1), to: CGPoint(x: data.x2, y: data.y2)) }),
-                       attributes: attrs, id: data.id, on: s)
+            let path = Path.line(from: CGPoint(x: data.x1, y: data.y1), to: CGPoint(x: data.x2, y: data.y2))
+            buildDrawn(Shape({ _ in path }), attributes: attrs, id: data.id, on: s)
 
         case .polygon(let data):
             guard !data.points.isEmpty else { return }

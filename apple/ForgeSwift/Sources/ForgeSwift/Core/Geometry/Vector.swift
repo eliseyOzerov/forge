@@ -198,6 +198,9 @@ public struct Vec2: Vector {
     public init(_ cgSize: CGSize) { self.x = cgSize.width; self.y = cgSize.height }
 }
 
+/// Semantic alias — a Vec2 used as a position.
+public typealias Point = Vec2
+
 // MARK: - Vec3
 
 public struct Vec3: Vector {

@@ -4,42 +4,41 @@ import Foundation
 /// A closed path constructor. Given a bounding rect, produces a closed Path.
 /// Shapes are composable via modifiers (which return new Shapes) and boolean ops.
 public struct Shape {
-    private let factory: (CGRect) -> Path
-    private let verticesFactory: ((CGRect) -> [CGPoint])?
+    private let factory: (Rect) -> Path
+    private let verticesFactory: ((Rect) -> [Point])?
 
-    public init(_ factory: @escaping (CGRect) -> Path) {
+    public init(_ factory: @escaping (Rect) -> Path) {
         self.factory = factory
         self.verticesFactory = nil
     }
 
-    /// Custom path with known vertices (for shapes where the path is
-    /// more complex than just connecting vertices — arcs, curves, etc.).
-    public init(_ factory: @escaping (CGRect) -> Path, vertices: @escaping (CGRect) -> [CGPoint]) {
+    public init(_ factory: @escaping (Rect) -> Path, vertices: @escaping (Rect) -> [Point]) {
         self.factory = factory
         self.verticesFactory = vertices
     }
 
-    /// Create a shape defined by its vertices. The path is derived by
-    /// connecting the vertices and closing. Modifiers like round/chamfer
-    /// get exact vertices without heuristic extraction.
-    public init(vertices: @escaping (CGRect) -> [CGPoint]) {
+    public init(vertices: @escaping (Rect) -> [Point]) {
         self.verticesFactory = vertices
         self.factory = { rect in
             let pts = vertices(rect)
             var p = Path()
             for (i, pt) in pts.enumerated() {
-                if i == 0 { p.move(to: pt) } else { p.line(to: pt) }
+                if i == 0 { p.move(to: pt.cgPoint) } else { p.line(to: pt.cgPoint) }
             }
             p.close()
             return p
         }
     }
 
-    public func resolve(in rect: CGRect) -> Path {
+    public func resolve(in rect: Rect) -> Path {
         factory(rect)
     }
 
-    public func vertices(in rect: CGRect) -> [CGPoint] {
+    public func resolve(in cgRect: CGRect) -> Path {
+        factory(Rect(cgRect))
+    }
+
+    public func vertices(in rect: Rect) -> [Point] {
         verticesFactory?(rect) ?? Shape.extractVertices(from: resolve(in: rect))
     }
 
@@ -47,17 +46,17 @@ public struct Shape {
 
     public static func rect() -> Shape {
         Shape(vertices: { rect in
-            [rect.origin,
-             CGPoint(x: rect.maxX, y: rect.minY),
-             CGPoint(x: rect.maxX, y: rect.maxY),
-             CGPoint(x: rect.minX, y: rect.maxY)]
+            [Point(rect.x, rect.y),
+             Point(rect.right, rect.y),
+             Point(rect.right, rect.bottom),
+             Point(rect.x, rect.bottom)]
         })
     }
 
     public static func roundedRect(radius: Double) -> Shape {
         Shape({ rect in
             var p = Path()
-            p.addRoundedRect(rect, cornerWidth: radius, cornerHeight: radius)
+            p.addRoundedRect(rect.cgRect, cornerWidth: radius, cornerHeight: radius)
             return p
         })
     }
@@ -65,7 +64,7 @@ public struct Shape {
     public static func ellipse() -> Shape {
         Shape({ rect in
             var p = Path()
-            p.addEllipse(in: rect)
+            p.addEllipse(in: rect.cgRect)
             return p
         })
     }
@@ -73,14 +72,9 @@ public struct Shape {
     public static func circle() -> Shape {
         Shape({ rect in
             let side = min(rect.width, rect.height)
-            let centered = CGRect(
-                x: rect.midX - side / 2,
-                y: rect.midY - side / 2,
-                width: side,
-                height: side
-            )
+            let centered = Rect(x: rect.midX - side / 2, y: rect.midY - side / 2, width: side, height: side)
             var p = Path()
-            p.addEllipse(in: centered)
+            p.addEllipse(in: centered.cgRect)
             return p
         })
     }
@@ -89,51 +83,44 @@ public struct Shape {
         Shape({ rect in
             let radius = min(rect.width, rect.height) / 2
             var p = Path()
-            p.addRoundedRect(rect, cornerWidth: radius, cornerHeight: radius)
+            p.addRoundedRect(rect.cgRect, cornerWidth: radius, cornerHeight: radius)
             return p
         })
     }
 
-    /// Regular N-sided polygon centered in rect.
     public static func regular(sides: Int, rotation: Double = -.pi / 2) -> Shape {
         Shape(vertices: { rect in
-            let center = CGPoint(x: rect.midX, y: rect.midY)
-            let radius = min(rect.width, rect.height) / 2
+            let center = rect.center
+            let radius = rect.shortestSide / 2
             return (0..<sides).map { i in
                 let angle = rotation + (2 * .pi * Double(i) / Double(sides))
-                return CGPoint(x: center.x + cos(angle) * radius, y: center.y + sin(angle) * radius)
+                return Point(center.x + cos(angle) * radius, center.y + sin(angle) * radius)
             }
         })
     }
 
-    /// Star with N outer points. innerRadius is 0-1 relative to outer radius.
     public static func star(points: Int, innerRadius: Double = 0.4, rotation: Double = -.pi / 2) -> Shape {
         Shape(vertices: { rect in
-            let center = CGPoint(x: rect.midX, y: rect.midY)
-            let outerR = min(rect.width, rect.height) / 2
+            let center = rect.center
+            let outerR = rect.shortestSide / 2
             let innerR = outerR * innerRadius
             let total = points * 2
             return (0..<total).map { i in
                 let angle = rotation + (2 * .pi * Double(i) / Double(total))
                 let r: Double = i.isMultiple(of: 2) ? outerR : innerR
-                return CGPoint(x: center.x + cos(angle) * r, y: center.y + sin(angle) * r)
+                return Point(center.x + cos(angle) * r, center.y + sin(angle) * r)
             }
         })
     }
 
-    /// Closed polygon from relative points (0-1 within rect).
-    public static func polygon(_ points: [Vec2]) -> Shape {
+    public static func polygon(_ points: [Point]) -> Shape {
         Shape(vertices: { rect in
-            points.map { CGPoint(x: rect.minX + $0.x * rect.width, y: rect.minY + $0.y * rect.height) }
+            points.map { Point(rect.x + $0.x * rect.width, rect.y + $0.y * rect.height) }
         })
     }
 
     // MARK: - Modifiers
 
-    /// Round corners with configurable radius, cycling radii, and smooth (squircle) factor.
-    ///
-    /// - `radii`: radius values cycled per vertex (e.g. [8] for uniform, [8, 0, 8, 0] for alternating)
-    /// - `smooth`: 0 = circular arc, 1 = cubic bezier squircle (iOS continuous corners)
     public func round(radii: [Double], smooth: Double = 0) -> Shape {
         Shape({ [self] rect in
             let verts = self.vertices(in: rect)
@@ -142,12 +129,10 @@ public struct Shape {
         })
     }
 
-    /// Convenience: single radius for all corners.
     public func round(radius: Double = 8, smooth: Double = 0) -> Shape {
         round(radii: [radius], smooth: smooth)
     }
 
-    /// Chamfer (flat cut) corners by size.
     public func chamfer(size: Double) -> Shape {
         Shape({ [self] rect in
             let verts = self.vertices(in: rect)
@@ -156,11 +141,10 @@ public struct Shape {
         })
     }
 
-    /// Scale around rect center.
     public func scale(_ sx: Double, _ sy: Double? = nil) -> Shape {
         Shape({ [self] rect in
             let path = self.resolve(in: rect)
-            let center = CGPoint(x: rect.midX, y: rect.midY)
+            let center = rect.center
             let ssy = sy ?? sx
             var t = CGAffineTransform.identity
                 .translatedBy(x: center.x, y: center.y)
@@ -170,11 +154,10 @@ public struct Shape {
         })
     }
 
-    /// Rotate around rect center.
     public func rotate(_ radians: Double) -> Shape {
         Shape({ [self] rect in
             let path = self.resolve(in: rect)
-            let center = CGPoint(x: rect.midX, y: rect.midY)
+            let center = rect.center
             var t = CGAffineTransform.identity
                 .translatedBy(x: center.x, y: center.y)
                 .rotated(by: radians)
@@ -183,24 +166,21 @@ public struct Shape {
         })
     }
 
-    /// Translate the shape.
     public func translate(_ dx: Double, _ dy: Double) -> Shape {
         Shape({ [self] rect in
             self.resolve(in: rect).transformed(CGAffineTransform(translationX: dx, y: dy))
         })
     }
 
-    /// Inset (shrink) the bounding rect before resolving.
     public func inset(_ amount: Double) -> Shape {
         Shape({ [self] rect in
-            self.resolve(in: rect.insetBy(dx: amount, dy: amount))
+            self.resolve(in: rect.inset(by: amount))
         })
     }
 
-    /// Outset (grow) the bounding rect before resolving.
     public func outset(_ amount: Double) -> Shape {
         Shape({ [self] rect in
-            self.resolve(in: rect.insetBy(dx: -amount, dy: -amount))
+            self.resolve(in: rect.outset(by: amount))
         })
     }
 
@@ -230,19 +210,18 @@ public struct Shape {
 // MARK: - Vertex Rounding
 
 extension Shape {
-    /// Extract vertices from a path by detecting sharp angle changes via path element iteration.
-    static func extractVertices(from path: Path) -> [CGPoint] {
-        var vertices: [CGPoint] = []
+    static func extractVertices(from path: Path) -> [Point] {
+        var vertices: [Point] = []
         var current = CGPoint.zero
 
         path.cgPath.applyWithBlock { element in
             switch element.pointee.type {
             case .moveToPoint:
                 current = element.pointee.points[0]
-                vertices.append(current)
+                vertices.append(Point(current))
             case .addLineToPoint:
                 current = element.pointee.points[0]
-                vertices.append(current)
+                vertices.append(Point(current))
             case .addQuadCurveToPoint:
                 current = element.pointee.points[1]
             case .addCurveToPoint:
@@ -254,7 +233,6 @@ extension Shape {
             }
         }
 
-        // Remove last if it's the same as first (close)
         if let first = vertices.first, let last = vertices.last,
            abs(first.x - last.x) < 0.5 && abs(first.y - last.y) < 0.5,
            vertices.count > 1 {
@@ -264,12 +242,10 @@ extension Shape {
         return vertices
     }
 
-    /// Build a rounded path from vertices with concavity-aware arcs or squircle beziers.
-    static func roundVertices(_ vertices: [CGPoint], radii: [Double], smooth: Double) -> Path {
+    static func roundVertices(_ vertices: [Point], radii: [Double], smooth: Double) -> Path {
         let n = vertices.count
         var path = Path()
 
-        // Winding direction via shoelace
         var signedArea: Double = 0
         for i in 0..<n {
             let curr = vertices[i]
@@ -284,66 +260,61 @@ extension Shape {
             let next = vertices[(i + 1) % n]
             let radius = radii[i % radii.count]
 
-            let toPrev = CGPoint(x: prev.x - curr.x, y: prev.y - curr.y)
-            let toNext = CGPoint(x: next.x - curr.x, y: next.y - curr.y)
-            let prevLen = hypot(toPrev.x, toPrev.y)
-            let nextLen = hypot(toNext.x, toNext.y)
+            let toPrev = prev - curr
+            let toNext = next - curr
+            let prevLen = toPrev.length
+            let nextLen = toNext.length
 
             guard prevLen > 0, nextLen > 0 else {
-                if i == 0 { path.move(to: curr) } else { path.line(to: curr) }
+                if i == 0 { path.move(to: curr.cgPoint) } else { path.line(to: curr.cgPoint) }
                 continue
             }
 
             if radius <= 0 {
-                if i == 0 { path.move(to: curr) } else { path.line(to: curr) }
+                if i == 0 { path.move(to: curr.cgPoint) } else { path.line(to: curr.cgPoint) }
                 continue
             }
 
-            let dot = (toPrev.x * toNext.x + toPrev.y * toNext.y) / (prevLen * nextLen)
-            let halfAngle = acos(min(1, max(-1, dot))) / 2
+            let d = toPrev.dot(toNext) / (prevLen * nextLen)
+            let halfAngle = acos(min(1, max(-1, d))) / 2
 
             guard halfAngle > 0.001 else {
-                if i == 0 { path.move(to: curr) } else { path.line(to: curr) }
+                if i == 0 { path.move(to: curr.cgPoint) } else { path.line(to: curr.cgPoint) }
                 continue
             }
 
-            let cross = toPrev.x * toNext.y - toPrev.y * toNext.x
+            let cross = toPrev.cross(toNext)
             let concave = isClockwise ? cross > 0 : cross < 0
 
-            var baseOffset = radius / tan(halfAngle)
+            let baseOffset = radius / tan(halfAngle)
             let maxOffset = min(prevLen, nextLen) * 0.45
             let offset = min(baseOffset, maxOffset)
             let effectiveRadius = offset * tan(halfAngle)
 
-            let prevDir = CGPoint(x: toPrev.x / prevLen, y: toPrev.y / prevLen)
-            let nextDir = CGPoint(x: toNext.x / nextLen, y: toNext.y / nextLen)
-            let tangentA = CGPoint(x: curr.x + prevDir.x * offset, y: curr.y + prevDir.y * offset)
-            let tangentB = CGPoint(x: curr.x + nextDir.x * offset, y: curr.y + nextDir.y * offset)
+            let prevDir = toPrev / prevLen
+            let nextDir = toNext / nextLen
+            let tangentA = curr + prevDir * offset
+            let tangentB = curr + nextDir * offset
 
-            if i == 0 { path.move(to: tangentA) } else { path.line(to: tangentA) }
+            if i == 0 { path.move(to: tangentA.cgPoint) } else { path.line(to: tangentA.cgPoint) }
 
             if smooth <= 0 {
-                // Circular arc
-                let bisector = CGPoint(x: prevDir.x + nextDir.x, y: prevDir.y + nextDir.y)
-                let bisectorLen = hypot(bisector.x, bisector.y)
+                let bisector = prevDir + nextDir
+                let bisectorLen = bisector.length
                 if bisectorLen > 0 {
-                    let bisectorNorm = CGPoint(x: bisector.x / bisectorLen, y: bisector.y / bisectorLen)
+                    let bisectorNorm = bisector / bisectorLen
                     let centerDist = effectiveRadius / sin(halfAngle)
                     let sign: Double = concave ? -1 : 1
-                    let center = CGPoint(
-                        x: curr.x + bisectorNorm.x * centerDist * sign,
-                        y: curr.y + bisectorNorm.y * centerDist * sign
-                    )
+                    let center = curr + bisectorNorm * centerDist * sign
                     let startAngle = atan2(tangentA.y - center.y, tangentA.x - center.x)
                     let endAngle = atan2(tangentB.y - center.y, tangentB.x - center.x)
-                    path.arc(center: center, radius: effectiveRadius, startAngle: startAngle, endAngle: endAngle, clockwise: !concave)
+                    path.arc(center: center.cgPoint, radius: effectiveRadius, startAngle: startAngle, endAngle: endAngle, clockwise: !concave)
                 }
             } else {
-                // Squircle via cubic bezier
                 let k = 0.552 + smooth * 0.25
-                let cpA = CGPoint(x: tangentA.x + (curr.x - tangentA.x) * k, y: tangentA.y + (curr.y - tangentA.y) * k)
-                let cpB = CGPoint(x: tangentB.x + (curr.x - tangentB.x) * k, y: tangentB.y + (curr.y - tangentB.y) * k)
-                path.curve(to: tangentB, control1: cpA, control2: cpB)
+                let cpA = tangentA.lerp(to: curr, t: k)
+                let cpB = tangentB.lerp(to: curr, t: k)
+                path.curve(to: tangentB.cgPoint, control1: cpA.cgPoint, control2: cpB.cgPoint)
             }
         }
 
@@ -351,8 +322,7 @@ extension Shape {
         return path
     }
 
-    /// Build a chamfered path (flat cut corners).
-    static func chamferVertices(_ vertices: [CGPoint], size: Double) -> Path {
+    static func chamferVertices(_ vertices: [Point], size: Double) -> Path {
         let n = vertices.count
         var path = Path()
 
@@ -361,21 +331,19 @@ extension Shape {
             let curr = vertices[i]
             let next = vertices[(i + 1) % n]
 
-            let toPrev = CGPoint(x: prev.x - curr.x, y: prev.y - curr.y)
-            let toNext = CGPoint(x: next.x - curr.x, y: next.y - curr.y)
-            let prevLen = hypot(toPrev.x, toPrev.y)
-            let nextLen = hypot(toNext.x, toNext.y)
+            let toPrev = prev - curr
+            let toNext = next - curr
+            let prevLen = toPrev.length
+            let nextLen = toNext.length
 
             guard prevLen > 0, nextLen > 0 else { continue }
 
             let offset = min(size, min(prevLen, nextLen) * 0.45)
-            let prevDir = CGPoint(x: toPrev.x / prevLen, y: toPrev.y / prevLen)
-            let nextDir = CGPoint(x: toNext.x / nextLen, y: toNext.y / nextLen)
-            let tangentA = CGPoint(x: curr.x + prevDir.x * offset, y: curr.y + prevDir.y * offset)
-            let tangentB = CGPoint(x: curr.x + nextDir.x * offset, y: curr.y + nextDir.y * offset)
+            let tangentA = curr + (toPrev / prevLen) * offset
+            let tangentB = curr + (toNext / nextLen) * offset
 
-            if i == 0 { path.move(to: tangentA) } else { path.line(to: tangentA) }
-            path.line(to: tangentB)
+            if i == 0 { path.move(to: tangentA.cgPoint) } else { path.line(to: tangentA.cgPoint) }
+            path.line(to: tangentB.cgPoint)
         }
 
         path.close()
