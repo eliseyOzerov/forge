@@ -1,147 +1,135 @@
 import CoreGraphics
 
-/// A styled surface. Records rendering operations via a fluent closure.
+/// A styled surface. Records rendering operations via fluent methods.
 /// Layers are materialized by `build(shape:)` at render time when the
 /// actual shape is known.
 ///
 /// ```swift
-/// let card = Surface {
-///     $0.color(.white)
-///       .shadow(color: .black, blur: 8)
-///       .border(.gray)
-/// }
+/// let card = Surface()
+///     .color(.white)
+///     .shadow(color: .black, blur: 8)
+///     .border(.gray)
 ///
 /// // Render:
-/// let layers = card.build(shape: .roundedRect(radius: 12))
-/// renderer.render(layers, in: ctx, bounds: rect)
+/// let renderer = SurfaceRenderer(surface: card, shape: .roundedRect(radius: 12), bounds: rect)
+/// renderer.render(in: ctx)
 /// ```
-public struct Surface {
-    public let operations: [(Shape) -> [any Layer]]
+public final class Surface {
+    private var operations: [(Shape) -> [any Layer]] = []
 
-    public init(_ build: (SurfaceBuilder) -> SurfaceBuilder) {
-        let b = SurfaceBuilder()
-        _ = build(b)
-        self.operations = b.operations
+    public init() {}
+
+    public init(_ build: (Surface) -> Surface) {
+        _ = build(self)
     }
 
-    public init(operations: [(Shape) -> [any Layer]]) {
-        self.operations = operations
-    }
-
-    nonisolated(unsafe) public static let empty = Surface(operations: [])
+    nonisolated(unsafe) public static let empty = Surface()
 
     /// Materialize layers for a given shape.
     public func build(shape: Shape) -> [any Layer] {
         var layers: [any Layer] = []
         for op in operations {
-            let newLayers = op(shape)
-            layers.append(contentsOf: newLayers)
+            layers.append(contentsOf: op(shape))
         }
         return layers
     }
-}
-
-// MARK: - Builder
-
-public class SurfaceBuilder {
-    var operations: [(Shape) -> [any Layer]] = []
 
     // MARK: - Fill (uses base shape)
 
     @discardableResult
-    public func color(_ color: Color) -> SurfaceBuilder {
+    public func color(_ color: Color) -> Surface {
         operations.append { shape in [ShapeLayer(shape, .color(color))] }; return self
     }
 
     @discardableResult
-    public func gradient(_ gradient: Gradient) -> SurfaceBuilder {
+    public func gradient(_ gradient: Gradient) -> Surface {
         operations.append { shape in [ShapeLayer(shape, .gradient(gradient))] }; return self
     }
 
     @discardableResult
-    public func image(_ image: ImageSource, fit: ContentFit = .cover) -> SurfaceBuilder {
+    public func image(_ image: ImageSource, fit: ContentFit = .cover) -> Surface {
         operations.append { shape in [ShapeLayer(shape, Paint(.image(image, fit: fit)))] }; return self
     }
 
     // MARK: - Shape (draw additional shape)
 
     @discardableResult
-    public func shape(_ shape: Shape, _ paint: Paint) -> SurfaceBuilder {
+    public func shape(_ shape: Shape, _ paint: Paint) -> Surface {
         operations.append { _ in [ShapeLayer(shape, paint)] }; return self
     }
 
     // MARK: - Stroke
 
     @discardableResult
-    public func stroke(_ stroke: Stroke, _ paint: Paint) -> SurfaceBuilder {
+    public func stroke(_ stroke: Stroke, _ paint: Paint) -> Surface {
         operations.append { _ in [StrokeLayer(stroke, paint)] }; return self
     }
 
     @discardableResult
-    public func border(_ color: Color, width: CGFloat = 1) -> SurfaceBuilder {
+    public func border(_ color: Color, width: CGFloat = 1) -> Surface {
         stroke(Stroke(width: width), .color(color))
     }
 
     // MARK: - Shadow
 
     @discardableResult
-    public func shadow(color: Color = Color(0, 0, 0, 0.3), offset: Vec2 = Vec2(0, 4), blur: CGFloat = 8) -> SurfaceBuilder {
+    public func shadow(color: Color = Color(0, 0, 0, 0.3), offset: Vec2 = Vec2(0, 4), blur: CGFloat = 8) -> Surface {
         operations.append { _ in [ShadowLayer(color: color, offset: offset, blur: blur)] }; return self
     }
 
     // MARK: - Transforms (consume all prior operations)
 
     @discardableResult
-    public func clip(_ clipShape: Shape) -> SurfaceBuilder {
+    public func clip(_ clipShape: Shape) -> Surface {
         wrapPrior { ClipLayer(shape: clipShape, children: $0) }
     }
 
     @discardableResult
-    public func scale(_ sx: CGFloat, _ sy: CGFloat? = nil) -> SurfaceBuilder {
+    public func scale(_ sx: CGFloat, _ sy: CGFloat? = nil) -> Surface {
         let ssy = sy ?? sx
         return wrapPrior { ScaleLayer(sx: sx, sy: ssy, children: $0) }
     }
 
     @discardableResult
-    public func translate(_ dx: CGFloat, _ dy: CGFloat) -> SurfaceBuilder {
+    public func translate(_ dx: CGFloat, _ dy: CGFloat) -> Surface {
         wrapPrior { TranslateLayer(dx: dx, dy: dy, children: $0) }
     }
 
     @discardableResult
-    public func rotate(_ radians: CGFloat) -> SurfaceBuilder {
+    public func rotate(_ radians: CGFloat) -> Surface {
         wrapPrior { RotateLayer(radians: radians, children: $0) }
     }
 
     @discardableResult
-    public func transform(_ t: Transform2D) -> SurfaceBuilder {
+    public func transform(_ t: Transform2D) -> Surface {
         wrapPrior { AffineTransformLayer(transform: t, children: $0) }
     }
 
     @discardableResult
-    public func fade(_ alpha: CGFloat) -> SurfaceBuilder {
+    public func fade(_ alpha: CGFloat) -> Surface {
         wrapPrior { FadeLayer(opacity: alpha, children: $0) }
     }
 
     @discardableResult
-    public func blend(_ mode: BlendMode) -> SurfaceBuilder {
+    public func blend(_ mode: BlendMode) -> Surface {
         wrapPrior { BlendLayer(mode: mode, children: $0) }
     }
 
     @discardableResult
-    public func filter(_ filter: Filter) -> SurfaceBuilder {
+    public func filter(_ filter: Filter) -> Surface {
         return self // TODO
     }
 
     @discardableResult
-    public func blur(_ radius: CGFloat) -> SurfaceBuilder {
+    public func blur(_ radius: CGFloat) -> Surface {
         return self // TODO: backdrop
     }
 
     // MARK: - Compose (isolated sub-surface)
 
     @discardableResult
-    public func compose(_ build: (SurfaceBuilder) -> SurfaceBuilder) -> SurfaceBuilder {
-        let inner = SurfaceBuilder()
+    public func compose(_ build: (Surface) -> Surface) -> Surface {
+        let inner = Surface()
         _ = build(inner)
         let innerOps = inner.operations
         operations.append { shape in
@@ -155,7 +143,7 @@ public class SurfaceBuilder {
     // MARK: - Internal
 
     @discardableResult
-    private func wrapPrior(_ wrap: @escaping ([any Layer]) -> any Layer) -> SurfaceBuilder {
+    private func wrapPrior(_ wrap: @escaping ([any Layer]) -> any Layer) -> Surface {
         let prior = operations
         operations = [{ shape in
             var children: [any Layer] = []

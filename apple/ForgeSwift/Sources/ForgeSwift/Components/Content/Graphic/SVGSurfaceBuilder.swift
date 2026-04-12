@@ -24,7 +24,7 @@ public struct SVGSurfaceBuilder {
 
     // MARK: - Element → Builder calls
 
-    private func buildElement(_ element: SVGElement, on s: SurfaceBuilder) {
+    private func buildElement(_ element: SVGElement, on s: Surface) {
         switch element {
         case .path(let data):
             let path = SVGPathDataParser.parse(data.d)
@@ -84,7 +84,7 @@ public struct SVGSurfaceBuilder {
         }
     }
 
-    private func buildDrawn(_ shape: Shape, attributes: SVGPaintAttributes, id: String, on s: SurfaceBuilder) {
+    private func buildDrawn(_ shape: Shape, attributes: SVGPaintAttributes, id: String, on s: Surface) {
         let ov = overrides[id]
         if ov?.isHidden == true { return }
 
@@ -103,7 +103,7 @@ public struct SVGSurfaceBuilder {
         }
     }
 
-    private func addFillAndStroke(_ shape: Shape, attributes: SVGPaintAttributes, ov: GraphicOverride?, on s: SurfaceBuilder) {
+    private func addFillAndStroke(_ shape: Shape, attributes: SVGPaintAttributes, ov: GraphicOverride?, on s: Surface) {
         if let fillColor = resolveFill(attributes, override: ov) {
             s.shape(shape, .color(fillColor))
         }
