@@ -142,7 +142,10 @@ final class GraphicView: UIView {
 
         let builder = SVGSurfaceBuilder(document: document, overrides: graphicOverrides, globalColor: graphicColor)
         let surface = builder.build()
-        let renderer = SurfaceRenderer(surface: surface, bounds: bounds)
+        let viewBoxShape = Shape({ _ in
+            var p = Path(); p.addRect(document.viewBox); return p
+        })
+        let renderer = SurfaceRenderer(surface: surface, shape: viewBoxShape, bounds: bounds)
 
         let imgRenderer = UIGraphicsImageRenderer(size: size)
         cachedImage = imgRenderer.image { imgCtx in
