@@ -1,11 +1,11 @@
-import CoreGraphics
+import Foundation
 
 /// Alignment within a container. Values range from -1 (start) to 1 (end) on each axis.
 public struct Alignment: Equatable, Hashable, Sendable {
-    public var x: CGFloat
-    public var y: CGFloat
+    public var x: Double
+    public var y: Double
 
-    public init(_ x: CGFloat, _ y: CGFloat) {
+    public init(_ x: Double, _ y: Double) {
         self.x = x
         self.y = y
     }
@@ -32,7 +32,7 @@ public struct Alignment: Equatable, Hashable, Sendable {
 
     // MARK: - Interpolation
 
-    public func lerp(to other: Alignment, t: CGFloat) -> Alignment {
+    public func lerp(to other: Alignment, t: Double) -> Alignment {
         Alignment(x + (other.x - x) * t, y + (other.y - y) * t)
     }
 }

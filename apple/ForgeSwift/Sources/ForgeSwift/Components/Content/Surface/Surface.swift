@@ -54,8 +54,8 @@ public final class Surface {
     // MARK: - Shape (draw additional shape)
 
     @discardableResult
-    public func shape(_ shape: Shape, _ paint: Paint) -> Surface {
-        operations.append { _ in [ShapeLayer(shape, paint)] }; return self
+    public func shape(_ shape: @escaping (Shape) -> Shape, _ paint: Paint) -> Surface {
+        operations.append { baseShape in [ShapeLayer(shape(baseShape), paint)] }; return self
     }
 
     // MARK: - Stroke
@@ -66,14 +66,14 @@ public final class Surface {
     }
 
     @discardableResult
-    public func border(_ color: Color, width: CGFloat = 1) -> Surface {
+    public func border(_ color: Color, width: Double = 1) -> Surface {
         stroke(Stroke(width: width), .color(color))
     }
 
     // MARK: - Shadow
 
     @discardableResult
-    public func shadow(color: Color = Color(0, 0, 0, 0.3), offset: Vec2 = Vec2(0, 4), blur: CGFloat = 8) -> Surface {
+    public func shadow(color: Color = Color(0, 0, 0, 0.3), offset: Vec2 = Vec2(0, 4), blur: Double = 8) -> Surface {
         operations.append { _ in [ShadowLayer(color: color, offset: offset, blur: blur)] }; return self
     }
 
@@ -85,18 +85,18 @@ public final class Surface {
     }
 
     @discardableResult
-    public func scale(_ sx: CGFloat, _ sy: CGFloat? = nil) -> Surface {
+    public func scale(_ sx: Double, _ sy: Double? = nil) -> Surface {
         let ssy = sy ?? sx
         return wrapPrior { ScaleLayer(sx: sx, sy: ssy, children: $0) }
     }
 
     @discardableResult
-    public func translate(_ dx: CGFloat, _ dy: CGFloat) -> Surface {
+    public func translate(_ dx: Double, _ dy: Double) -> Surface {
         wrapPrior { TranslateLayer(dx: dx, dy: dy, children: $0) }
     }
 
     @discardableResult
-    public func rotate(_ radians: CGFloat) -> Surface {
+    public func rotate(_ radians: Double) -> Surface {
         wrapPrior { RotateLayer(radians: radians, children: $0) }
     }
 
@@ -106,7 +106,7 @@ public final class Surface {
     }
 
     @discardableResult
-    public func fade(_ alpha: CGFloat) -> Surface {
+    public func fade(_ alpha: Double) -> Surface {
         wrapPrior { FadeLayer(opacity: alpha, children: $0) }
     }
 
@@ -121,7 +121,7 @@ public final class Surface {
     }
 
     @discardableResult
-    public func blur(_ radius: CGFloat) -> Surface {
+    public func blur(_ radius: Double) -> Surface {
         return self // TODO: backdrop
     }
 

@@ -3,12 +3,12 @@ import Foundation
 
 /// An axis-aligned rectangle.
 public struct Rect {
-    public var x: CGFloat
-    public var y: CGFloat
-    public var width: CGFloat
-    public var height: CGFloat
+    public var x: Double
+    public var y: Double
+    public var width: Double
+    public var height: Double
 
-    public init(x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat) {
+    public init(x: Double, y: Double, width: Double, height: Double) {
         self.x = x
         self.y = y
         self.width = width
@@ -19,15 +19,15 @@ public struct Rect {
 
     // MARK: - Factories
 
-    public static func fromLTRB(_ left: CGFloat, _ top: CGFloat, _ right: CGFloat, _ bottom: CGFloat) -> Rect {
+    public static func fromLTRB(_ left: Double, _ top: Double, _ right: Double, _ bottom: Double) -> Rect {
         Rect(x: left, y: top, width: right - left, height: bottom - top)
     }
 
-    public static func fromCenter(_ center: Vec2, width: CGFloat, height: CGFloat) -> Rect {
+    public static func fromCenter(_ center: Vec2, width: Double, height: Double) -> Rect {
         Rect(x: center.x - width / 2, y: center.y - height / 2, width: width, height: height)
     }
 
-    public static func fromCircle(center: Vec2, radius: CGFloat) -> Rect {
+    public static func fromCircle(center: Vec2, radius: Double) -> Rect {
         Rect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2)
     }
 
@@ -37,8 +37,8 @@ public struct Rect {
 
     public static func fromPoints(_ points: [Vec2]) -> Rect {
         guard !points.isEmpty else { return .zero }
-        var minX = CGFloat.infinity, minY = CGFloat.infinity
-        var maxX = -CGFloat.infinity, maxY = -CGFloat.infinity
+        var minX = Double.infinity, minY = Double.infinity
+        var maxX = -Double.infinity, maxY = -Double.infinity
         for p in points {
             minX = min(minX, p.x); minY = min(minY, p.y)
             maxX = max(maxX, p.x); maxY = max(maxY, p.y)
@@ -58,10 +58,10 @@ public struct Rect {
 
     // MARK: - Edges
 
-    public var left: CGFloat { x }
-    public var top: CGFloat { y }
-    public var right: CGFloat { x + width }
-    public var bottom: CGFloat { y + height }
+    public var left: Double { x }
+    public var top: Double { y }
+    public var right: Double { x + width }
+    public var bottom: Double { y + height }
 
     // MARK: - Corners & Centers
 
@@ -75,27 +75,27 @@ public struct Rect {
     public var centerRight: Vec2 { Vec2(right, midY) }
     public var center: Vec2 { Vec2(midX, midY) }
 
-    public var midX: CGFloat { x + width / 2 }
-    public var midY: CGFloat { y + height / 2 }
+    public var midX: Double { x + width / 2 }
+    public var midY: Double { y + height / 2 }
 
     // MARK: - Size
 
     public var size: Size { Size(width, height) }
-    public var shortestSide: CGFloat { min(width, height) }
-    public var longestSide: CGFloat { max(width, height) }
+    public var shortestSide: Double { min(width, height) }
+    public var longestSide: Double { max(width, height) }
     public var isEmpty: Bool { width <= 0 || height <= 0 }
 
     // MARK: - Operations
 
-    public func inset(by amount: CGFloat) -> Rect {
+    public func inset(by amount: Double) -> Rect {
         Rect(x: x + amount, y: y + amount, width: width - amount * 2, height: height - amount * 2)
     }
 
-    public func inset(left: CGFloat = 0, top: CGFloat = 0, right: CGFloat = 0, bottom: CGFloat = 0) -> Rect {
+    public func inset(left: Double = 0, top: Double = 0, right: Double = 0, bottom: Double = 0) -> Rect {
         Rect(x: x + left, y: y + top, width: width - left - right, height: height - top - bottom)
     }
 
-    public func outset(by amount: CGFloat) -> Rect {
+    public func outset(by amount: Double) -> Rect {
         inset(by: -amount)
     }
 
@@ -103,7 +103,7 @@ public struct Rect {
         Rect(x: x + delta.x, y: y + delta.y, width: width, height: height)
     }
 
-    public func scaled(by factor: CGFloat, around anchor: Vec2? = nil) -> Rect {
+    public func scaled(by factor: Double, around anchor: Vec2? = nil) -> Rect {
         let a = anchor ?? center
         return Rect(
             x: a.x + (x - a.x) * factor,
@@ -156,7 +156,7 @@ public struct Rect {
 
     // MARK: - Interpolation
 
-    public func lerp(to other: Rect, t: CGFloat) -> Rect {
+    public func lerp(to other: Rect, t: Double) -> Rect {
         Rect(
             x: x + (other.x - x) * t,
             y: y + (other.y - y) * t,

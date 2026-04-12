@@ -35,11 +35,11 @@ public struct Path {
         cgPath.addQuadCurve(to: point, control: control)
     }
 
-    public mutating func arc(center: CGPoint, radius: CGFloat, startAngle: CGFloat, endAngle: CGFloat, clockwise: Bool) {
+    public mutating func arc(center: CGPoint, radius: Double, startAngle: Double, endAngle: Double, clockwise: Bool) {
         cgPath.addArc(center: center, radius: radius, startAngle: startAngle, endAngle: endAngle, clockwise: clockwise)
     }
 
-    public mutating func arcTo(_ point: CGPoint, tangent1: CGPoint, tangent2: CGPoint, radius: CGFloat) {
+    public mutating func arcTo(_ point: CGPoint, tangent1: CGPoint, tangent2: CGPoint, radius: Double) {
         cgPath.addArc(tangent1End: tangent1, tangent2End: tangent2, radius: radius)
     }
 
@@ -55,7 +55,7 @@ public struct Path {
         cgPath.addEllipse(in: rect)
     }
 
-    public mutating func addRoundedRect(_ rect: CGRect, cornerWidth: CGFloat, cornerHeight: CGFloat) {
+    public mutating func addRoundedRect(_ rect: CGRect, cornerWidth: Double, cornerHeight: Double) {
         cgPath.addRoundedRect(in: rect, cornerWidth: cornerWidth, cornerHeight: cornerHeight)
     }
 
@@ -100,7 +100,7 @@ public struct Path {
         return p
     }
 
-    public static func arc(in rect: CGRect, startAngle: CGFloat, sweepAngle: CGFloat) -> Path {
+    public static func arc(in rect: CGRect, startAngle: Double, sweepAngle: Double) -> Path {
         var p = Path()
         let center = CGPoint(x: rect.midX, y: rect.midY)
         let radius = min(rect.width, rect.height) / 2
@@ -108,12 +108,12 @@ public struct Path {
         return p
     }
 
-    public static func spiral(in rect: CGRect, turns: CGFloat = 3, startRadius: CGFloat = 0, endRadius: CGFloat? = nil, samples: Int = 200) -> Path {
+    public static func spiral(in rect: CGRect, turns: Double = 3, startRadius: Double = 0, endRadius: Double? = nil, samples: Int = 200) -> Path {
         var p = Path()
         let center = CGPoint(x: rect.midX, y: rect.midY)
         let maxR = endRadius ?? min(rect.width, rect.height) / 2
         for i in 0...samples {
-            let t = CGFloat(i) / CGFloat(samples)
+            let t = Double(i) / Double(samples)
             let angle = turns * 2 * .pi * t
             let r = startRadius + (maxR - startRadius) * t
             let point = CGPoint(x: center.x + cos(angle) * r, y: center.y + sin(angle) * r)
@@ -124,11 +124,11 @@ public struct Path {
 
     // MARK: - Derived Paths
 
-    public func dashed(phase: CGFloat = 0, lengths: [CGFloat]) -> Path {
-        Path(cgPath: cgPath.copy(dashingWithPhase: phase, lengths: lengths))
+    public func dashed(phase: Double = 0, lengths: [Double]) -> Path {
+        Path(cgPath: cgPath.copy(dashingWithPhase: phase, lengths: lengths.map { CGFloat($0) }))
     }
 
-    public func stroked(width: CGFloat, cap: CGLineCap = .butt, join: CGLineJoin = .miter, miterLimit: CGFloat = 10) -> Path {
+    public func stroked(width: Double, cap: CGLineCap = .butt, join: CGLineJoin = .miter, miterLimit: Double = 10) -> Path {
         Path(cgPath: cgPath.copy(strokingWithWidth: width, lineCap: cap, lineJoin: join, miterLimit: miterLimit))
     }
 
@@ -172,12 +172,12 @@ public struct Path {
     // MARK: - Path Metrics
 
     /// Total arc length of the path.
-    public var length: CGFloat {
+    public var length: Double {
         segments.reduce(0) { $0 + $1.length }
     }
 
     /// Position and tangent angle at a given distance along the path.
-    public func tangent(at distance: CGFloat) -> PathTangent? {
+    public func tangent(at distance: Double) -> PathTangent? {
         let segs = segments
         guard !segs.isEmpty else { return nil }
 
@@ -204,7 +204,7 @@ public struct Path {
     }
 
     /// Position at a given distance along the path.
-    public func point(at distance: CGFloat) -> CGPoint? {
+    public func point(at distance: Double) -> CGPoint? {
         tangent(at: distance)?.point
     }
 
@@ -216,7 +216,7 @@ public struct Path {
             return []
         }
         return (0..<count).compactMap { i in
-            let d = totalLength * CGFloat(i) / CGFloat(count - 1)
+            let d = totalLength * Double(i) / Double(count - 1)
             return tangent(at: d)
         }
     }
@@ -308,7 +308,7 @@ public struct Path {
 
 public struct PathTangent {
     public let point: CGPoint
-    public let angle: CGFloat
+    public let angle: Double
 
     /// Unit direction vector at this point.
     public var direction: Vec2 { Vec2(cos(angle), sin(angle)) }
@@ -320,5 +320,5 @@ public struct PathTangent {
 private struct PathSegment {
     let start: CGPoint
     let end: CGPoint
-    var length: CGFloat { hypot(end.x - start.x, end.y - start.y) }
+    var length: Double { hypot(end.x - start.x, end.y - start.y) }
 }

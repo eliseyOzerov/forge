@@ -51,9 +51,9 @@ public struct ShapeLayer: Layer {
 public struct ShadowLayer: Layer {
     public let color: Color
     public let offset: Vec2
-    public let blur: CGFloat
+    public let blur: Double
 
-    public init(color: Color = Color(0, 0, 0, 0.3), offset: Vec2 = Vec2(0, 4), blur: CGFloat = 8) {
+    public init(color: Color = Color(0, 0, 0, 0.3), offset: Vec2 = Vec2(0, 4), blur: Double = 8) {
         self.color = color; self.offset = offset; self.blur = blur
     }
 
@@ -80,7 +80,7 @@ public struct StrokeLayer: Layer {
     public func render(in ctx: CGContext, path: CGPath, bounds: CGRect) {
         var expandedPath = path
         if let dash = stroke.dash {
-            expandedPath = expandedPath.copy(dashingWithPhase: dash.phase, lengths: dash.pattern)
+            expandedPath = expandedPath.copy(dashingWithPhase: dash.phase, lengths: dash.pattern.map { CGFloat($0) })
         }
         expandedPath = expandedPath.copy(strokingWithWidth: stroke.width, lineCap: stroke.cap.cgLineCap, lineJoin: stroke.join.cgLineJoin, miterLimit: stroke.miterLimit)
 
@@ -104,7 +104,7 @@ public struct ClipLayer: Layer {
 }
 
 public struct ScaleLayer: Layer {
-    public let sx: CGFloat, sy: CGFloat
+    public let sx: Double, sy: Double
     public let children: [any Layer]
     public func render(in ctx: CGContext, path: CGPath, bounds: CGRect) {
         ctx.saveGState()
@@ -117,7 +117,7 @@ public struct ScaleLayer: Layer {
 }
 
 public struct TranslateLayer: Layer {
-    public let dx: CGFloat, dy: CGFloat
+    public let dx: Double, dy: Double
     public let children: [any Layer]
     public func render(in ctx: CGContext, path: CGPath, bounds: CGRect) {
         ctx.saveGState()
@@ -128,7 +128,7 @@ public struct TranslateLayer: Layer {
 }
 
 public struct RotateLayer: Layer {
-    public let radians: CGFloat
+    public let radians: Double
     public let children: [any Layer]
     public func render(in ctx: CGContext, path: CGPath, bounds: CGRect) {
         ctx.saveGState()
@@ -152,7 +152,7 @@ public struct AffineTransformLayer: Layer {
 }
 
 public struct FadeLayer: Layer {
-    public let opacity: CGFloat
+    public let opacity: Double
     public let children: [any Layer]
     public func render(in ctx: CGContext, path: CGPath, bounds: CGRect) {
         ctx.saveGState()
@@ -206,14 +206,14 @@ enum GradientRenderer {
         switch gradient {
         case .linear(let g):
             let colors = g.stops.map(\.color.cgColor) as CFArray
-            let locations = g.stops.map(\.location)
+            let locations: [CGFloat] = g.stops.map { CGFloat($0.location) }
             guard let cg = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: locations) else { return }
             let start = CGPoint(x: bounds.minX + g.start.x * bounds.width, y: bounds.minY + g.start.y * bounds.height)
             let end = CGPoint(x: bounds.minX + g.end.x * bounds.width, y: bounds.minY + g.end.y * bounds.height)
             ctx.drawLinearGradient(cg, start: start, end: end, options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
         case .radial(let g):
             let colors = g.stops.map(\.color.cgColor) as CFArray
-            let locations = g.stops.map(\.location)
+            let locations: [CGFloat] = g.stops.map { CGFloat($0.location) }
             guard let cg = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: locations) else { return }
             let center = CGPoint(x: bounds.minX + g.center.x * bounds.width, y: bounds.minY + g.center.y * bounds.height)
             let radius = g.radius * min(bounds.width, bounds.height)
@@ -239,7 +239,7 @@ enum ImageRenderer {
 
     static func fittedRect(imageSize: CGSize, in rect: CGRect, fit: ContentFit) -> CGRect {
         let scaleX = rect.width / imageSize.width, scaleY = rect.height / imageSize.height
-        let scale: CGFloat
+        let scale: Double
         switch fit {
         case .cover: scale = max(scaleX, scaleY)
         case .contain: scale = min(scaleX, scaleY)

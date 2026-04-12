@@ -54,7 +54,7 @@ public struct Shape {
         })
     }
 
-    public static func roundedRect(radius: CGFloat) -> Shape {
+    public static func roundedRect(radius: Double) -> Shape {
         Shape({ rect in
             var p = Path()
             p.addRoundedRect(rect, cornerWidth: radius, cornerHeight: radius)
@@ -95,27 +95,27 @@ public struct Shape {
     }
 
     /// Regular N-sided polygon centered in rect.
-    public static func regular(sides: Int, rotation: CGFloat = -.pi / 2) -> Shape {
+    public static func regular(sides: Int, rotation: Double = -.pi / 2) -> Shape {
         Shape(vertices: { rect in
             let center = CGPoint(x: rect.midX, y: rect.midY)
             let radius = min(rect.width, rect.height) / 2
             return (0..<sides).map { i in
-                let angle = rotation + (2 * .pi * CGFloat(i) / CGFloat(sides))
+                let angle = rotation + (2 * .pi * Double(i) / Double(sides))
                 return CGPoint(x: center.x + cos(angle) * radius, y: center.y + sin(angle) * radius)
             }
         })
     }
 
     /// Star with N outer points. innerRadius is 0-1 relative to outer radius.
-    public static func star(points: Int, innerRadius: CGFloat = 0.4, rotation: CGFloat = -.pi / 2) -> Shape {
+    public static func star(points: Int, innerRadius: Double = 0.4, rotation: Double = -.pi / 2) -> Shape {
         Shape(vertices: { rect in
             let center = CGPoint(x: rect.midX, y: rect.midY)
             let outerR = min(rect.width, rect.height) / 2
             let innerR = outerR * innerRadius
             let total = points * 2
             return (0..<total).map { i in
-                let angle = rotation + (2 * .pi * CGFloat(i) / CGFloat(total))
-                let r: CGFloat = i.isMultiple(of: 2) ? outerR : innerR
+                let angle = rotation + (2 * .pi * Double(i) / Double(total))
+                let r: Double = i.isMultiple(of: 2) ? outerR : innerR
                 return CGPoint(x: center.x + cos(angle) * r, y: center.y + sin(angle) * r)
             }
         })
@@ -134,7 +134,7 @@ public struct Shape {
     ///
     /// - `radii`: radius values cycled per vertex (e.g. [8] for uniform, [8, 0, 8, 0] for alternating)
     /// - `smooth`: 0 = circular arc, 1 = cubic bezier squircle (iOS continuous corners)
-    public func round(radii: [CGFloat], smooth: CGFloat = 0) -> Shape {
+    public func round(radii: [Double], smooth: Double = 0) -> Shape {
         Shape({ [self] rect in
             let verts = self.vertices(in: rect)
             guard verts.count >= 3 else { return self.resolve(in: rect) }
@@ -143,12 +143,12 @@ public struct Shape {
     }
 
     /// Convenience: single radius for all corners.
-    public func round(radius: CGFloat = 8, smooth: CGFloat = 0) -> Shape {
+    public func round(radius: Double = 8, smooth: Double = 0) -> Shape {
         round(radii: [radius], smooth: smooth)
     }
 
     /// Chamfer (flat cut) corners by size.
-    public func chamfer(size: CGFloat) -> Shape {
+    public func chamfer(size: Double) -> Shape {
         Shape({ [self] rect in
             let verts = self.vertices(in: rect)
             guard verts.count >= 3 else { return self.resolve(in: rect) }
@@ -157,7 +157,7 @@ public struct Shape {
     }
 
     /// Scale around rect center.
-    public func scale(_ sx: CGFloat, _ sy: CGFloat? = nil) -> Shape {
+    public func scale(_ sx: Double, _ sy: Double? = nil) -> Shape {
         Shape({ [self] rect in
             let path = self.resolve(in: rect)
             let center = CGPoint(x: rect.midX, y: rect.midY)
@@ -171,7 +171,7 @@ public struct Shape {
     }
 
     /// Rotate around rect center.
-    public func rotate(_ radians: CGFloat) -> Shape {
+    public func rotate(_ radians: Double) -> Shape {
         Shape({ [self] rect in
             let path = self.resolve(in: rect)
             let center = CGPoint(x: rect.midX, y: rect.midY)
@@ -184,21 +184,21 @@ public struct Shape {
     }
 
     /// Translate the shape.
-    public func translate(_ dx: CGFloat, _ dy: CGFloat) -> Shape {
+    public func translate(_ dx: Double, _ dy: Double) -> Shape {
         Shape({ [self] rect in
             self.resolve(in: rect).transformed(CGAffineTransform(translationX: dx, y: dy))
         })
     }
 
     /// Inset (shrink) the bounding rect before resolving.
-    public func inset(_ amount: CGFloat) -> Shape {
+    public func inset(_ amount: Double) -> Shape {
         Shape({ [self] rect in
             self.resolve(in: rect.insetBy(dx: amount, dy: amount))
         })
     }
 
     /// Outset (grow) the bounding rect before resolving.
-    public func outset(_ amount: CGFloat) -> Shape {
+    public func outset(_ amount: Double) -> Shape {
         Shape({ [self] rect in
             self.resolve(in: rect.insetBy(dx: -amount, dy: -amount))
         })
@@ -265,12 +265,12 @@ extension Shape {
     }
 
     /// Build a rounded path from vertices with concavity-aware arcs or squircle beziers.
-    static func roundVertices(_ vertices: [CGPoint], radii: [CGFloat], smooth: CGFloat) -> Path {
+    static func roundVertices(_ vertices: [CGPoint], radii: [Double], smooth: Double) -> Path {
         let n = vertices.count
         var path = Path()
 
         // Winding direction via shoelace
-        var signedArea: CGFloat = 0
+        var signedArea: Double = 0
         for i in 0..<n {
             let curr = vertices[i]
             let next = vertices[(i + 1) % n]
@@ -329,7 +329,7 @@ extension Shape {
                 if bisectorLen > 0 {
                     let bisectorNorm = CGPoint(x: bisector.x / bisectorLen, y: bisector.y / bisectorLen)
                     let centerDist = effectiveRadius / sin(halfAngle)
-                    let sign: CGFloat = concave ? -1 : 1
+                    let sign: Double = concave ? -1 : 1
                     let center = CGPoint(
                         x: curr.x + bisectorNorm.x * centerDist * sign,
                         y: curr.y + bisectorNorm.y * centerDist * sign
@@ -352,7 +352,7 @@ extension Shape {
     }
 
     /// Build a chamfered path (flat cut corners).
-    static func chamferVertices(_ vertices: [CGPoint], size: CGFloat) -> Path {
+    static func chamferVertices(_ vertices: [CGPoint], size: Double) -> Path {
         let n = vertices.count
         var path = Path()
 

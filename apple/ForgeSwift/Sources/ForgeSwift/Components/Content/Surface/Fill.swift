@@ -15,16 +15,16 @@ public enum Fill {
 // MARK: - Color
 
 public struct Color: Equatable, Hashable, Sendable {
-    public var red: CGFloat
-    public var green: CGFloat
-    public var blue: CGFloat
-    public var alpha: CGFloat
+    public var red: Double
+    public var green: Double
+    public var blue: Double
+    public var alpha: Double
 
-    public init(_ red: CGFloat, _ green: CGFloat, _ blue: CGFloat, _ alpha: CGFloat = 1) {
+    public init(_ red: Double, _ green: Double, _ blue: Double, _ alpha: Double = 1) {
         self.red = red; self.green = green; self.blue = blue; self.alpha = alpha
     }
 
-    public func withAlpha(_ alpha: CGFloat) -> Color {
+    public func withAlpha(_ alpha: Double) -> Color {
         Color(red, green, blue, alpha)
     }
 
@@ -32,13 +32,13 @@ public struct Color: Equatable, Hashable, Sendable {
         CGColor(red: red, green: green, blue: blue, alpha: alpha)
     }
 
-    public func lerp(to other: Color, t: CGFloat) -> Color {
+    public func lerp(to other: Color, t: Double) -> Color {
         Color(red + (other.red - red) * t, green + (other.green - green) * t,
               blue + (other.blue - blue) * t, alpha + (other.alpha - alpha) * t)
     }
 
-    public static func hex(_ hex: UInt32, alpha: CGFloat = 1) -> Color {
-        Color(CGFloat((hex >> 16) & 0xFF) / 255, CGFloat((hex >> 8) & 0xFF) / 255, CGFloat(hex & 0xFF) / 255, alpha)
+    public static func hex(_ hex: UInt32, alpha: Double = 1) -> Color {
+        Color(Double((hex >> 16) & 0xFF) / 255, Double((hex >> 8) & 0xFF) / 255, Double(hex & 0xFF) / 255, alpha)
     }
 
     public static let black = Color(0, 0, 0)
@@ -53,7 +53,7 @@ public struct Color: Equatable, Hashable, Sendable {
     public init(platform: UIColor) {
         var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
         platform.getRed(&r, green: &g, blue: &b, alpha: &a)
-        self.init(r, g, b, a)
+        self.init(Double(r), Double(g), Double(b), Double(a))
     }
     #endif
 }
@@ -68,8 +68,8 @@ public enum Gradient {
 
 public struct GradientStop: Sendable {
     public var color: Color
-    public var location: CGFloat
-    public init(_ color: Color, at location: CGFloat) { self.color = color; self.location = location }
+    public var location: Double
+    public init(_ color: Color, at location: Double) { self.color = color; self.location = location }
 }
 
 public struct LinearGradient: Sendable {
@@ -81,7 +81,7 @@ public struct LinearGradient: Sendable {
     }
     public init(colors: [Color], start: Vec2 = Vec2(0.5, 0), end: Vec2 = Vec2(0.5, 1)) {
         let n = colors.count
-        self.stops = colors.enumerated().map { GradientStop($1, at: n > 1 ? CGFloat($0) / CGFloat(n - 1) : 0) }
+        self.stops = colors.enumerated().map { GradientStop($1, at: n > 1 ? Double($0) / Double(n - 1) : 0) }
         self.start = start; self.end = end
     }
 }
@@ -89,8 +89,8 @@ public struct LinearGradient: Sendable {
 public struct RadialGradient: Sendable {
     public var stops: [GradientStop]
     public var center: Vec2
-    public var radius: CGFloat
-    public init(stops: [GradientStop], center: Vec2 = Vec2(0.5, 0.5), radius: CGFloat = 0.5) {
+    public var radius: Double
+    public init(stops: [GradientStop], center: Vec2 = Vec2(0.5, 0.5), radius: Double = 0.5) {
         self.stops = stops; self.center = center; self.radius = radius
     }
 }
@@ -98,9 +98,9 @@ public struct RadialGradient: Sendable {
 public struct AngularGradient: Sendable {
     public var stops: [GradientStop]
     public var center: Vec2
-    public var startAngle: CGFloat
-    public var endAngle: CGFloat
-    public init(stops: [GradientStop], center: Vec2 = Vec2(0.5, 0.5), startAngle: CGFloat = 0, endAngle: CGFloat = .pi * 2) {
+    public var startAngle: Double
+    public var endAngle: Double
+    public init(stops: [GradientStop], center: Vec2 = Vec2(0.5, 0.5), startAngle: Double = 0, endAngle: Double = .pi * 2) {
         self.stops = stops; self.center = center; self.startAngle = startAngle; self.endAngle = endAngle
     }
 }
@@ -130,9 +130,9 @@ public struct Shader { public init() {} }
 public struct Paint {
     public var fill: Fill
     public var blendMode: BlendMode
-    public var opacity: CGFloat
+    public var opacity: Double
 
-    public init(_ fill: Fill, blendMode: BlendMode = .normal, opacity: CGFloat = 1) {
+    public init(_ fill: Fill, blendMode: BlendMode = .normal, opacity: Double = 1) {
         self.fill = fill; self.blendMode = blendMode; self.opacity = opacity
     }
 
@@ -171,14 +171,14 @@ public enum BlendMode: Sendable {
 // MARK: - Stroke
 
 public struct Stroke: Sendable {
-    public var width: CGFloat
+    public var width: Double
     public var cap: StrokeCap
     public var join: StrokeJoin
-    public var alignment: CGFloat
-    public var miterLimit: CGFloat
+    public var alignment: Double
+    public var miterLimit: Double
     public var dash: Dash?
 
-    public init(width: CGFloat = 1, cap: StrokeCap = .round, join: StrokeJoin = .round, alignment: CGFloat = 0.5, miterLimit: CGFloat = 10, dash: Dash? = nil) {
+    public init(width: Double = 1, cap: StrokeCap = .round, join: StrokeJoin = .round, alignment: Double = 0.5, miterLimit: Double = 10, dash: Dash? = nil) {
         self.width = width; self.cap = cap; self.join = join; self.alignment = alignment; self.miterLimit = miterLimit; self.dash = dash
     }
 }
@@ -198,10 +198,10 @@ public enum StrokeJoin: Sendable {
 }
 
 public struct Dash: Sendable {
-    public var pattern: [CGFloat]
-    public var phase: CGFloat
-    public init(_ pattern: [CGFloat], phase: CGFloat = 0) { self.pattern = pattern; self.phase = phase }
-    public static func even(_ length: CGFloat) -> Dash { Dash([length, length]) }
+    public var pattern: [Double]
+    public var phase: Double
+    public init(_ pattern: [Double], phase: Double = 0) { self.pattern = pattern; self.phase = phase }
+    public static func even(_ length: Double) -> Dash { Dash([length, length]) }
 }
 
 // MARK: - Filter
@@ -214,7 +214,7 @@ public struct Filter {
     #if canImport(CoreImage)
     public let ciFilter: CIFilter
     public init(_ ciFilter: CIFilter) { self.ciFilter = ciFilter }
-    public static func gaussianBlur(radius: CGFloat) -> Filter {
+    public static func gaussianBlur(radius: Double) -> Filter {
         let f = CIFilter(name: "CIGaussianBlur")!
         f.setValue(radius, forKey: kCIInputRadiusKey)
         return Filter(f)
@@ -225,9 +225,9 @@ public struct Filter {
 // MARK: - Transform2D
 
 public struct Transform2D: Sendable {
-    public var a: CGFloat, b: CGFloat, c: CGFloat, d: CGFloat, tx: CGFloat, ty: CGFloat
+    public var a: Double, b: Double, c: Double, d: Double, tx: Double, ty: Double
 
-    public init(a: CGFloat = 1, b: CGFloat = 0, c: CGFloat = 0, d: CGFloat = 1, tx: CGFloat = 0, ty: CGFloat = 0) {
+    public init(a: Double = 1, b: Double = 0, c: Double = 0, d: Double = 1, tx: Double = 0, ty: Double = 0) {
         self.a = a; self.b = b; self.c = c; self.d = d; self.tx = tx; self.ty = ty
     }
 

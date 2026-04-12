@@ -3,21 +3,21 @@ import Foundation
 
 /// A 2D extent (width x height).
 public struct Size {
-    public var width: CGFloat
-    public var height: CGFloat
+    public var width: Double
+    public var height: Double
 
-    public init(_ width: CGFloat, _ height: CGFloat) {
+    public init(_ width: Double, _ height: Double) {
         self.width = width
         self.height = height
     }
 
-    public init(width: CGFloat, height: CGFloat) {
+    public init(width: Double, height: Double) {
         self.width = width
         self.height = height
     }
 
     /// Square size.
-    public init(square: CGFloat) {
+    public init(square: Double) {
         self.width = square
         self.height = square
     }
@@ -31,19 +31,19 @@ public struct Size {
 
     // MARK: - Queries
 
-    public var shortestSide: CGFloat { min(width, height) }
-    public var longestSide: CGFloat { max(width, height) }
-    public var area: CGFloat { width * height }
-    public var aspectRatio: CGFloat { height == 0 ? 0 : width / height }
+    public var shortestSide: Double { min(width, height) }
+    public var longestSide: Double { max(width, height) }
+    public var area: Double { width * height }
+    public var aspectRatio: Double { height == 0 ? 0 : width / height }
     public var isEmpty: Bool { width <= 0 || height <= 0 }
 
     // MARK: - Operations
 
-    public func scaled(_ sx: CGFloat, _ sy: CGFloat? = nil) -> Size {
+    public func scaled(_ sx: Double, _ sy: Double? = nil) -> Size {
         Size(width * sx, height * (sy ?? sx))
     }
 
-    public func lerp(to other: Size, t: CGFloat) -> Size {
+    public func lerp(to other: Size, t: Double) -> Size {
         Size(width + (other.width - width) * t, height + (other.height - height) * t)
     }
 

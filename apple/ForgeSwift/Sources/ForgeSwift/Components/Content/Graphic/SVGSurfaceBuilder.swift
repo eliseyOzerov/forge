@@ -72,7 +72,7 @@ public struct SVGSurfaceBuilder {
 
         case .group(let data):
             if overrides[data.id]?.isHidden == true { return }
-            let opacity = overrides[data.id]?.opacity ?? CGFloat(data.attributes.opacity)
+            let opacity = overrides[data.id]?.opacity ?? Double(data.attributes.opacity)
             let hasTransform = data.attributes.transform != .identity
 
             s.compose { inner in
@@ -105,7 +105,7 @@ public struct SVGSurfaceBuilder {
 
     private func addFillAndStroke(_ shape: Shape, attributes: SVGPaintAttributes, ov: GraphicOverride?, on s: Surface) {
         if let fillColor = resolveFill(attributes, override: ov) {
-            s.shape(shape, .color(fillColor))
+            s.shape({ _ in shape }, .color(fillColor))
         }
         if let strokeColor = resolveStroke(attributes, override: ov) {
             let width = ov?.strokeWidth ?? attributes.strokeWidth
@@ -136,11 +136,11 @@ public struct SVGSurfaceBuilder {
 public struct GraphicOverride {
     public var fill: Color?
     public var stroke: Color?
-    public var strokeWidth: CGFloat?
-    public var opacity: CGFloat?
+    public var strokeWidth: Double?
+    public var opacity: Double?
     public var isHidden: Bool
 
-    public init(fill: Color? = nil, stroke: Color? = nil, strokeWidth: CGFloat? = nil, opacity: CGFloat? = nil, isHidden: Bool = false) {
+    public init(fill: Color? = nil, stroke: Color? = nil, strokeWidth: Double? = nil, opacity: Double? = nil, isHidden: Bool = false) {
         self.fill = fill; self.stroke = stroke; self.strokeWidth = strokeWidth; self.opacity = opacity; self.isHidden = isHidden
     }
 }

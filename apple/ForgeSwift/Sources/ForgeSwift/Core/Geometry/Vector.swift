@@ -8,8 +8,8 @@ import Foundation
 /// Concrete types (Vec2, Vec3, Vec4) add named accessors and
 /// dimension-specific operations.
 public protocol Vector: Equatable, Hashable, Sendable {
-    var components: [CGFloat] { get }
-    init(components: [CGFloat])
+    var components: [Double] { get }
+    init(components: [Double])
 }
 
 public extension Vector {
@@ -17,11 +17,11 @@ public extension Vector {
 
     // MARK: - Length
 
-    var lengthSquared: CGFloat {
+    var lengthSquared: Double {
         components.reduce(0) { $0 + $1 * $1 }
     }
 
-    var length: CGFloat { sqrt(lengthSquared) }
+    var length: Double { sqrt(lengthSquared) }
 
     var normalized: Self {
         let len = length
@@ -29,27 +29,27 @@ public extension Vector {
         return self / len
     }
 
-    func withLength(_ newLength: CGFloat) -> Self {
+    func withLength(_ newLength: Double) -> Self {
         normalized * newLength
     }
 
     // MARK: - Products
 
-    func dot(_ other: Self) -> CGFloat {
+    func dot(_ other: Self) -> Double {
         zip(components, other.components).reduce(0) { $0 + $1.0 * $1.1 }
     }
 
     // MARK: - Distance
 
-    func distance(to other: Self) -> CGFloat {
+    func distance(to other: Self) -> Double {
         (self - other).length
     }
 
-    func distanceSquared(to other: Self) -> CGFloat {
+    func distanceSquared(to other: Self) -> Double {
         (self - other).lengthSquared
     }
 
-    func manhattanDistance(to other: Self) -> CGFloat {
+    func manhattanDistance(to other: Self) -> Double {
         zip(components, other.components).reduce(0) { $0 + abs($1.0 - $1.1) }
     }
 
@@ -57,7 +57,7 @@ public extension Vector {
 
     func projected(onto other: Self) -> Self {
         let d = other.lengthSquared
-        guard d > 0 else { return Self(components: [CGFloat](repeating: 0, count: count)) }
+        guard d > 0 else { return Self(components: [Double](repeating: 0, count: count)) }
         return other * (dot(other) / d)
     }
 
@@ -67,7 +67,7 @@ public extension Vector {
 
     // MARK: - Interpolation
 
-    func lerp(to other: Self, t: CGFloat) -> Self {
+    func lerp(to other: Self, t: Double) -> Self {
         Self(components: zip(components, other.components).map { $0 + ($1 - $0) * t })
     }
 
@@ -101,15 +101,15 @@ public extension Vector {
         Self(components: v.components.map { -$0 })
     }
 
-    static func * (lhs: Self, rhs: CGFloat) -> Self {
+    static func * (lhs: Self, rhs: Double) -> Self {
         Self(components: lhs.components.map { $0 * rhs })
     }
 
-    static func * (lhs: CGFloat, rhs: Self) -> Self {
+    static func * (lhs: Double, rhs: Self) -> Self {
         Self(components: rhs.components.map { $0 * lhs })
     }
 
-    static func / (lhs: Self, rhs: CGFloat) -> Self {
+    static func / (lhs: Self, rhs: Double) -> Self {
         Self(components: lhs.components.map { $0 / rhs })
     }
 
@@ -123,25 +123,25 @@ public extension Vector {
 // MARK: - Vec2
 
 public struct Vec2: Vector {
-    public var x: CGFloat
-    public var y: CGFloat
+    public var x: Double
+    public var y: Double
 
-    public init(_ x: CGFloat, _ y: CGFloat) {
+    public init(_ x: Double, _ y: Double) {
         self.x = x
         self.y = y
     }
 
-    public init(x: CGFloat, y: CGFloat) {
+    public init(x: Double, y: Double) {
         self.x = x
         self.y = y
     }
 
-    public init(components: [CGFloat]) {
+    public init(components: [Double]) {
         self.x = components.count > 0 ? components[0] : 0
         self.y = components.count > 1 ? components[1] : 0
     }
 
-    public var components: [CGFloat] { [x, y] }
+    public var components: [Double] { [x, y] }
 
     public static let zero = Vec2(0, 0)
     public static let one = Vec2(1, 1)
@@ -151,7 +151,7 @@ public struct Vec2: Vector {
     // MARK: - 2D-specific
 
     /// 2D scalar cross product (z-component of 3D cross).
-    public func cross(_ other: Vec2) -> CGFloat {
+    public func cross(_ other: Vec2) -> Double {
         x * other.y - y * other.x
     }
 
@@ -159,28 +159,28 @@ public struct Vec2: Vector {
     public var perpendicular: Vec2 { Vec2(-y, x) }
 
     /// Angle from positive x-axis.
-    public var angle: CGFloat { atan2(y, x) }
+    public var angle: Double { atan2(y, x) }
 
     /// Signed angle from this vector to another.
-    public func angle(to other: Vec2) -> CGFloat {
+    public func angle(to other: Vec2) -> Double {
         atan2(cross(other), dot(other))
     }
 
     /// Rotate by radians around origin.
-    public func rotated(by radians: CGFloat) -> Vec2 {
+    public func rotated(by radians: Double) -> Vec2 {
         let c = cos(radians)
         let s = sin(radians)
         return Vec2(x * c - y * s, x * s + y * c)
     }
 
     /// Rotate by radians around a center point.
-    public func rotated(by radians: CGFloat, around center: Vec2) -> Vec2 {
+    public func rotated(by radians: Double, around center: Vec2) -> Vec2 {
         let translated = self - center
         return translated.rotated(by: radians) + center
     }
 
     /// Create from angle and optional length.
-    public static func fromAngle(_ radians: CGFloat, length: CGFloat = 1) -> Vec2 {
+    public static func fromAngle(_ radians: Double, length: Double = 1) -> Vec2 {
         Vec2(cos(radians) * length, sin(radians) * length)
     }
 
@@ -201,23 +201,23 @@ public struct Vec2: Vector {
 // MARK: - Vec3
 
 public struct Vec3: Vector {
-    public var x: CGFloat
-    public var y: CGFloat
-    public var z: CGFloat
+    public var x: Double
+    public var y: Double
+    public var z: Double
 
-    public init(_ x: CGFloat, _ y: CGFloat, _ z: CGFloat) {
+    public init(_ x: Double, _ y: Double, _ z: Double) {
         self.x = x
         self.y = y
         self.z = z
     }
 
-    public init(components: [CGFloat]) {
+    public init(components: [Double]) {
         self.x = components.count > 0 ? components[0] : 0
         self.y = components.count > 1 ? components[1] : 0
         self.z = components.count > 2 ? components[2] : 0
     }
 
-    public var components: [CGFloat] { [x, y, z] }
+    public var components: [Double] { [x, y, z] }
 
     public static let zero = Vec3(0, 0, 0)
     public static let one = Vec3(1, 1, 1)
@@ -243,26 +243,26 @@ public struct Vec3: Vector {
 // MARK: - Vec4
 
 public struct Vec4: Vector {
-    public var x: CGFloat
-    public var y: CGFloat
-    public var z: CGFloat
-    public var w: CGFloat
+    public var x: Double
+    public var y: Double
+    public var z: Double
+    public var w: Double
 
-    public init(_ x: CGFloat, _ y: CGFloat, _ z: CGFloat, _ w: CGFloat) {
+    public init(_ x: Double, _ y: Double, _ z: Double, _ w: Double) {
         self.x = x
         self.y = y
         self.z = z
         self.w = w
     }
 
-    public init(components: [CGFloat]) {
+    public init(components: [Double]) {
         self.x = components.count > 0 ? components[0] : 0
         self.y = components.count > 1 ? components[1] : 0
         self.z = components.count > 2 ? components[2] : 0
         self.w = components.count > 3 ? components[3] : 0
     }
 
-    public var components: [CGFloat] { [x, y, z, w] }
+    public var components: [Double] { [x, y, z, w] }
 
     public static let zero = Vec4(0, 0, 0, 0)
     public static let one = Vec4(1, 1, 1, 1)
