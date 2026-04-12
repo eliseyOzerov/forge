@@ -252,11 +252,16 @@ public extension View {
     }
 
     func padded(_ padding: Padding) -> Box {
-        Box(padding: padding, children: [self])
+        Box(.fill, padding: padding, alignment: .topLeft, children: [self])
     }
 
     func padded(_ all: Double) -> Box {
-        Box(padding: Padding(all: all), children: [self])
+        Box(.fill, padding: Padding(all: all), alignment: .topLeft, children: [self])
+    }
+
+    func debug(_ color: UIColor = .red) -> Box {
+        let c = Color(platform: color)
+        return Box(.hug, .color(c.withAlpha(0.1)).border(c, width: 1), children: [self])
     }
 }
 

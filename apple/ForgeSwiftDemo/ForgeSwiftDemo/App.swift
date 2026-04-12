@@ -9,7 +9,7 @@ import ForgeSwift
 @main
 class ForgeDemo: App {
     override var body: any View {
-        Column(spacing: 24, alignment: .topLeft) {
+        Column(spacing: 24) {
             // Packed row (default), left-aligned
             label("packed, left")
             Row(spacing: 8, alignment: .centerLeft) {
@@ -41,6 +41,7 @@ class ForgeDemo: App {
                 chip("@")
                 chip("#")
             }
+            .debug(.red)
 
             // Fill child in a row
             label("fill child")
@@ -51,7 +52,7 @@ class ForgeDemo: App {
                 }
                 chip("fixed")
             }
-        }.padded(20)
+        }
     }
 
     private func label(_ text: String) -> Text {
