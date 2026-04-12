@@ -205,7 +205,15 @@ final class FlexView: UIView {
         let spacingTotal = flexSpacing * CGFloat(children.count - 1)
         mainTotal += spacingTotal
 
-        return isH ? CGSize(width: mainTotal, height: crossMax) : CGSize(width: crossMax, height: mainTotal)
+        // Non-packed spread fills the available main axis
+        let mainSize: CGFloat
+        if flexSpread != .packed {
+            mainSize = isH ? size.width : size.height
+        } else {
+            mainSize = mainTotal
+        }
+
+        return isH ? CGSize(width: mainSize, height: crossMax) : CGSize(width: crossMax, height: mainSize)
     }
 
     private func resolveSpacing(freeSpace: CGFloat, count: Int) -> (before: CGFloat, between: CGFloat) {
