@@ -9,16 +9,8 @@ import ForgeSwift
 @main
 class ForgeDemo: App {
     override var body: any View {
-        Column(spacing: 16) {
-            Text("Hello, Forge!", style: TextStyle(
-                font: Font(size: 32, weight: 700),
-                align: .center
-            ))
-            Text("Styled text with full typography control", style: TextStyle(
-                font: Font(size: 14, lineHeight: 1.4, weight: 300, italic: true),
-                color: .secondaryLabel,
-                align: .center
-            ))
+        Box(.fillWidth.height(100), .color(.blue)) {
+            Text("Hello World!")
         }
     }
 }

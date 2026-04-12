@@ -26,9 +26,9 @@ public struct Box: ContainerView {
     public let children: [any View]
 
     public init(
-        frame: Frame = .hug,
-        shape: Shape? = nil,
-        surface: Surface? = nil,
+        _ frame: Frame = .hug,
+        _ surface: Surface? = nil,
+        _ shape: Shape? = nil,
         padding: Padding = .zero,
         alignment: Alignment = .center,
         clip: Bool = true,
@@ -44,9 +44,9 @@ public struct Box: ContainerView {
     }
 
     public init(
-        frame: Frame = .hug,
-        shape: Shape? = nil,
-        surface: Surface? = nil,
+        _ frame: Frame = .hug,
+        _ surface: Surface? = nil,
+        _ shape: Shape? = nil,
         padding: Padding = .zero,
         alignment: Alignment = .center,
         clip: Bool = true,
@@ -104,25 +104,16 @@ final class BoxRenderer: ContainerRenderer {
     }
 
     private func apply(to view: BoxView) {
+        view.boxFrame = frame
         view.boxShape = shape
         view.boxSurface = surface
         view.boxClip = clip
-        view.setNeedsDisplay()
+        view.boxPadding = padding
+        view.boxAlignment = alignment
     }
 
     func insert(_ platformView: PlatformView, at index: Int, into container: PlatformView) {
         container.insertSubview(platformView, at: index)
-        if padding == .zero {
-            platformView.pin(to: container)
-        } else {
-            platformView.translatesAutoresizingMaskIntoConstraints = false
-            NSLayoutConstraint.activate([
-                platformView.topAnchor.constraint(equalTo: container.topAnchor, constant: padding.top),
-                platformView.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: padding.leading),
-                platformView.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -padding.trailing),
-                platformView.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -padding.bottom),
-            ])
-        }
     }
 
     func remove(_ platformView: PlatformView, from container: PlatformView) {
@@ -145,6 +136,9 @@ final class BoxView: UIView {
     var boxShape: Shape?
     var boxSurface: Surface?
     var boxClip: Bool = true
+    var boxFrame: Frame = .hug
+    var boxPadding: Padding = .zero
+    var boxAlignment: Alignment = .center
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -161,8 +155,85 @@ final class BoxView: UIView {
         renderer.render(in: ctx)
     }
 
+    override var intrinsicContentSize: CGSize {
+        let w: CGFloat = switch boxFrame.width {
+        case .fix(let v): v
+        default: UIView.noIntrinsicMetric
+        }
+        let h: CGFloat = switch boxFrame.height {
+        case .fix(let v): v
+        default: UIView.noIntrinsicMetric
+        }
+        return CGSize(width: w, height: h)
+    }
+
+    override func sizeThatFits(_ size: CGSize) -> CGSize {
+        let w: CGFloat = switch boxFrame.width {
+        case .fix(let v): v
+        case .fill: size.width
+        case .hug: childrenSize(proposing: size).width + boxPadding.leading + boxPadding.trailing
+        }
+        let h: CGFloat = switch boxFrame.height {
+        case .fix(let v): v
+        case .fill: size.height
+        case .hug: childrenSize(proposing: size).height + boxPadding.top + boxPadding.bottom
+        }
+        return CGSize(width: w, height: h)
+    }
+
+    private func childrenSize(proposing size: CGSize) -> CGSize {
+        var maxW: CGFloat = 0, maxH: CGFloat = 0
+        for child in subviews {
+            let s = child.sizeThatFits(size)
+            maxW = max(maxW, s.width)
+            maxH = max(maxH, s.height)
+        }
+        return CGSize(width: maxW, height: maxH)
+    }
+
+    override func didMoveToSuperview() {
+        super.didMoveToSuperview()
+        guard let superview else { return }
+        applyFrameConstraints(in: superview)
+    }
+
+    private func applyFrameConstraints(in parent: UIView) {
+        constrain {
+            switch boxFrame.width {
+            case .fix(let w): widthAnchor.equal(w)
+            case .fill: leadingAnchor.equal(parent.leadingAnchor); trailingAnchor.equal(parent.trailingAnchor)
+            case .hug: break
+            }
+
+            switch boxFrame.height {
+            case .fix(let h): heightAnchor.equal(h)
+            case .fill: topAnchor.equal(parent.topAnchor); bottomAnchor.equal(parent.bottomAnchor)
+            case .hug: break
+            }
+        }
+    }
+
     override func layoutSubviews() {
         super.layoutSubviews()
+
+        // Position children based on alignment
+        let inset = CGRect(
+            x: boxPadding.leading,
+            y: boxPadding.top,
+            width: bounds.width - boxPadding.leading - boxPadding.trailing,
+            height: bounds.height - boxPadding.top - boxPadding.bottom
+        )
+
+        for child in subviews {
+            let childSize = child.sizeThatFits(inset.size)
+            let fx = (boxAlignment.x + 1) / 2  // 0...1
+            let fy = (boxAlignment.y + 1) / 2  // 0...1
+            let x = inset.minX + (inset.width - childSize.width) * fx
+            let y = inset.minY + (inset.height - childSize.height) * fy
+            child.frame = CGRect(x: x, y: y, width: childSize.width, height: childSize.height)
+        }
+
+        // Clip to shape
         if boxClip, let shape = boxShape {
             let maskLayer = CAShapeLayer()
             maskLayer.path = shape.resolve(in: bounds).cgPath
@@ -170,6 +241,22 @@ final class BoxView: UIView {
         } else {
             layer.mask = nil
         }
+    }
+}
+
+// MARK: - View Extensions
+
+public extension View {
+    func centered() -> Box {
+        Box(.fill, alignment: .center, children: [self])
+    }
+
+    func padded(_ padding: Padding) -> Box {
+        Box(padding: padding, children: [self])
+    }
+
+    func padded(_ all: Double) -> Box {
+        Box(padding: Padding(all: all), children: [self])
     }
 }
 

@@ -54,11 +54,7 @@ open class App: UIResponder, UIApplicationDelegate, UISceneDelegate {
         let vc = UIViewController()
         vc.view.backgroundColor = .systemBackground
         vc.view.addSubview(rootPlatformView)
-        rootPlatformView.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            rootPlatformView.centerXAnchor.constraint(equalTo: vc.view.centerXAnchor),
-            rootPlatformView.centerYAnchor.constraint(equalTo: vc.view.centerYAnchor),
-        ])
+        rootPlatformView.center(in: vc.view)
 
         window.rootViewController = vc
         window.makeKeyAndVisible()

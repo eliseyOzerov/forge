@@ -533,6 +533,13 @@ public final class Surface {
 
     nonisolated(unsafe) public static let empty = Surface()
 
+    // MARK: - Static factories
+
+    public static func color(_ color: Color) -> Surface { Surface().color(color) }
+    public static func gradient(_ gradient: Gradient) -> Surface { Surface().gradient(gradient) }
+    public static func border(_ color: Color, width: Double = 1) -> Surface { Surface().border(color, width: width) }
+    public static func shadow(color: Color = Color(0, 0, 0, 0.3), offset: Vec2 = Vec2(0, 4), blur: Double = 8) -> Surface { Surface().shadow(color: color, offset: offset, blur: blur) }
+
     /// Materialize layers for a given shape.
     public func build(shape: Shape) -> [any Layer] {
         var layers: [any Layer] = []

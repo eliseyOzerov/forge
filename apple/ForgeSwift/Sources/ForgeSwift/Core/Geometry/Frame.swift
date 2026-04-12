@@ -16,21 +16,47 @@ public struct Frame: Sendable {
     public var width: Extent
     public var height: Extent
 
-    public init(width: Extent = .hug(), height: Extent = .hug()) {
+    public init(_ width: Extent = .hug(), _ height: Extent = .hug()) {
         self.width = width
         self.height = height
     }
 
     public static func fixed(_ width: Double, _ height: Double) -> Frame {
-        Frame(width: .fix(width), height: .fix(height))
+        Frame(.fix(width), .fix(height))
     }
 
     public static func square(_ size: Double) -> Frame {
-        Frame(width: .fix(size), height: .fix(size))
+        Frame(.fix(size), .fix(size))
+    }
+    
+    public static func height(_ extent: Extent) -> Frame {
+        Frame(.hug(), extent)
+    }
+    
+    public static func width(_ extent: Extent) -> Frame {
+        Frame(extent, .hug())
+    }
+    
+    public func height(_ extent: Extent) -> Frame {
+        Frame(self.width, extent)
+    }
+    
+    public func height(_ value: Double) -> Frame {
+        Frame(self.width, .fix(value))
+    }
+    
+    public func width(_ extent: Extent) -> Frame {
+        Frame(extent, self.height)
+    }
+    
+    public func width(_ value: Double) -> Frame {
+        Frame(.fix(value), self.height)
     }
 
-    public static let fill = Frame(width: .fill(), height: .fill())
-    public static let hug = Frame(width: .hug(), height: .hug())
-    public static let fillWidth = Frame(width: .fill(), height: .hug())
-    public static let fillHeight = Frame(width: .hug(), height: .fill())
+    public static let fill = Frame(.fill(), .fill())
+    public static let hug = Frame(.hug(), .hug())
+    
+    public static let fillWidth = Frame(.fill(), .hug())
+    public static let fillHeight = Frame(.hug(), .fill())
+    
 }
