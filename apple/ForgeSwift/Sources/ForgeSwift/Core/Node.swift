@@ -250,14 +250,8 @@ public final class ComposedNode: Node {
     /// Pin `child` to fill `parent`. Parent sizes to child's intrinsic
     /// content via the pinning constraints.
     private func attach(_ child: PlatformView, inside parent: PlatformView) {
-        child.translatesAutoresizingMaskIntoConstraints = false
         parent.addSubview(child)
-        NSLayoutConstraint.activate([
-            child.leadingAnchor.constraint(equalTo: parent.leadingAnchor),
-            child.trailingAnchor.constraint(equalTo: parent.trailingAnchor),
-            child.topAnchor.constraint(equalTo: parent.topAnchor),
-            child.bottomAnchor.constraint(equalTo: parent.bottomAnchor),
-        ])
+        child.pin(to: parent)
     }
 }
 

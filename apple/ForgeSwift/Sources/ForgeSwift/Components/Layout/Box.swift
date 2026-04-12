@@ -111,9 +111,18 @@ final class BoxRenderer: ContainerRenderer {
     }
 
     func insert(_ platformView: PlatformView, at index: Int, into container: PlatformView) {
-        platformView.translatesAutoresizingMaskIntoConstraints = false
         container.insertSubview(platformView, at: index)
-        pinChild(platformView, in: container)
+        if padding == .zero {
+            platformView.pin(to: container)
+        } else {
+            platformView.translatesAutoresizingMaskIntoConstraints = false
+            NSLayoutConstraint.activate([
+                platformView.topAnchor.constraint(equalTo: container.topAnchor, constant: padding.top),
+                platformView.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: padding.leading),
+                platformView.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -padding.trailing),
+                platformView.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -padding.bottom),
+            ])
+        }
     }
 
     func remove(_ platformView: PlatformView, from container: PlatformView) {
@@ -127,16 +136,6 @@ final class BoxRenderer: ContainerRenderer {
 
     func index(of platformView: PlatformView, in container: PlatformView) -> Int? {
         container.subviews.firstIndex(of: platformView)
-    }
-
-    private func pinChild(_ child: PlatformView, in parent: PlatformView) {
-        let p = padding
-        NSLayoutConstraint.activate([
-            child.leadingAnchor.constraint(equalTo: parent.leadingAnchor, constant: p.leading),
-            child.trailingAnchor.constraint(equalTo: parent.trailingAnchor, constant: -p.trailing),
-            child.topAnchor.constraint(equalTo: parent.topAnchor, constant: p.top),
-            child.bottomAnchor.constraint(equalTo: parent.bottomAnchor, constant: -p.bottom),
-        ])
     }
 }
 
