@@ -13,6 +13,16 @@ public struct UIState: OptionSet, Sendable, Hashable {
     public static let loading  = UIState(rawValue: 1 << 6)
 }
 
+// MARK: - HapticStyle
+
+/// Haptic feedback intensity. Platform renderers map to native APIs.
+public enum HapticStyle: Sendable {
+    case light, medium, heavy, rigid, soft
+    case none
+}
+
+// MARK: - Mapper
+
 /// Maps a value from an input type. Generic function wrapper.
 public struct Mapper<T, K> {
     public let map: (T) -> K

@@ -20,6 +20,14 @@
         get { getter() }
         nonmutating set { setter(newValue) }
     }
+
+    /// Returns a new binding that calls `handler` after every write.
+    public func onChange(_ handler: @escaping (Value) -> Void) -> Binding {
+        Binding(get: getter, set: { newValue in
+            self.setter(newValue)
+            handler(newValue)
+        })
+    }
 }
 
 /// Simple reference-type box for value storage.

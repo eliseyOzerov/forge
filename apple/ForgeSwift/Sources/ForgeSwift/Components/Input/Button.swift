@@ -1,13 +1,6 @@
 #if canImport(UIKit)
 import UIKit
 
-// MARK: - HapticStyle
-
-public enum HapticStyle: Sendable {
-    case light, medium, heavy, rigid, soft
-    case none
-}
-
 // MARK: - ButtonStyle
 
 public struct ButtonStyle {

@@ -11,26 +11,44 @@ public protocol TogglePainter {
     func paint(on canvas: Canvas, bounds: Rect, state: UIState, progress: Double)
 }
 
+// MARK: - ToggleStyle
+
+public struct ToggleStyle {
+    public var painter: any TogglePainter
+    public var size: Size
+    public var animation: Animation
+    public var haptic: HapticStyle
+
+    public init(
+        painter: any TogglePainter = CheckboxPainter(),
+        size: Size = Size(24, 24),
+        animation: Animation = .default,
+        haptic: HapticStyle = .light
+    ) {
+        self.painter = painter
+        self.size = size
+        self.animation = animation
+        self.haptic = haptic
+    }
+}
+
 // MARK: - Toggle
 
 public struct Toggle: ModelView {
     public let value: Binding<Bool>
-    public let painter: any TogglePainter
-    public let size: Size
-    public let animation: StateProperty<Animation>
+    public let style: StateProperty<ToggleStyle>
+    public let states: UIState
     public let label: String?
 
     public init(
         value: Binding<Bool>,
-        painter: any TogglePainter,
-        size: Size = Size(24, 24),
-        animation: StateProperty<Animation> = .constant(.default),
+        style: StateProperty<ToggleStyle> = .constant(ToggleStyle()),
+        states: UIState = .idle,
         label: String? = nil
     ) {
         self.value = value
-        self.painter = painter
-        self.size = size
-        self.animation = animation
+        self.style = style
+        self.states = states
         self.label = label
     }
 
@@ -42,21 +60,13 @@ public struct Toggle: ModelView {
 
 public final class ToggleModel: ViewModel<Toggle> {
     var isPressed = false
-    lazy var motion: Motion = Motion(
-        duration: 0.2,
-        tracks: [Track(from: 0, to: 1)]
-    )
+    lazy var motion: Motion = Motion(duration: 0.2, tracks: [Track(from: 0, to: 1)])
 
     public override func didInit() {
-        let anim = resolveAnimation()
-        motion = Motion(
-            duration: anim.duration,
-            curve: anim.curve,
-            tracks: [Track(from: 0, to: 1)]
-        )
+        let style = resolveStyle()
+        motion = Motion(duration: style.animation.duration, curve: style.animation.curve, tracks: [Track(from: 0, to: 1)])
         if view.value.value {
             motion.target([1])
-            // Snap immediately
             motion.tick()
             while motion.isRunning { motion.tick() }
         }
@@ -64,45 +74,62 @@ public final class ToggleModel: ViewModel<Toggle> {
 
     public override func didUpdate(from oldView: Toggle) {}
 
-    /// Resolve animation for the *current* state — describes how to exit it.
-    private func resolveAnimation() -> Animation {
-        view.animation(currentState)
-    }
-
     var isOn: Bool { view.value.value }
+    var isDisabled: Bool { view.states.contains(.disabled) }
+    var isLoading: Bool { view.states.contains(.loading) }
     var animationProgress: Double { motion.values[0] }
     var isAnimating: Bool { motion.isRunning }
 
     var currentState: UIState {
-        var state: UIState = .idle
+        var state = view.states
         if isOn || animationProgress > 0.5 { state.insert(.selected) }
         if isPressed { state.insert(.pressed) }
         return state
     }
 
+    /// Resolve style for current state.
+    func resolveStyle() -> ToggleStyle {
+        view.style(currentState)
+    }
+
     func handlePress() {
-        let anim = resolveAnimation()
-        motion.duration = anim.duration
-        motion.curve = anim.curve
+        guard !isDisabled, !isLoading else { return }
+        let style = resolveStyle()
+        motion.duration = style.animation.duration
+        motion.curve = style.animation.curve
         rebuild { isPressed = true }
+        fireHaptic(style.haptic)
     }
 
     func handleRelease(inside: Bool) {
         let wasPressed = isPressed
-        let anim = resolveAnimation()
-        motion.duration = anim.duration
-        motion.curve = anim.curve
+        let style = resolveStyle()
+        motion.duration = style.animation.duration
+        motion.curve = style.animation.curve
         rebuild { isPressed = false }
         if inside && wasPressed { toggle() }
     }
 
     func toggle() {
         view.value.value.toggle()
-        let anim = resolveAnimation()
-        motion.duration = anim.duration
-        motion.curve = anim.curve
+        let style = resolveStyle()
+        motion.duration = style.animation.duration
+        motion.curve = style.animation.curve
         motion.target([view.value.value ? 1 : 0])
         node?.markDirty()
+    }
+
+    private func fireHaptic(_ haptic: HapticStyle) {
+        guard haptic != .none else { return }
+        let feedbackStyle: UIImpactFeedbackGenerator.FeedbackStyle = switch haptic {
+        case .light: .light
+        case .medium: .medium
+        case .heavy: .heavy
+        case .rigid: .rigid
+        case .soft: .soft
+        case .none: .light
+        }
+        UIImpactFeedbackGenerator(style: feedbackStyle).impactOccurred()
     }
 }
 
@@ -142,7 +169,8 @@ final class ToggleRenderer: Renderer {
     }
 
     private func apply(to view: ToggleView) {
-        view.toggleSize = model.view.size
+        let style = model.resolveStyle()
+        view.toggleSize = style.size
         view.isOpaque = false
         view.backgroundColor = .clear
         view.invalidateIntrinsicContentSize()
@@ -171,10 +199,9 @@ final class ToggleView: UIView {
         guard let model, let ctx = UIGraphicsGetCurrentContext() else { return }
         let canvas = CGCanvas(ctx)
         let bounds = Rect(x: 0, y: 0, width: Double(rect.width), height: Double(rect.height))
-        model.view.painter.paint(on: canvas, bounds: bounds, state: model.currentState, progress: model.animationProgress)
+        let style = model.resolveStyle()
+        style.painter.paint(on: canvas, bounds: bounds, state: model.currentState, progress: model.animationProgress)
     }
-
-    // MARK: Touch
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         super.touchesBegan(touches, with: event)
@@ -192,8 +219,6 @@ final class ToggleView: UIView {
         super.touchesCancelled(touches, with: event)
         model?.handleRelease(inside: false)
     }
-
-    // MARK: Accessibility
 
     override var isAccessibilityElement: Bool { get { true } set {} }
     override var accessibilityTraits: UIAccessibilityTraits { get { [.button] } set {} }
@@ -219,8 +244,7 @@ public struct CheckboxPainter: TogglePainter {
         let r = Rect(x: bounds.x + inset, y: bounds.y + inset, width: bounds.width - inset * 2, height: bounds.height - inset * 2)
         let cornerRadius = r.width * 0.2
         let strokeWidth = r.width * 0.08
-        let pressed = state.contains(.pressed)
-        let scale = pressed ? 0.9 : 1.0
+        let scale = state.contains(.pressed) ? 0.9 : 1.0
 
         if scale != 1.0 {
             canvas.save()
@@ -229,16 +253,13 @@ public struct CheckboxPainter: TogglePainter {
             canvas.translate(-bounds.midX, -bounds.midY)
         }
 
-        // Background
         canvas.fillRoundedRect(r, radius: cornerRadius, color: offColor.lerp(to: onColor, t: progress))
 
-        // Border (fades out)
         if progress < 1 {
             var border = Path(); border.addRoundedRect(r, cornerWidth: cornerRadius, cornerHeight: cornerRadius)
             canvas.draw(border.stroked(width: strokeWidth), with: Paint(.color(offColor.withAlpha(1 - progress)), opacity: 0.5))
         }
 
-        // Checkmark
         if progress > 0 {
             var check = Path()
             check.move(to: Point(r.x + r.width * 0.22, r.y + r.height * 0.52))
@@ -266,8 +287,7 @@ public struct RadioPainter: TogglePainter {
         let outerRadius = min(bounds.width, bounds.height) / 2 * 0.8
         let innerRadius = outerRadius * 0.5
         let strokeWidth = outerRadius * 0.12
-        let pressed = state.contains(.pressed)
-        let scale = pressed ? 0.9 : 1.0
+        let scale = state.contains(.pressed) ? 0.9 : 1.0
 
         if scale != 1.0 {
             canvas.save()
@@ -277,7 +297,6 @@ public struct RadioPainter: TogglePainter {
         }
 
         canvas.strokeCircle(center: center, radius: outerRadius, color: offColor.lerp(to: onColor, t: progress), width: strokeWidth)
-
         if progress > 0 {
             canvas.fillCircle(center: center, radius: innerRadius * progress, color: onColor.withAlpha(progress))
         }
@@ -302,15 +321,12 @@ public struct SwitchPainter: TogglePainter {
         let x = bounds.midX - w / 2
         let y = bounds.midY - h / 2
         let trackRect = Rect(x: x, y: y, width: w, height: h)
-        let pressed = state.contains(.pressed)
 
-        // Track
         canvas.fillRoundedRect(trackRect, radius: h / 2, color: offColor.lerp(to: onColor, t: progress))
 
-        // Thumb
         let pad = h * 0.12
         let thumbR = (h - pad * 2) / 2
-        let expand = pressed ? thumbR * 0.15 : 0
+        let expand = state.contains(.pressed) ? thumbR * 0.15 : 0
         let minX = x + pad + thumbR
         let maxX = x + w - pad - thumbR
         let thumbX = minX + (maxX - minX) * progress
@@ -330,8 +346,7 @@ public struct HeartPainter: TogglePainter {
     }
 
     public func paint(on canvas: Canvas, bounds: Rect, state: UIState, progress: Double) {
-        let pressed = state.contains(.pressed)
-        let scale = pressed ? 0.85 : 1.0
+        let scale = state.contains(.pressed) ? 0.85 : 1.0
         let s = min(bounds.width, bounds.height) * 0.8
 
         if scale != 1.0 {
@@ -374,10 +389,17 @@ public extension Toggle {
         size: Double = 24,
         onColor: Color = Color(0.2, 0.5, 1.0),
         offColor: Color = Color(0.7, 0.7, 0.7),
-        animation: StateProperty<Animation> = .constant(.default),
+        states: UIState = .idle,
         label: String? = nil
     ) -> Toggle {
-        Toggle(value: value, painter: CheckboxPainter(onColor: onColor, offColor: offColor), size: Size(size, size), animation: animation, label: label)
+        Toggle(value: value, style: StateProperty { state in
+            ToggleStyle(
+                painter: CheckboxPainter(onColor: onColor, offColor: offColor),
+                size: Size(size, size),
+                animation: state.contains(.pressed) ? .fast : .default,
+                haptic: state.contains(.pressed) ? .light : .none
+            )
+        }, states: states, label: label)
     }
 
     static func radio(
@@ -385,10 +407,17 @@ public extension Toggle {
         size: Double = 24,
         onColor: Color = Color(0.2, 0.5, 1.0),
         offColor: Color = Color(0.7, 0.7, 0.7),
-        animation: StateProperty<Animation> = .constant(.default),
+        states: UIState = .idle,
         label: String? = nil
     ) -> Toggle {
-        Toggle(value: value, painter: RadioPainter(onColor: onColor, offColor: offColor), size: Size(size, size), animation: animation, label: label)
+        Toggle(value: value, style: StateProperty { state in
+            ToggleStyle(
+                painter: RadioPainter(onColor: onColor, offColor: offColor),
+                size: Size(size, size),
+                animation: state.contains(.pressed) ? .fast : .default,
+                haptic: state.contains(.pressed) ? .light : .none
+            )
+        }, states: states, label: label)
     }
 
     static func `switch`(
@@ -396,10 +425,17 @@ public extension Toggle {
         height: Double = 32,
         onColor: Color = Color(0.2, 0.8, 0.4),
         offColor: Color = Color(0.8, 0.8, 0.8),
-        animation: StateProperty<Animation> = .constant(Animation(duration: 0.25)),
+        states: UIState = .idle,
         label: String? = nil
     ) -> Toggle {
-        Toggle(value: value, painter: SwitchPainter(onColor: onColor, offColor: offColor), size: Size(height * 1.8, height), animation: animation, label: label)
+        Toggle(value: value, style: StateProperty { state in
+            ToggleStyle(
+                painter: SwitchPainter(onColor: onColor, offColor: offColor),
+                size: Size(height * 1.8, height),
+                animation: state.contains(.pressed) ? .fast : Animation(duration: 0.25),
+                haptic: state.contains(.pressed) ? .medium : .none
+            )
+        }, states: states, label: label)
     }
 
     static func heart(
@@ -407,12 +443,17 @@ public extension Toggle {
         size: Double = 28,
         onColor: Color = Color(1, 0.2, 0.3),
         offColor: Color = Color(0.7, 0.7, 0.7),
-        animation: StateProperty<Animation> = StateProperty { state in
-            state.contains(.pressed) ? .fast : Animation(duration: 0.25, curve: .overshoot)
-        },
+        states: UIState = .idle,
         label: String? = nil
     ) -> Toggle {
-        Toggle(value: value, painter: HeartPainter(onColor: onColor, offColor: offColor), size: Size(size, size), animation: animation, label: label)
+        Toggle(value: value, style: StateProperty { state in
+            ToggleStyle(
+                painter: HeartPainter(onColor: onColor, offColor: offColor),
+                size: Size(size, size),
+                animation: state.contains(.pressed) ? .fast : Animation(duration: 0.25, curve: .overshoot),
+                haptic: state.contains(.pressed) ? .light : .none
+            )
+        }, states: states, label: label)
     }
 }
 

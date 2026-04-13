@@ -259,23 +259,57 @@ final class ToggleTests: XCTestCase {
 
     func testCheckboxPreset() {
         let t = Toggle.checkbox(value: Binding(false))
-        XCTAssertEqual(t.size.width, 24)
-        XCTAssertEqual(t.size.height, 24)
+        let style = t.style(.idle)
+        XCTAssertEqual(style.size.width, 24)
+        XCTAssertEqual(style.size.height, 24)
     }
 
     func testRadioPreset() {
         let t = Toggle.radio(value: Binding(false))
-        XCTAssertEqual(t.size.width, 24)
+        let style = t.style(.idle)
+        XCTAssertEqual(style.size.width, 24)
     }
 
     func testSwitchPreset() {
         let t = Toggle.switch(value: Binding(false))
-        XCTAssertGreaterThan(t.size.width, t.size.height) // wider than tall
+        let style = t.style(.idle)
+        XCTAssertGreaterThan(style.size.width, style.size.height)
     }
 
     func testHeartPreset() {
         let t = Toggle.heart(value: Binding(false))
-        XCTAssertEqual(t.size.width, 28)
+        let style = t.style(.idle)
+        XCTAssertEqual(style.size.width, 28)
+    }
+
+    // MARK: - Haptic per state
+
+    func testHapticOnPress() {
+        let t = Toggle.checkbox(value: Binding(false))
+        let pressedStyle = t.style(.pressed)
+        let idleStyle = t.style(.idle)
+        XCTAssertNotEqual(pressedStyle.haptic, .none)
+        XCTAssertEqual(idleStyle.haptic, .none)
+    }
+
+    // MARK: - States passthrough
+
+    func testDisabledBlocksPress() {
+        let binding = Binding(false)
+        let toggle = Toggle(value: binding, states: .disabled)
+        let model = ToggleModel()
+        model.handleDidInit(toggle)
+        model.handlePress()
+        XCTAssertFalse(model.isPressed)
+    }
+
+    func testLoadingBlocksPress() {
+        let binding = Binding(false)
+        let toggle = Toggle(value: binding, states: .loading)
+        let model = ToggleModel()
+        model.handleDidInit(toggle)
+        model.handlePress()
+        XCTAssertFalse(model.isPressed)
     }
 
     // MARK: - Painters output
@@ -316,6 +350,15 @@ final class ToggleTests: XCTestCase {
 
     func testHeartPainterOn() {
         XCTAssertTrue(painterProducesOutput(HeartPainter(), state: .selected, progress: 1))
+    }
+
+    // MARK: - Binding.onChange
+
+    func testBindingOnChange() {
+        var changed: Bool?
+        let binding = Binding(false).onChange { changed = $0 }
+        binding.value = true
+        XCTAssertEqual(changed, true)
     }
 
     // MARK: - ToggleView
