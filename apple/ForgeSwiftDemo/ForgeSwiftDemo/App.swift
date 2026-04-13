@@ -21,7 +21,7 @@ struct TextFieldDemo: ModelView {
 }
 
 final class TextFieldDemoModel: ViewModel<TextFieldDemo> {
-    var text = ""
+    var text = Binding("")
     var otp = ""
     var tags: [String] = ["swift", "forge"]
     var card = CreditCard()
@@ -52,8 +52,10 @@ final class TextFieldDemoBuilder: ViewBuilder<TextFieldDemoModel> {
 //            }.padded(20)
 //        }
         Box(.fill, alignment: .center) {
-            TextField<String>(text: bind(\.text),
-                decoration: TextFieldDecoration(placeholder: "Type something...", label: "Text"))
+            TextField<String>(
+                text: model.text,
+                decoration: TextFieldDecoration(placeholder: "Type something...", label: "Text")
+            )
         }
     }
 
