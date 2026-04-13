@@ -414,18 +414,18 @@ final class GeometryTests: XCTestCase {
         if case .fix(let w) = f.width { XCTAssertEqual(w, 200) } else { XCTFail() }
     }
 
-    // MARK: - EdgeSet
+    // MARK: - Edge.Set
 
     func testEdgeSetSingle() {
-        XCTAssertTrue(EdgeSet.top.hasTop)
-        XCTAssertFalse(EdgeSet.top.hasBottom)
-        XCTAssertTrue(EdgeSet.bottom.hasBottom)
-        XCTAssertTrue(EdgeSet.leading.hasLeading)
-        XCTAssertTrue(EdgeSet.trailing.hasTrailing)
+        XCTAssertTrue(Edge.Set.top.hasTop)
+        XCTAssertFalse(Edge.Set.top.hasBottom)
+        XCTAssertTrue(Edge.Set.bottom.hasBottom)
+        XCTAssertTrue(Edge.Set.leading.hasLeading)
+        XCTAssertTrue(Edge.Set.trailing.hasTrailing)
     }
 
     func testEdgeSetHorizontal() {
-        let h = EdgeSet.horizontal
+        let h = Edge.Set.horizontal
         XCTAssertTrue(h.hasLeading)
         XCTAssertTrue(h.hasTrailing)
         XCTAssertFalse(h.hasTop)
@@ -433,7 +433,7 @@ final class GeometryTests: XCTestCase {
     }
 
     func testEdgeSetVertical() {
-        let v = EdgeSet.vertical
+        let v = Edge.Set.vertical
         XCTAssertTrue(v.hasTop)
         XCTAssertTrue(v.hasBottom)
         XCTAssertFalse(v.hasLeading)
@@ -441,7 +441,7 @@ final class GeometryTests: XCTestCase {
     }
 
     func testEdgeSetAll() {
-        let a = EdgeSet.all
+        let a = Edge.Set.all
         XCTAssertTrue(a.hasTop)
         XCTAssertTrue(a.hasBottom)
         XCTAssertTrue(a.hasLeading)
@@ -449,15 +449,15 @@ final class GeometryTests: XCTestCase {
     }
 
     func testEdgeSetUnion() {
-        let combo: EdgeSet = [.top, .leading]
+        let combo: Edge.Set = [.top, .leading]
         XCTAssertTrue(combo.hasTop)
         XCTAssertTrue(combo.hasLeading)
         XCTAssertFalse(combo.hasBottom)
     }
 
     func testEdgeSetContains() {
-        XCTAssertTrue(EdgeSet.all.contains(.top))
-        XCTAssertTrue(EdgeSet.horizontal.contains(.leading))
-        XCTAssertFalse(EdgeSet.horizontal.contains(.top))
+        XCTAssertTrue(Edge.Set.all.contains(.top))
+        XCTAssertTrue(Edge.Set.horizontal.contains(.leading))
+        XCTAssertFalse(Edge.Set.horizontal.contains(.top))
     }
 }
