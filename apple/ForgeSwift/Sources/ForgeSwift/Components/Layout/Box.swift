@@ -472,11 +472,7 @@ public extension View {
     }
     
     func aligned(_ alignment: Alignment, axis: Axis? = nil) -> Box {
-        let frame: Frame = switch axis {
-        case .horizontal: .fillWidth
-        case .vertical: .fillHeight
-        case nil: .fill
-        }
+        let frame: Frame = axis == nil ? .fill : axis == .horizontal ? .fillWidth : .fillHeight
         return Box(frame, alignment: alignment) { self }
     }
     
