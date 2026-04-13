@@ -35,7 +35,7 @@ final class TextFieldDemoBuilder: ViewBuilder<TextFieldDemoModel> {
             // Basic text field
             TextField<String>(text: model.text,
                 decoration: TextFieldDecoration(placeholder: "Type something...", label: "Text"))
-            .debug(.green)
+            .debug(.blue)
 
             // OTP / PIN
             Text("OTP Code", style: TextStyle(font: Font(size: 14, weight: 500)))
@@ -50,10 +50,8 @@ final class TextFieldDemoBuilder: ViewBuilder<TextFieldDemoModel> {
             CreditCardInput(value: bind(\.card))
 
         }
-        .debug(.blue)
         .padded(20)
         .centered()
-        .debug(.red)
     }
 
     private func oldBody() -> any View {

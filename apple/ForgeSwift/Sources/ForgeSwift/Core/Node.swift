@@ -36,6 +36,11 @@ class ProxyView: UIView {
     override var intrinsicContentSize: CGSize {
         subviews.first?.intrinsicContentSize ?? CGSize(width: UIView.noIntrinsicMetric, height: UIView.noIntrinsicMetric)
     }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        subviews.first?.frame = bounds
+    }
 }
 #elseif canImport(AppKit)
 class ProxyView: NSView {
@@ -269,7 +274,6 @@ public final class ComposedNode: Node {
 
     private func attach(_ child: PlatformView, inside parent: PlatformView) {
         parent.addSubview(child)
-        child.pin(to: parent)
     }
 }
 
