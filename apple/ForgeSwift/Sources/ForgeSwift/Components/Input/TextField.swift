@@ -3,11 +3,11 @@ import UIKit
 
 // MARK: - Function Types
 
-public typealias Parser<T> = (String) -> T?
-public typealias Formatter<T> = (T) -> String
-public typealias Transformer = (String) -> String
-public typealias InputFilter = (String) -> Bool
-public typealias Validator<T> = (T) -> String?
+public typealias TextParser<T> = Mapper<String, T?>
+public typealias TextFormatter<T> = Mapper<T, String>
+public typealias TextTransformer = Mapper<String, String>
+public typealias InputFilter = Mapper<String, Bool>
+public typealias InputValidator<T> = Mapper<T, String?>
 public typealias Handler = @MainActor () -> Void
 public typealias ValueHandler<T> = (T) -> Void
 
@@ -38,20 +38,20 @@ public struct TextField<T>: ModelView {
 // MARK: - Logic
 
 public struct TextFieldLogic<T> {
-    public let parser: Parser<T>
-    public let formatter: Formatter<T>
-    public var transformer: Transformer?
+    public let parser: TextParser<T>
+    public let formatter: TextFormatter<T>
+    public var transformer: TextTransformer?
     public var filter: InputFilter?
-    public var validator: Validator<T>?
+    public var validator: InputValidator<T>?
     public var onChanged: ValueHandler<T>?
     public var onSubmit: Handler?
 
     public init(
-        parser: @escaping Parser<T>,
-        formatter: @escaping Formatter<T>,
-        transformer: Transformer? = nil,
+        parser: TextParser<T>,
+        formatter: TextFormatter<T>,
+        transformer: TextTransformer? = nil,
         filter: InputFilter? = nil,
-        validator: Validator<T>? = nil,
+        validator: InputValidator<T>? = nil,
         onChanged: ValueHandler<T>? = nil,
         onSubmit: Handler? = nil
     ) {
@@ -64,9 +64,13 @@ public struct TextFieldLogic<T> {
 // MARK: - String convenience
 
 public extension TextField where T == String {
+    static var stringLogic: TextFieldLogic<String> {
+        TextFieldLogic(parser: TextParser { $0 }, formatter: TextFormatter { $0 })
+    }
+
     init(
         text: Binding<String>,
-        logic: TextFieldLogic<String> = TextFieldLogic(parser: { $0 }, formatter: { $0 }),
+        logic: TextFieldLogic<String> = TextField<String>.stringLogic,
         decoration: TextFieldDecoration = TextFieldDecoration(),
         keyboard: KeyboardConfig = KeyboardConfig(),
         style: StateProperty<TextFieldStyle> = .constant(TextFieldStyle())
@@ -246,6 +250,9 @@ public final class TextFieldModel<T>: ViewModel<TextField<T>> {
         validate()
     }
 
+    // Note: parser, formatter, transformer, filter, validator all use
+    // callAsFunction from Mapper — e.g. view.logic.parser("text")
+
     var currentState: UIState {
         var state: UIState = .idle
         if isFocused { state.insert(.focused) }
@@ -398,9 +405,10 @@ final class TextFieldWrapperView<T>: BoxView, UITextFieldDelegate {
 
 public extension TextField where T == String {
     static func email(text: Binding<String>, decoration: TextFieldDecoration = TextFieldDecoration(placeholder: "Email"), style: StateProperty<TextFieldStyle> = .constant(TextFieldStyle())) -> TextField {
-        TextField(text: text, logic: TextFieldLogic(parser: { $0 }, formatter: { $0 },
-            validator: { $0.contains("@") && $0.contains(".") ? nil : "Invalid email" }),
-            decoration: decoration, keyboard: KeyboardConfig(type: .email, autocapitalization: .none), style: style)
+        TextField(text: text, logic: TextFieldLogic(
+            parser: TextParser { $0 }, formatter: TextFormatter { $0 },
+            validator: InputValidator { $0.contains("@") && $0.contains(".") ? nil : "Invalid email" }
+        ), decoration: decoration, keyboard: KeyboardConfig(type: .email, autocapitalization: .none), style: style)
     }
 
     static func password(text: Binding<String>, decoration: TextFieldDecoration = TextFieldDecoration(placeholder: "Password"), style: StateProperty<TextFieldStyle> = .constant(TextFieldStyle())) -> TextField {
@@ -408,13 +416,16 @@ public extension TextField where T == String {
     }
 
     static func search(text: Binding<String>, decoration: TextFieldDecoration = TextFieldDecoration(placeholder: "Search"), style: StateProperty<TextFieldStyle> = .constant(TextFieldStyle()), onSubmit: Handler? = nil) -> TextField {
-        TextField(text: text, logic: TextFieldLogic(parser: { $0 }, formatter: { $0 }, onSubmit: onSubmit),
-            decoration: decoration, keyboard: KeyboardConfig(returnKey: .search), style: style)
+        TextField(text: text, logic: TextFieldLogic(
+            parser: TextParser { $0 }, formatter: TextFormatter { $0 }, onSubmit: onSubmit
+        ), decoration: decoration, keyboard: KeyboardConfig(returnKey: .search), style: style)
     }
 
     static func masked(_ mask: String, text: Binding<String>, decoration: TextFieldDecoration = TextFieldDecoration(), style: StateProperty<TextFieldStyle> = .constant(TextFieldStyle())) -> TextField {
-        TextField(text: text, logic: TextFieldLogic(parser: { $0 }, formatter: { $0 },
-            transformer: { TextMask.apply(mask, to: $0) }), decoration: decoration, style: style)
+        TextField(text: text, logic: TextFieldLogic(
+            parser: TextParser { $0 }, formatter: TextFormatter { $0 },
+            transformer: TextTransformer { TextMask.apply(mask, to: $0) }
+        ), decoration: decoration, style: style)
     }
 
     static func phone(text: Binding<String>, decoration: TextFieldDecoration = TextFieldDecoration(placeholder: "Phone"), style: StateProperty<TextFieldStyle> = .constant(TextFieldStyle())) -> TextField {
@@ -424,9 +435,10 @@ public extension TextField where T == String {
 
 public extension TextField where T: Numeric & LosslessStringConvertible {
     static func number(value: Binding<T>, decoration: TextFieldDecoration = TextFieldDecoration(placeholder: "0"), style: StateProperty<TextFieldStyle> = .constant(TextFieldStyle())) -> TextField {
-        TextField(value: value, logic: TextFieldLogic(parser: { T($0) }, formatter: { "\($0)" },
-            filter: { $0.allSatisfy { $0.isNumber || $0 == "." || $0 == "-" } }),
-            decoration: decoration, keyboard: KeyboardConfig(type: .decimal), style: style)
+        TextField(value: value, logic: TextFieldLogic(
+            parser: TextParser { T($0) }, formatter: TextFormatter { "\($0)" },
+            filter: InputFilter { $0.allSatisfy { $0.isNumber || $0 == "." || $0 == "-" } }
+        ), decoration: decoration, keyboard: KeyboardConfig(type: .decimal), style: style)
     }
 }
 
