@@ -53,12 +53,16 @@ final class TextFieldDemoBuilder: ViewBuilder<TextFieldDemoModel> {
 //        .centered()
         Column {
             Column {
+                TextField(text: model.text, decoration: TextFieldDecoration(placeholder: "Hello"))
+                    .framed(.fixed(100,30))
+                    .aligned(.centerLeft)
                 Row {
                     TextField(text: model.text, decoration: TextFieldDecoration(placeholder: "Hello"))
                     TextField(text: model.otp, decoration: TextFieldDecoration(placeholder: "World!"))
                     TextField(text: model.otp, decoration: TextFieldDecoration(placeholder: "Again!"))
                 }
             }
+            .padded(20)
         }
         .centered()
     }

@@ -29,6 +29,9 @@ public struct Alignment: Equatable, Hashable, Sendable {
     public var isLeft: Bool { x == -1 }
     public var isRight: Bool { x == 1 }
     public var isCenter: Bool { x == 0 && y == 0 }
+    
+    public var isVertical: Bool { y != 0 }
+    public var isHorizontal: Bool { x != 0 }
 
     // MARK: - Interpolation
 

@@ -199,7 +199,7 @@ final class FlexView: UIView {
 
         return children.map { child in
             let size = child.sizeThatFits(perChildProposal)
-            return FlexSlot(view: child, intrinsicSize: size, mainExtent: nil, resolvedSize: size)
+            return FlexSlot(view: child, intrinsicSize: size, resolvedSize: size)
         }
     }
 
