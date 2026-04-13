@@ -13,7 +13,7 @@ public extension TextField where T == String {
         style: StateProperty<TextFieldStyle> = .constant(TextFieldStyle())
     ) -> TextField {
         TextField(text: text, logic: TextFieldLogic(
-            parser: TextParser { $0 }, formatter: TextFormatter { $0 },
+
             validator: InputValidator {
                 guard !$0.isEmpty else { return nil }
                 return $0.contains("@") && $0.contains(".") ? nil : "Invalid email"
@@ -34,7 +34,7 @@ public extension TextField where T == String {
         style: StateProperty<TextFieldStyle> = .constant(TextFieldStyle())
     ) -> TextField {
         TextField(text: text, logic: TextFieldLogic(
-            parser: TextParser { $0 }, formatter: TextFormatter { $0 },
+
             validator: showStrength ? InputValidator { PasswordStrength.evaluate($0).message } : nil
         ), decoration: TextFieldDecoration(placeholder: placeholder, label: label),
            keyboard: KeyboardConfig(contentType: .password, secure: true, autocapitalization: .none), style: style)
@@ -93,7 +93,7 @@ public extension TextField where T == String {
         onSubmit: Handler? = nil
     ) -> TextField {
         TextField(text: text, logic: TextFieldLogic(
-            parser: TextParser { $0 }, formatter: TextFormatter { $0 }, onSubmit: onSubmit
+            onSubmit: onSubmit
         ), decoration: TextFieldDecoration(placeholder: placeholder),
            keyboard: KeyboardConfig(returnKey: .search), style: style)
     }
@@ -135,7 +135,7 @@ public extension TextField where T == String {
         style: StateProperty<TextFieldStyle> = .constant(TextFieldStyle())
     ) -> TextField {
         TextField(text: text, logic: TextFieldLogic(
-            parser: TextParser { $0 }, formatter: TextFormatter { $0 },
+
             transformer: TextTransformer { TextMask.apply(mask, to: $0) },
             filter: InputFilter { $0.allSatisfy { $0.isNumber } }
         ), decoration: TextFieldDecoration(placeholder: placeholder, label: label),
@@ -154,7 +154,7 @@ public extension TextField where T == String {
         style: StateProperty<TextFieldStyle> = .constant(TextFieldStyle())
     ) -> TextField {
         TextField(text: text, logic: TextFieldLogic(
-            parser: TextParser { $0 }, formatter: TextFormatter { $0 },
+
             transformer: TextTransformer { TextMask.apply(mask, to: $0) }
         ), decoration: TextFieldDecoration(placeholder: placeholder ?? mask, label: label), style: style)
     }
@@ -434,7 +434,7 @@ public final class CreditCardBuilder: ViewBuilder<CreditCardModel> {
         return Column(spacing: 8, alignment: .topLeft) {
             Text(model.cardType.name, style: style.label)
             TextField<String>(text: numberBinding, logic: TextFieldLogic(
-                parser: TextParser { $0 }, formatter: TextFormatter { $0 },
+    
                 transformer: TextTransformer { CreditCard(number: $0).formattedNumber },
                 filter: InputFilter { $0.allSatisfy { $0.isNumber } }
             ), decoration: TextFieldDecoration(placeholder: "Card number"),
@@ -442,14 +442,14 @@ public final class CreditCardBuilder: ViewBuilder<CreditCardModel> {
 
             Row(spacing: 8) {
                 TextField<String>(text: expiryBinding, logic: TextFieldLogic(
-                    parser: TextParser { $0 }, formatter: TextFormatter { $0 },
+        
                     transformer: TextTransformer { CreditCard(expiry: $0).formattedExpiry },
                     filter: InputFilter { $0.allSatisfy { $0.isNumber } }
                 ), decoration: TextFieldDecoration(placeholder: "MM/YY"),
                    keyboard: KeyboardConfig(type: .number), style: model.view.style)
 
                 TextField<String>(text: cvvBinding, logic: TextFieldLogic(
-                    parser: TextParser { $0 }, formatter: TextFormatter { $0 },
+        
                     filter: InputFilter { $0.allSatisfy { $0.isNumber } }
                 ), decoration: TextFieldDecoration(placeholder: "CVV"),
                    keyboard: KeyboardConfig(type: .number, secure: true), style: model.view.style)

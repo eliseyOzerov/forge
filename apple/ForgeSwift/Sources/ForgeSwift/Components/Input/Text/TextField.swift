@@ -38,8 +38,8 @@ public struct TextField<T>: ModelView {
 // MARK: - Logic
 
 public struct TextFieldLogic<T> {
-    public let parser: TextParser<T>
-    public let formatter: TextFormatter<T>
+    public var parser: TextParser<T>?
+    public var formatter: TextFormatter<T>?
     public var transformer: TextTransformer?
     public var filter: InputFilter?
     public var validator: InputValidator<T>?
@@ -47,8 +47,8 @@ public struct TextFieldLogic<T> {
     public var onSubmit: Handler?
 
     public init(
-        parser: TextParser<T>,
-        formatter: TextFormatter<T>,
+        parser: TextParser<T>? = nil,
+        formatter: TextFormatter<T>? = nil,
         transformer: TextTransformer? = nil,
         filter: InputFilter? = nil,
         validator: InputValidator<T>? = nil,
@@ -64,13 +64,9 @@ public struct TextFieldLogic<T> {
 // MARK: - String convenience
 
 public extension TextField where T == String {
-    static var stringLogic: TextFieldLogic<String> {
-        TextFieldLogic(parser: TextParser { $0 }, formatter: TextFormatter { $0 })
-    }
-
     init(
         text: Binding<String>,
-        logic: TextFieldLogic<String> = TextField<String>.stringLogic,
+        logic: TextFieldLogic<String> = TextFieldLogic(),
         decoration: TextFieldDecoration = TextFieldDecoration(),
         keyboard: KeyboardConfig = KeyboardConfig(),
         style: StateProperty<TextFieldStyle> = .constant(TextFieldStyle())
@@ -241,17 +237,23 @@ public final class TextFieldModel<T>: ViewModel<TextField<T>> {
     var displayText: String = ""
 
     public override func didInit() {
-        displayText = view.logic.formatter(view.value.value)
+        displayText = format(view.value.value)
         validate()
     }
 
     public override func didUpdate(from oldView: TextField<T>) {
-        displayText = view.logic.formatter(view.value.value)
+        displayText = format(view.value.value)
         validate()
     }
 
-    // Note: parser, formatter, transformer, filter, validator all use
-    // callAsFunction from Mapper — e.g. view.logic.parser("text")
+    private func format(_ value: T) -> String {
+        view.logic.formatter?(value) ?? "\(value)"
+    }
+
+    private func parse(_ text: String) -> T? {
+        if let parser = view.logic.parser { return parser(text) }
+        return text as? T
+    }
 
     var currentState: UIState {
         var state: UIState = .idle
@@ -262,9 +264,9 @@ public final class TextFieldModel<T>: ViewModel<TextField<T>> {
 
     func textChanged(_ newText: String) {
         if let filter = view.logic.filter, !filter(newText) { return }
-        guard let parsed = view.logic.parser(newText) else { return }
+        guard let parsed = parse(newText) else { return }
         view.value.value = parsed
-        displayText = view.logic.formatter(parsed)
+        displayText = format(parsed)
         validate()
         view.logic.onChanged?(parsed)
         node?.markDirty()
