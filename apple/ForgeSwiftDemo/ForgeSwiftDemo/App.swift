@@ -22,35 +22,38 @@ struct TextFieldDemo: ModelView {
 
 final class TextFieldDemoModel: ViewModel<TextFieldDemo> {
     var text = Binding("")
-    var otp = ""
+    var otp = Binding("")
     var tags: [String] = ["swift", "forge"]
     var card = CreditCard()
 }
 
 final class TextFieldDemoBuilder: ViewBuilder<TextFieldDemoModel> {
     public override func build(context: BuildContext) -> any View {
-        Column(spacing: 24, alignment: .topLeft) {
-            Text("Input Demo", style: TextStyle(font: Font(size: 24, weight: 700)))
-
-            // Basic text field
-            TextField<String>(text: model.text,
-                decoration: TextFieldDecoration(placeholder: "Type something...", label: "Text"))
-
+//        Column(spacing: 24, alignment: .topLeft) {
+//            Text("Input Demo", style: TextStyle(font: Font(size: 24, weight: 700)))
+//
+//            // Basic text field
+//            TextField<String>(text: model.text,
+//                decoration: TextFieldDecoration(placeholder: "Type something...", label: "Text"))
+//
 //            // OTP / PIN
 //            Text("OTP Code", style: TextStyle(font: Font(size: 14, weight: 500)))
-//            SplitBoxInput(text: bind(\.otp), length: 6)
-
-//            // Token input
-//            Text("Tags", style: TextStyle(font: Font(size: 14, weight: 500)))
-//            TokenInput(values: bind(\.tags))
-
-//            // Credit card
-//            Text("Payment", style: TextStyle(font: Font(size: 14, weight: 500)))
-//            CreditCardInput(value: bind(\.card))
-
-        }
-        .padded(20)
-        .centered()
+//            SplitBoxInput(text: model.otp, length: 6)
+//
+////            // Token input
+////            Text("Tags", style: TextStyle(font: Font(size: 14, weight: 500)))
+////            TokenInput(values: bind(\.tags))
+//
+////            // Credit card
+////            Text("Payment", style: TextStyle(font: Font(size: 14, weight: 500)))
+////            CreditCardInput(value: bind(\.card))
+//
+//        }
+//        .padded(20)
+//        .centered()
+        Box(.fixed(100,100), .color(.blue), alignment: .center, overflow: .scroll()) {
+            Text("hello", style: TextStyle(color: .white))
+        }.centered()
     }
 
     private func oldBody() -> any View {

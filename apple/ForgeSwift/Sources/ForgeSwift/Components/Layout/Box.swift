@@ -362,7 +362,8 @@ class BoxView: UIView {
     }
 
     /// Compute origin for a child of given size within the inset,
-    /// using alignment. Scroll axes pin to the leading/top edge.
+    /// using alignment. When scrolling, only pin to origin on axes
+    /// where the child actually overflows the viewport.
     private func alignedOrigin(childSize: CGSize, in inset: CGRect) -> CGPoint {
         let scrollAxis: Axis? = if case .scroll(let c) = overflow { c.axis } else { nil }
         let isScrolling = scrollView != nil
@@ -370,11 +371,14 @@ class BoxView: UIView {
         let fx = (alignment.x + 1) / 2
         let fy = (alignment.y + 1) / 2
 
-        let x: CGFloat = (isScrolling && scrollAxis != .vertical)
+        let overflowsH = childSize.width > inset.width
+        let overflowsV = childSize.height > inset.height
+
+        let x: CGFloat = (isScrolling && scrollAxis != .vertical && overflowsH)
             ? inset.minX
             : inset.minX + max(0, inset.width - childSize.width) * fx
 
-        let y: CGFloat = (isScrolling && scrollAxis != .horizontal)
+        let y: CGFloat = (isScrolling && scrollAxis != .horizontal && overflowsV)
             ? inset.minY
             : inset.minY + max(0, inset.height - childSize.height) * fy
 
