@@ -21,46 +21,33 @@ struct TextFieldDemo: ModelView {
 }
 
 final class TextFieldDemoModel: ViewModel<TextFieldDemo> {
-    var name = ""
-    var email = ""
-    var password = ""
-    var phone = ""
-    var amount: Double = 0
-    var search = ""
+    var text = ""
+    var otp = ""
+    var tags: [String] = ["swift", "forge"]
+    var card = CreditCard()
 }
 
 final class TextFieldDemoBuilder: ViewBuilder<TextFieldDemoModel> {
     public override func build(context: BuildContext) -> any View {
         Box(.fill, overflow: .scroll(ScrollConfig(axis: .vertical))) {
-            Column(spacing: 20, alignment: .topLeft) {
-                Text("TextField Demo", style: TextStyle(font: Font(size: 24, weight: 700)))
+            Column(spacing: 24, alignment: .topLeft) {
+                Text("Input Demo", style: TextStyle(font: Font(size: 24, weight: 700)))
 
-                // Basic
-                TextField<String>(text: bind(\.name),
-                    decoration: TextFieldDecoration(placeholder: "Your name", label: "Name"))
+                // Basic text field
+                TextField<String>(text: bind(\.text),
+                    decoration: TextFieldDecoration(placeholder: "Type something...", label: "Text"))
 
-                // Email
-                TextField<String>.email(text: bind(\.email),
-                    decoration: TextFieldDecoration(placeholder: "you@example.com", label: "Email"))
+                // OTP / PIN
+                Text("OTP Code", style: TextStyle(font: Font(size: 14, weight: 500)))
+                SplitBoxInput(text: bind(\.otp), length: 6)
 
-                // Password
-                TextField<String>.password(text: bind(\.password),
-                    decoration: TextFieldDecoration(placeholder: "Enter password", label: "Password"))
+                // Token input
+                Text("Tags", style: TextStyle(font: Font(size: 14, weight: 500)))
+                TokenInput(values: bind(\.tags))
 
-                // Phone
-                TextField<String>.phone(text: bind(\.phone))
-
-                // Number
-                TextField<Double>.number(value: bind(\.amount),
-                    label: "Amount", placeholder: "0.00")
-
-                // Search
-                TextField<String>.search(text: bind(\.search),
-                    onSubmit: { [weak model] in print("Search: \(model?.search ?? "")") })
-
-                // Masked date
-                TextField<String>.masked("##/##/####", text: bind(\.name),
-                    decoration: TextFieldDecoration(placeholder: "DD/MM/YYYY", label: "Date"))
+                // Credit card
+                Text("Payment", style: TextStyle(font: Font(size: 14, weight: 500)))
+                CreditCardInput(value: bind(\.card))
 
             }.padded(20)
         }
