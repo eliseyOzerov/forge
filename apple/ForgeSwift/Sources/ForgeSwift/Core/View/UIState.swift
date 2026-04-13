@@ -21,6 +21,11 @@ public enum HapticStyle: Sendable {
     case none
 }
 
+// MARK: - Handler Types
+
+public typealias Handler = @MainActor () -> Void
+public typealias ValueHandler<T> = (T) -> Void
+
 // MARK: - Mapper
 
 /// Maps a value from an input type. Generic function wrapper.

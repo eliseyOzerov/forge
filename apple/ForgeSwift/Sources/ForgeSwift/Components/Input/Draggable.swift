@@ -1,0 +1,269 @@
+import Foundation
+
+// MARK: - Draggable
+
+/// A gesture primitive that turns pan gestures into offset values.
+/// Everything that involves dragging builds on this: sliders, knobs,
+/// segmented controls, drag-to-reorder, chart scrubbers.
+///
+/// Two-stage transform pipeline:
+/// - `active`: constrains position every frame during drag
+/// - `target`: snaps to final position on release, with animation
+///
+/// ```swift
+/// Draggable(
+///     offset: $thumbPosition,
+///     active: .horizontal,            // lock to x-axis
+///     target: .snap(to: detents),     // snap to nearest detent
+///     animation: Animation(duration: 0.25, curve: .easeOut)
+/// ) {
+///     Circle(size: 24, color: .blue)
+/// }
+/// ```
+public struct Draggable: ModelView {
+    public let offset: Binding<Vec2>
+    public let active: DragTransform?
+    public let target: DragTransform?
+    public let animation: Animation
+    public let anchor: Bool
+    public let relative: Bool
+    public let states: UIState
+    public let onStart: ValueHandler<Vec2>?
+    public let onChanged: ValueHandler<Vec2>?
+    public let onEnd: ValueHandler<Vec2>?
+    public let body: any View
+
+    public init(
+        offset: Binding<Vec2>,
+        active: DragTransform? = nil,
+        target: DragTransform? = nil,
+        animation: Animation = Animation(duration: 0.3, curve: .easeOut),
+        anchor: Bool = true,
+        relative: Bool = false,
+        states: UIState = .idle,
+        onStart: ValueHandler<Vec2>? = nil,
+        onChanged: ValueHandler<Vec2>? = nil,
+        onEnd: ValueHandler<Vec2>? = nil,
+        @ChildBuilder body: () -> any View
+    ) {
+        self.offset = offset; self.active = active; self.target = target
+        self.animation = animation; self.anchor = anchor; self.relative = relative
+        self.states = states
+        self.onStart = onStart; self.onChanged = onChanged; self.onEnd = onEnd
+        self.body = body()
+    }
+
+    public func makeModel(context: BuildContext) -> DraggableModel { DraggableModel() }
+    public func makeBuilder() -> DraggableBuilder { DraggableBuilder() }
+}
+
+// MARK: - Model
+
+public final class DraggableModel: ViewModel<Draggable> {
+    var isPressed = false
+    var anchorOffset: Vec2 = .zero
+    var containerSize: Size = .zero
+    var motion: Motion = Motion(duration: 0.3, tracks: [Track(), Track()])
+
+    public override func didInit() {
+        motion = Motion(
+            duration: view.animation.duration,
+            curve: view.animation.curve,
+            tracks: [Track(from: view.offset.value.x, to: view.offset.value.x),
+                     Track(from: view.offset.value.y, to: view.offset.value.y)]
+        )
+    }
+
+    var isDisabled: Bool { view.states.contains(.disabled) }
+
+    var currentState: UIState {
+        var state = view.states
+        if isPressed { state.insert(.pressed) }
+        return state
+    }
+
+    var currentOffset: Vec2 {
+        if motion.isRunning {
+            return Vec2(motion.values[0], motion.values[1])
+        }
+        return view.offset.value
+    }
+
+    // MARK: Gesture
+
+    func handleDragStart(at position: Vec2) {
+        guard !isDisabled else { return }
+        isPressed = true
+
+        if view.anchor {
+            anchorOffset = position - toAbsolute(view.offset.value)
+        } else {
+            anchorOffset = .zero
+        }
+
+        view.onStart?(view.offset.value)
+        node?.markDirty()
+    }
+
+    func handleDragUpdate(at position: Vec2) {
+        guard isPressed else { return }
+
+        var raw = position - anchorOffset
+        if view.relative { raw = toRelative(raw) }
+        if let active = view.active { raw = active(raw) }
+
+        view.offset.value = raw
+        view.onChanged?(raw)
+        node?.markDirty()
+    }
+
+    func handleDragEnd() {
+        guard isPressed else { return }
+        isPressed = false
+
+        var final = view.offset.value
+        if let target = view.target {
+            final = target(final)
+        }
+
+        if final != view.offset.value {
+            // Animate to snap target
+            motion.duration = view.animation.duration
+            motion.curve = view.animation.curve
+            motion = Motion(
+                duration: view.animation.duration,
+                curve: view.animation.curve,
+                tracks: [Track(from: view.offset.value.x, to: final.x),
+                         Track(from: view.offset.value.y, to: final.y)]
+            )
+            motion.onTick = { [weak self] in
+                guard let self else { return }
+                view.offset.value = Vec2(motion.values[0], motion.values[1])
+                node?.markDirty()
+            }
+            motion.onComplete = { [weak self] in
+                guard let self else { return }
+                view.offset.value = final
+            }
+            motion.forward()
+        }
+
+        view.onEnd?(final)
+        node?.markDirty()
+    }
+
+    func handleDragCancel() {
+        isPressed = false
+        node?.markDirty()
+    }
+
+    // MARK: Coordinate conversion
+
+    func toRelative(_ absolute: Vec2) -> Vec2 {
+        guard containerSize.width > 0, containerSize.height > 0 else { return absolute }
+        return Vec2(absolute.x / containerSize.width, absolute.y / containerSize.height)
+    }
+
+    func toAbsolute(_ relative: Vec2) -> Vec2 {
+        if !view.relative { return relative }
+        return Vec2(relative.x * containerSize.width, relative.y * containerSize.height)
+    }
+}
+
+// MARK: - Builder
+
+public final class DraggableBuilder: ViewBuilder<DraggableModel> {
+    public override func build(context: BuildContext) -> any View {
+        DraggableLeaf(model: model)
+    }
+}
+
+// MARK: - Leaf
+
+struct DraggableLeaf: LeafView {
+    let model: DraggableModel
+    func makeRenderer() -> Renderer { DraggableRenderer(model: model) }
+}
+
+// MARK: - UIKit Renderer
+
+#if canImport(UIKit)
+import UIKit
+
+final class DraggableRenderer: Renderer {
+    let model: DraggableModel
+
+    init(model: DraggableModel) { self.model = model }
+
+    func mount() -> PlatformView {
+        let view = DraggableView()
+        view.model = model
+        return view
+    }
+
+    func update(_ platformView: PlatformView) {
+        guard let view = platformView as? DraggableView else { return }
+        view.model = model
+        if model.motion.isRunning { view.startAnimation() }
+    }
+}
+
+final class DraggableView: UIView {
+    weak var model: DraggableModel?
+    private var panGesture: UIPanGestureRecognizer!
+    private let driver = DisplayLinkDriver()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        panGesture = UIPanGestureRecognizer(target: self, action: #selector(handlePan))
+        addGestureRecognizer(panGesture)
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    func startAnimation() {
+        driver.motion = model?.motion
+        driver.attach(to: self)
+        driver.start()
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        model?.containerSize = Size(Double(bounds.width), Double(bounds.height))
+
+        // Position child at current offset
+        if let child = subviews.first, let model {
+            let offset = model.currentOffset
+            let absolute = model.toAbsolute(offset)
+            child.frame.origin = CGPoint(x: absolute.x, y: absolute.y)
+        }
+    }
+
+    @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
+        let location = gesture.location(in: self)
+        let pos = Vec2(Double(location.x), Double(location.y))
+
+        switch gesture.state {
+        case .began:
+            model?.handleDragStart(at: pos)
+        case .changed:
+            model?.handleDragUpdate(at: pos)
+            layoutSubviews()
+        case .ended:
+            model?.handleDragEnd()
+        case .cancelled, .failed:
+            model?.handleDragCancel()
+        default: break
+        }
+    }
+
+    override var isAccessibilityElement: Bool { get { true } set {} }
+    override var accessibilityTraits: UIAccessibilityTraits { get { .adjustable } set {} }
+
+    override func removeFromSuperview() {
+        driver.stop()
+        super.removeFromSuperview()
+    }
+}
+
+#endif

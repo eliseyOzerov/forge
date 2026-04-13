@@ -8,8 +8,7 @@ public typealias TextFormatter<T> = Mapper<T, String>
 public typealias TextTransformer = Mapper<String, String>
 public typealias InputFilter = Mapper<String, Bool>
 public typealias InputValidator<T> = Mapper<T, String?>
-public typealias Handler = @MainActor () -> Void
-public typealias ValueHandler<T> = (T) -> Void
+// Handler and ValueHandler are defined in UIState.swift
 
 // MARK: - TextField<T>
 
