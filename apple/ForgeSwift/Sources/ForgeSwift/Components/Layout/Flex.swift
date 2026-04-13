@@ -108,6 +108,21 @@ final class FlexRenderer: ContainerRenderer {
     }
 }
 
+// MARK: - FlexSlot
+
+struct FlexSlot {
+    let view: UIView
+    let intrinsicSize: CGSize
+    let mainExtent: Extent?
+    var resolvedSize: CGSize
+    var origin: CGPoint = .zero
+
+    var mainFlex: Double? {
+        if case .fill(let flex, _, _) = mainExtent { return flex }
+        return nil
+    }
+}
+
 // MARK: - FlexView
 
 final class FlexView: UIView {
@@ -127,89 +142,61 @@ final class FlexView: UIView {
         let children = subviews
         guard !children.isEmpty else { return }
 
-        let mainExtent = mainSize(of: bounds.size)
-        let crossExtent = crossSize(of: bounds.size)
+        let mainExtent = main(of: bounds.size)
+        let crossExtent = cross(of: bounds.size)
 
         // Step 1: measure all children at intrinsic size
-        let intrinsicSizes = measureChildren(children, proposing: bounds.size)
+        var slots = measureChildren(children)
 
         // Step 2: split into lines
-        let lines = splitIntoLines(children: children, sizes: intrinsicSizes, mainExtent: mainExtent)
+        let lines = splitIntoLines(slots: slots, mainExtent: mainExtent)
 
-        // Step 3+4: layout each line (resolve fills, apply spread, align)
-        var lineRects: [(crossOffset: CGFloat, crossSize: CGFloat)] = []
-        var resolvedFrames: [(index: Int, frame: CGRect)] = []
-
+        // Step 3+4: layout each line
+        var layoutLines: [(slots: [Int], crossSize: CGFloat)] = []
         for line in lines {
-            let result = layoutLine(line: line, children: children, intrinsicSizes: intrinsicSizes,
-                                     mainExtent: mainExtent, crossExtent: crossExtent)
-            lineRects.append((crossOffset: 0, crossSize: result.lineCrossSize))
-            resolvedFrames.append(contentsOf: result.frames)
+            let lineCross = resolveAndPositionLine(line: line, slots: &slots, mainExtent: mainExtent, crossExtent: crossExtent)
+            layoutLines.append((slots: line, crossSize: lineCross))
         }
 
         // Step 5: stack lines along cross axis
-        let totalLineCross = lineRects.reduce(0) { $0 + $1.crossSize }
-        let totalLineSpacing = flexLineSpacing * CGFloat(max(0, lines.count - 1))
-        let crossAlignFactor = isH ? (flexAlignment.y + 1) / 2 : (flexAlignment.x + 1) / 2
-        let freeLineCross = crossExtent - totalLineCross - totalLineSpacing
-        var lineCrossOffset = freeLineCross * crossAlignFactor
+        stackLines(layoutLines, slots: &slots, crossExtent: crossExtent)
 
-        for (lineIdx, line) in lines.enumerated() {
-            let lineCross = lineRects[lineIdx].crossSize
-
-            for idx in line {
-                guard let entry = resolvedFrames.first(where: { $0.index == idx }) else { continue }
-                var frame = entry.frame
-
-                // Shift by line's cross offset
-                if isH {
-                    frame.origin.y += lineCrossOffset
-                } else {
-                    frame.origin.x += lineCrossOffset
-                }
-                children[idx].frame = frame
-            }
-
-            lineCrossOffset += lineCross + flexLineSpacing
+        // Apply frames
+        for slot in slots {
+            slot.view.frame = CGRect(origin: slot.origin, size: slot.resolvedSize)
         }
     }
 
     // MARK: - Step 1: Measure
 
-    private func measureChildren(_ children: [UIView], proposing size: CGSize) -> [CGSize] {
+    private func measureChildren(_ children: [UIView]) -> [FlexSlot] {
         children.map { child in
             let childFrame = (child as? BoxView)?.boxFrame
-            let mainExtentType = isH ? childFrame?.width : childFrame?.height
-
-            // Fill children measured at zero on main axis for intrinsic sizing
-            if case .fill = mainExtentType {
-                return isH
-                    ? CGSize(width: 0, height: child.sizeThatFits(size).height)
-                    : CGSize(width: child.sizeThatFits(size).width, height: 0)
-            }
-            return child.sizeThatFits(size)
+            let extent = isH ? childFrame?.width : childFrame?.height
+            let size = child.sizeThatFits(CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude))
+            return FlexSlot(view: child, intrinsicSize: size, mainExtent: extent, resolvedSize: size)
         }
     }
 
     // MARK: - Step 2: Split into lines
 
-    private func splitIntoLines(children: [UIView], sizes: [CGSize], mainExtent: CGFloat) -> [[Int]] {
-        guard flexWrap else { return [Array(0..<children.count)] }
+    private func splitIntoLines(slots: [FlexSlot], mainExtent: CGFloat) -> [[Int]] {
+        guard flexWrap else { return [Array(0..<slots.count)] }
 
         var lines: [[Int]] = []
         var currentLine: [Int] = []
-        var currentMainUsed: CGFloat = 0
+        var currentMain: CGFloat = 0
 
-        for i in 0..<children.count {
-            let childMain = mainSize(of: sizes[i])
+        for i in 0..<slots.count {
+            let childMain = main(of: slots[i].intrinsicSize)
             let spacingBefore = currentLine.isEmpty ? 0 : flexSpacing
 
-            if !currentLine.isEmpty && currentMainUsed + spacingBefore + childMain > mainExtent {
+            if !currentLine.isEmpty && currentMain + spacingBefore + childMain > mainExtent {
                 lines.append(currentLine)
                 currentLine = [i]
-                currentMainUsed = childMain
+                currentMain = childMain
             } else {
-                currentMainUsed += spacingBefore + childMain
+                currentMain += spacingBefore + childMain
                 currentLine.append(i)
             }
         }
@@ -217,65 +204,46 @@ final class FlexView: UIView {
         return lines
     }
 
-    // MARK: - Step 3+4: Layout a single line
+    // MARK: - Step 3+4: Resolve fills and position within a line
 
-    private struct LineResult {
-        let frames: [(index: Int, frame: CGRect)]
-        let lineCrossSize: CGFloat
-    }
-
-    private func layoutLine(line: [Int], children: [UIView], intrinsicSizes: [CGSize],
-                             mainExtent: CGFloat, crossExtent: CGFloat) -> LineResult {
+    private func resolveAndPositionLine(line: [Int], slots: inout [FlexSlot], mainExtent: CGFloat, crossExtent: CGFloat) -> CGFloat {
         let count = line.count
 
-        // Measure fixed + detect fill
-        var sizes: [CGSize] = []
+        // Sum fixed children on main axis
         var totalFixed: CGFloat = 0
-        var totalFlex: CGFloat = 0
-
+        var totalFlex: Double = 0
         for idx in line {
-            let child = children[idx]
-            let childFrame = (child as? BoxView)?.boxFrame
-            let mainExtentType = isH ? childFrame?.width : childFrame?.height
-
-            if case .fill(let flex, _, _) = mainExtentType {
-                sizes.append(intrinsicSizes[idx])
+            if let flex = slots[idx].mainFlex {
                 totalFlex += flex
             } else {
-                let size = intrinsicSizes[idx]
-                sizes.append(size)
-                totalFixed += mainSize(of: size)
+                totalFixed += main(of: slots[idx].intrinsicSize)
             }
         }
 
-        // Distribute fill space
-        let spacingTotal = flexSpread == .packed ? flexSpacing * CGFloat(count - 1) : 0
+        // Distribute remaining space to fill children
+        let spacingTotal = flexSpread == .packed ? flexSpacing * Double(count - 1) : 0
         let freeSpace = max(0, mainExtent - totalFixed - spacingTotal)
 
-        for (i, idx) in line.enumerated() {
-            let child = children[idx]
-            let childFrame = (child as? BoxView)?.boxFrame
-            let mainExtentType = isH ? childFrame?.width : childFrame?.height
-
-            if case .fill(let flex, _, _) = mainExtentType {
+        for idx in line {
+            if let flex = slots[idx].mainFlex {
                 let normalizedFlex = max(1.0, totalFlex)
-                let share = normalizedFlex > 0 ? freeSpace * flex / normalizedFlex : 0
+                let share = freeSpace * flex / normalizedFlex
                 let crossSize = isH
-                    ? child.sizeThatFits(CGSize(width: share, height: crossExtent)).height
-                    : child.sizeThatFits(CGSize(width: crossExtent, height: share)).width
-                sizes[i] = isH ? CGSize(width: share, height: crossSize) : CGSize(width: crossSize, height: share)
+                    ? slots[idx].view.sizeThatFits(CGSize(width: share, height: crossExtent)).height
+                    : slots[idx].view.sizeThatFits(CGSize(width: crossExtent, height: share)).width
+                slots[idx].resolvedSize = isH ? CGSize(width: share, height: crossSize) : CGSize(width: crossSize, height: share)
             }
         }
 
         // Line cross size
-        let lineCrossSize = sizes.reduce(CGFloat(0)) { max($0, crossSize(of: $1)) }
+        let lineCross = line.reduce(CGFloat(0)) { max($0, cross(of: slots[$1].resolvedSize)) }
 
         // Spread spacing
-        let totalChildrenMain = sizes.reduce(CGFloat(0)) { $0 + mainSize(of: $1) }
+        let totalChildrenMain = line.reduce(CGFloat(0)) { $0 + main(of: slots[$1].resolvedSize) }
         let remainingSpace = mainExtent - totalChildrenMain
         let (spaceBefore, spaceBetween) = resolveSpacing(freeSpace: remainingSpace, count: count)
 
-        // Position
+        // Position along main axis
         let mainAlignFactor = isH ? (flexAlignment.x + 1) / 2 : (flexAlignment.y + 1) / 2
         let crossAlignFactor = isH ? (flexAlignment.y + 1) / 2 : (flexAlignment.x + 1) / 2
 
@@ -287,24 +255,43 @@ final class FlexView: UIView {
             mainOffset = spaceBefore
         }
 
-        var frames: [(index: Int, frame: CGRect)] = []
+        for idx in line {
+            let childMain = main(of: slots[idx].resolvedSize)
+            let childCross = cross(of: slots[idx].resolvedSize)
+            let crossOffset = (lineCross - childCross) * crossAlignFactor
 
-        for (i, idx) in line.enumerated() {
-            let childMain = mainSize(of: sizes[i])
-            let childCross = crossSize(of: sizes[i])
-            let crossOffset = (lineCrossSize - childCross) * crossAlignFactor
-
-            let frame: CGRect
             if isH {
-                frame = CGRect(x: mainOffset, y: crossOffset, width: sizes[i].width, height: sizes[i].height)
+                slots[idx].origin = CGPoint(x: mainOffset, y: crossOffset)
             } else {
-                frame = CGRect(x: crossOffset, y: mainOffset, width: sizes[i].width, height: sizes[i].height)
+                slots[idx].origin = CGPoint(x: crossOffset, y: mainOffset)
             }
-            frames.append((index: idx, frame: frame))
             mainOffset += childMain + spaceBetween
         }
 
-        return LineResult(frames: frames, lineCrossSize: lineCrossSize)
+        return lineCross
+    }
+
+    // MARK: - Step 5: Stack lines along cross axis
+
+    private func stackLines(_ lines: [(slots: [Int], crossSize: CGFloat)], slots: inout [FlexSlot], crossExtent: CGFloat) {
+        guard lines.count > 1 else { return }
+
+        let totalLineCross = lines.reduce(CGFloat(0)) { $0 + $1.crossSize }
+        let totalLineSpacing = flexLineSpacing * CGFloat(lines.count - 1)
+        let crossAlignFactor = isH ? (flexAlignment.y + 1) / 2 : (flexAlignment.x + 1) / 2
+        let freeLineCross = crossExtent - totalLineCross - totalLineSpacing
+        var lineCrossOffset = freeLineCross * crossAlignFactor
+
+        for line in lines {
+            for idx in line.slots {
+                if isH {
+                    slots[idx].origin.y += lineCrossOffset
+                } else {
+                    slots[idx].origin.x += lineCrossOffset
+                }
+            }
+            lineCrossOffset += line.crossSize + flexLineSpacing
+        }
     }
 
     // MARK: - Size That Fits
@@ -313,11 +300,11 @@ final class FlexView: UIView {
         let children = subviews
         guard !children.isEmpty else { return .zero }
 
-        let intrinsicSizes = measureChildren(children, proposing: size)
-        let proposedMain = mainSize(of: size)
+        let slots = measureChildren(children)
+        let proposedMain = main(of: size)
 
         if flexWrap {
-            let lines = splitIntoLines(children: children, sizes: intrinsicSizes, mainExtent: proposedMain)
+            let lines = splitIntoLines(slots: slots, mainExtent: proposedMain)
             var totalCross: CGFloat = 0
             var maxMain: CGFloat = 0
 
@@ -325,8 +312,8 @@ final class FlexView: UIView {
                 var lineMain: CGFloat = 0
                 var lineCross: CGFloat = 0
                 for idx in line {
-                    lineMain += mainSize(of: intrinsicSizes[idx])
-                    lineCross = max(lineCross, crossSize(of: intrinsicSizes[idx]))
+                    lineMain += main(of: slots[idx].intrinsicSize)
+                    lineCross = max(lineCross, cross(of: slots[idx].intrinsicSize))
                 }
                 lineMain += flexSpacing * CGFloat(max(0, line.count - 1))
                 maxMain = max(maxMain, lineMain)
@@ -339,30 +326,26 @@ final class FlexView: UIView {
                 : CGSize(width: totalCross, height: proposedMain)
         }
 
-        // Non-wrap: original logic
+        // Non-wrap
         var mainTotal: CGFloat = 0
         var crossMax: CGFloat = 0
         var hasFillChild = false
 
-        for (i, child) in children.enumerated() {
-            let childFrame = (child as? BoxView)?.boxFrame
-            let mainExtentType = isH ? childFrame?.width : childFrame?.height
-
-            if case .fill = mainExtentType {
+        for slot in slots {
+            if slot.mainFlex != nil {
                 hasFillChild = true
-                crossMax = max(crossMax, crossSize(of: intrinsicSizes[i]))
+                crossMax = max(crossMax, cross(of: slot.intrinsicSize))
             } else {
-                mainTotal += mainSize(of: intrinsicSizes[i])
-                crossMax = max(crossMax, crossSize(of: intrinsicSizes[i]))
+                mainTotal += main(of: slot.intrinsicSize)
+                crossMax = max(crossMax, cross(of: slot.intrinsicSize))
             }
         }
 
-        let spacingTotal = flexSpacing * CGFloat(children.count - 1)
-        mainTotal += spacingTotal
+        mainTotal += flexSpacing * CGFloat(children.count - 1)
 
         let mainResult: CGFloat
         if flexSpread != .packed || hasFillChild {
-            mainResult = mainSize(of: size)
+            mainResult = main(of: size)
         } else {
             mainResult = mainTotal
         }
@@ -372,8 +355,8 @@ final class FlexView: UIView {
 
     // MARK: - Helpers
 
-    private func mainSize(of size: CGSize) -> CGFloat { isH ? size.width : size.height }
-    private func crossSize(of size: CGSize) -> CGFloat { isH ? size.height : size.width }
+    private func main(of size: CGSize) -> CGFloat { isH ? size.width : size.height }
+    private func cross(of size: CGSize) -> CGFloat { isH ? size.height : size.width }
 
     private func resolveSpacing(freeSpace: CGFloat, count: Int) -> (before: CGFloat, between: CGFloat) {
         switch flexSpread {

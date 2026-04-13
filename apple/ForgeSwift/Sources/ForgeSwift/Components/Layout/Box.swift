@@ -234,15 +234,14 @@ final class BoxView: UIView, UIScrollViewDelegate {
     }
 
     override func sizeThatFits(_ size: CGSize) -> CGSize {
+        let content = childrenSize(proposing: size)
         let w: CGFloat = switch boxFrame.width {
         case .fix(let v): v
-        case .fill: size.width
-        case .hug: childrenSize(proposing: size).width + boxPadding.leading + boxPadding.trailing
+        case .fill, .hug: content.width + boxPadding.leading + boxPadding.trailing
         }
         let h: CGFloat = switch boxFrame.height {
         case .fix(let v): v
-        case .fill: size.height
-        case .hug: childrenSize(proposing: size).height + boxPadding.top + boxPadding.bottom
+        case .fill, .hug: content.height + boxPadding.top + boxPadding.bottom
         }
         return CGSize(width: w, height: h)
     }
