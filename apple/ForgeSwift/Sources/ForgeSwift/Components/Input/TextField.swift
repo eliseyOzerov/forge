@@ -423,8 +423,23 @@ final class TextFieldWrapperView<T>: BoxView, UITextFieldDelegate {
         )
     }
 
-    func textFieldDidBeginEditing(_ textField: UITextField) { model?.focusChanged(true) }
+    func textFieldDidBeginEditing(_ textField: UITextField) {
+        model?.focusChanged(true)
+        scrollIntoViewIfNeeded()
+    }
     func textFieldDidEndEditing(_ textField: UITextField) { model?.focusChanged(false) }
+
+    func scrollIntoViewIfNeeded() {
+        var ancestor: UIView? = superview
+        while let v = ancestor {
+            if let scrollView = v as? UIScrollView {
+                let rect = convert(bounds, to: scrollView)
+                scrollView.scrollRectToVisible(rect.insetBy(dx: 0, dy: -20), animated: true)
+                return
+            }
+            ancestor = v.superview
+        }
+    }
     func textFieldShouldReturn(_ textField: UITextField) -> Bool {
         model?.submit(); textField.resignFirstResponder(); return true
     }

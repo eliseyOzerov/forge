@@ -5,15 +5,18 @@ import UIKit
 
 public struct ButtonStyle {
     public var box: BoxStyle
+    public var textStyle: TextStyle
     public var haptic: HapticStyle
     public var animation: Animation?
 
     public init(
         _ box: BoxStyle = BoxStyle(),
+        textStyle: TextStyle = TextStyle(),
         haptic: HapticStyle = .light,
         animation: Animation? = .default
     ) {
         self.box = box
+        self.textStyle = textStyle
         self.haptic = haptic
         self.animation = animation
     }
