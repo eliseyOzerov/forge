@@ -161,6 +161,7 @@ final class FlexView: UIView {
 
     /// True when main axis is horizontal (Row), false when vertical (Column).
     private var isH: Bool { flexAxis == .horizontal }
+    private var slots = [FlexSlot]()
 
     // MARK: - Layout
 
@@ -171,9 +172,9 @@ final class FlexView: UIView {
 
         let mainExtent = main(of: bounds.size)
         let crossExtent = cross(of: bounds.size)
-
+        print("measureChildren in layoutSubviews, proposing \(bounds.size)")
         // 1. Measure all children given available space.
-        let slots = measureChildren(children, proposing: bounds.size)
+        slots = measureChildren(children, proposing: bounds.size)
         
         // 2. Group into lines. Without wrap, everything is one line.
         var lines = splitIntoLines(slots: slots, mainExtent: mainExtent)
@@ -196,6 +197,8 @@ final class FlexView: UIView {
     }
 
     // MARK: - Step 1: Measure
+    
+    private var proposedSize: CGSize? = nil
 
     /// Ask each child for its intrinsic size given the available space.
     /// Fill children report their content size (not the full proposed
@@ -205,10 +208,24 @@ final class FlexView: UIView {
     /// Uses contentSizeThatFits for BoxView children so fill children
     /// report their content size for line splitting, not the proposed size.
     private func measureChildren(_ children: [UIView], proposing: CGSize) -> [FlexSlot] {
-        children.map { child in
-            let childFrame = (child as? BoxView)?.sizing
-            let extent = isH ? childFrame?.width : childFrame?.height
-            let size = (child as? BoxView)?.contentSizeThatFits(proposing) ?? child.sizeThatFits(proposing)
+        if proposedSize == proposing { return slots }
+        proposedSize = proposing
+        return children.map { child in
+            let childSizing: Frame?
+            let size: CGSize
+
+            if let box = child as? BoxView {
+                childSizing = box.sizing
+                size = box.contentSizeThatFits(proposing)
+            } else if let proxy = child as? ProxyView {
+                childSizing = proxy.innerSizing
+                size = proxy.contentSizeThatFits(proposing)
+            } else {
+                childSizing = nil
+                size = child.sizeThatFits(proposing)
+            }
+
+            let extent = isH ? childSizing?.width : childSizing?.height
             return FlexSlot(view: child, intrinsicSize: size, mainExtent: extent, resolvedSize: size)
         }
     }
@@ -351,7 +368,7 @@ final class FlexView: UIView {
     override func sizeThatFits(_ size: CGSize) -> CGSize {
         let children = subviews
         guard !children.isEmpty else { return .zero }
-
+        print("measureChildren in sizeThatFits, proposing \(size)")
         let slots = measureChildren(children, proposing: size)
         let proposedMain = main(of: size)
 

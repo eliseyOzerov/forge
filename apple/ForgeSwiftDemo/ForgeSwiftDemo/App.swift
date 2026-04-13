@@ -23,37 +23,44 @@ struct TextFieldDemo: ModelView {
 final class TextFieldDemoModel: ViewModel<TextFieldDemo> {
     var text = Binding("")
     var otp = Binding("")
-    var tags: [String] = ["swift", "forge"]
+    var tags = Binding(["swift", "forge"])
     var card = CreditCard()
 }
 
 final class TextFieldDemoBuilder: ViewBuilder<TextFieldDemoModel> {
     public override func build(context: BuildContext) -> any View {
 //        Column(spacing: 24, alignment: .topLeft) {
-//            Text("Input Demo", style: TextStyle(font: Font(size: 24, weight: 700)))
+////            Text("Input Demo", style: TextStyle(font: Font(size: 24, weight: 700)))
+////
+////            // Basic text field
+////            TextField<String>(text: model.text,
+////                decoration: TextFieldDecoration(placeholder: "Type something...", label: "Text"))
 //
-//            // Basic text field
-//            TextField<String>(text: model.text,
-//                decoration: TextFieldDecoration(placeholder: "Type something...", label: "Text"))
-//
-//            // OTP / PIN
-//            Text("OTP Code", style: TextStyle(font: Font(size: 14, weight: 500)))
-//            SplitBoxInput(text: model.otp, length: 6)
-//
+////            // OTP / PIN
+////            Text("OTP Code", style: TextStyle(font: Font(size: 14, weight: 500)))
+////            SplitBoxInput(text: model.otp, length: 6)
+////
 ////            // Token input
 ////            Text("Tags", style: TextStyle(font: Font(size: 14, weight: 500)))
-////            TokenInput(values: bind(\.tags))
+////            TokenInput(values: model.tags)
 //
-////            // Credit card
+//            // Credit card
 ////            Text("Payment", style: TextStyle(font: Font(size: 14, weight: 500)))
-////            CreditCardInput(value: bind(\.card))
+//            CreditCardInput(value: bind(\.card))
 //
 //        }
 //        .padded(20)
 //        .centered()
-        Box(.fixed(100,100), .color(.blue), alignment: .center, overflow: .scroll()) {
-            Text("hello", style: TextStyle(color: .white))
-        }.centered()
+        Column {
+            Column {
+                Row {
+                    TextField(text: model.text, decoration: TextFieldDecoration(placeholder: "Hello"))
+                    TextField(text: model.otp, decoration: TextFieldDecoration(placeholder: "World!"))
+                    TextField(text: model.otp, decoration: TextFieldDecoration(placeholder: "Again!"))
+                }
+            }
+        }
+        .centered()
     }
 
     private func oldBody() -> any View {

@@ -431,28 +431,37 @@ public final class CreditCardBuilder: ViewBuilder<CreditCardModel> {
             }
         )
 
-        return Column(spacing: 8, alignment: .topLeft) {
-            Text(model.cardType.name, style: style.label)
-            TextField<String>(text: numberBinding, logic: TextFieldLogic(
-    
-                transformer: TextTransformer { CreditCard(number: $0).formattedNumber },
-                filter: InputFilter { $0.allSatisfy { $0.isNumber } }
-            ), decoration: TextFieldDecoration(placeholder: "Card number"),
-               keyboard: KeyboardConfig(type: .number), style: model.view.style)
+        return Column(spacing: 8) {
+//            Text(model.cardType.name, style: style.label)
+            
+//            TextField<String>(
+//                text: numberBinding,
+//                logic: TextFieldLogic(
+//                    transformer: TextTransformer { CreditCard(number: $0).formattedNumber },
+//                    filter: InputFilter { $0.allSatisfy { $0.isNumber } }
+//                ),
+//                decoration: TextFieldDecoration(placeholder: "Card number"),
+//                keyboard: KeyboardConfig(type: .number),
+//                style: model.view.style
+//            )
 
             Row(spacing: 8) {
-                TextField<String>(text: expiryBinding, logic: TextFieldLogic(
-        
-                    transformer: TextTransformer { CreditCard(expiry: $0).formattedExpiry },
-                    filter: InputFilter { $0.allSatisfy { $0.isNumber } }
-                ), decoration: TextFieldDecoration(placeholder: "MM/YY"),
-                   keyboard: KeyboardConfig(type: .number), style: model.view.style)
+                TextField<String>(
+                    text: expiryBinding,
+                    logic: TextFieldLogic(
+                        transformer: TextTransformer { CreditCard(expiry: $0).formattedExpiry },
+                        filter: InputFilter { $0.allSatisfy { $0.isNumber } }
+                    ),
+                    decoration: TextFieldDecoration(placeholder: "MM/YY"),
+                    keyboard: KeyboardConfig(type: .number), style: model.view.style
+                )
 
-                TextField<String>(text: cvvBinding, logic: TextFieldLogic(
-        
-                    filter: InputFilter { $0.allSatisfy { $0.isNumber } }
-                ), decoration: TextFieldDecoration(placeholder: "CVV"),
-                   keyboard: KeyboardConfig(type: .number, secure: true), style: model.view.style)
+                TextField<String>(
+                    text: cvvBinding,
+                    logic: TextFieldLogic(filter: InputFilter { $0.allSatisfy { $0.isNumber } } ),
+                    decoration: TextFieldDecoration(placeholder: "CVV"),
+                    keyboard: KeyboardConfig(type: .number, secure: true), style: model.view.style
+                )
             }
         }
     }

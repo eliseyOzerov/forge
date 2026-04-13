@@ -496,6 +496,10 @@ public extension View {
     func framed(_ frame: Frame) -> Box {
         Box(frame) { self }
     }
+    
+    func scrollable(_ config: ScrollConfig = ScrollConfig()) -> Box {
+        Box(overflow: .scroll(config)) { self }
+    }
 
     func debug(_ color: UIColor = .red, label: String? = nil) -> DebugOverlay {
         DebugOverlay(child: self, color: Color(platform: color), label: label)
