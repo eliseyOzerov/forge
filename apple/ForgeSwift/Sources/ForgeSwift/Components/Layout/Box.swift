@@ -552,51 +552,53 @@ final class DebugOverlayRenderer: ContainerRenderer {
 final class DebugOverlayView: UIView {
     var debugColor: Color = .red
     var debugLabel: String?
+    private let infoLabel = UILabel()
+    private let borderLayer = CAShapeLayer()
 
     override init(frame: CGRect) {
         super.init(frame: frame)
         isOpaque = false
         clipsToBounds = false
+
+        borderLayer.fillColor = nil
+        borderLayer.lineWidth = 1
+        layer.addSublayer(borderLayer)
+
+        infoLabel.font = .systemFont(ofSize: 9, weight: .medium)
+        addSubview(infoLabel)
     }
 
     required init?(coder: NSCoder) { fatalError() }
 
     override func sizeThatFits(_ size: CGSize) -> CGSize {
-        subviews.first?.sizeThatFits(size) ?? .zero
+        // First content child (not the info label)
+        contentChild?.sizeThatFits(size) ?? .zero
+    }
+
+    private var contentChild: UIView? {
+        subviews.first { $0 !== infoLabel }
     }
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        for child in subviews {
-            child.frame = bounds
-        }
-        setNeedsDisplay()
-    }
+        contentChild?.frame = bounds
 
-    override func draw(_ rect: CGRect) {
-        guard let ctx = UIGraphicsGetCurrentContext() else { return }
         let uiColor = debugColor.platformColor
 
-        // Tinted background
-        ctx.setFillColor(uiColor.withAlphaComponent(0.05).cgColor)
-        ctx.fill(bounds)
-
         // Border
-        ctx.setStrokeColor(uiColor.withAlphaComponent(0.5).cgColor)
-        ctx.setLineWidth(1)
-        ctx.stroke(bounds.insetBy(dx: 0.5, dy: 0.5))
+        borderLayer.path = UIBezierPath(rect: bounds.insetBy(dx: 0.5, dy: 0.5)).cgPath
+        borderLayer.strokeColor = uiColor.withAlphaComponent(0.5).cgColor
 
-        // Label
+        // Background
+        backgroundColor = uiColor.withAlphaComponent(0.05)
+
+        // Info label below bounds
         let hash = String(format: "%04x", abs(hashValue) % 0xFFFF)
         let name = debugLabel ?? hash
-        let text = "\(name) (\(Int(bounds.minX)),\(Int(bounds.minY))) w:\(Int(bounds.width))/h:\(Int(bounds.height))"
-        let attrs: [NSAttributedString.Key: Any] = [
-            .font: UIFont.systemFont(ofSize: 9, weight: .medium),
-            .foregroundColor: uiColor,
-        ]
-        let size = (text as NSString).size(withAttributes: attrs)
-        let labelRect = CGRect(x: bounds.minX + 2, y: bounds.maxY + 2, width: size.width, height: size.height)
-        (text as NSString).draw(in: labelRect, withAttributes: attrs)
+        infoLabel.text = "\(name) (\(Int(frame.origin.x)),\(Int(frame.origin.y))) w:\(Int(bounds.width))/h:\(Int(bounds.height))"
+        infoLabel.textColor = uiColor
+        infoLabel.sizeToFit()
+        infoLabel.frame.origin = CGPoint(x: 2, y: bounds.height + 2)
     }
 }
 
