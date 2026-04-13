@@ -284,14 +284,9 @@ class BoxView: UIView {
     override func didMoveToSuperview() {
         super.didMoveToSuperview()
         guard let superview else { return }
-        // Remove any constraints set by parent (e.g. pin(to:))
-        // that would conflict with our own sizing.
-        for constraint in superview.constraints where constraint.firstItem === self || constraint.secondItem === self {
-            superview.removeConstraint(constraint)
-        }
-        for constraint in constraints where constraint.firstItem === self {
-            removeConstraint(constraint)
-        }
+        // Inside a ProxyView (ComposedNode wrapper), attach() pins
+        // to fill — don't add conflicting constraints.
+        guard !(superview is ProxyView) else { return }
         constrain {
             switch sizing.width {
             case .fix(let w): widthAnchor.equal(w)
