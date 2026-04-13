@@ -733,11 +733,11 @@ final class GraphicView: UIView {
         let viewBoxShape = Shape({ _ in
             var p = Path(); p.addRect(Rect(document.viewBox)); return p
         })
-        let renderer = SurfaceRenderer(surface: surface, shape: viewBoxShape, bounds: bounds)
+        let renderer = SurfaceRenderer(surface: surface, shape: viewBoxShape, bounds: Rect(bounds))
 
         let imgRenderer = UIGraphicsImageRenderer(size: size)
         cachedImage = imgRenderer.image { imgCtx in
-            renderer.render(in: imgCtx.cgContext)
+            renderer.render(on: CGCanvas(imgCtx.cgContext))
         }
         cachedBoundsSize = size
         cachedImage?.draw(in: bounds)

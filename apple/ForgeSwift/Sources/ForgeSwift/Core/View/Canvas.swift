@@ -38,6 +38,12 @@ public protocol Canvas {
 
     // MARK: Filters
 
+    /// Set global alpha for subsequent draws (multiplies with paint opacity).
+    func setAlpha(_ alpha: Double)
+
+    /// Set blend mode for subsequent draws (overrides paint blend mode).
+    func setBlendMode(_ mode: BlendMode)
+
     /// Apply a filter to the current rendering context.
     func filter(_ filter: Filter)
 }
@@ -149,6 +155,9 @@ public final class CGCanvas: Canvas {
 
     public func save() { ctx.saveGState() }
     public func restore() { ctx.restoreGState() }
+
+    public func setAlpha(_ alpha: Double) { ctx.setAlpha(alpha) }
+    public func setBlendMode(_ mode: BlendMode) { ctx.setBlendMode(mode.cgBlendMode) }
 
     public func translate(_ dx: Double, _ dy: Double) { ctx.translateBy(x: dx, y: dy) }
     public func rotate(_ radians: Double) { ctx.rotate(by: radians) }

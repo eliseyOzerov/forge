@@ -258,13 +258,10 @@ public struct Transform2D: Sendable {
 public enum RotationAxis: Sendable { case x, y, z }
 public enum FillRule: Sendable { case winding, evenOdd }
 
-#if canImport(UIKit)
-import UIKit
-
 /// A renderable layer in a Surface. Each layer owns its rendering
-/// instructions and knows how to paint itself into a CGContext.
+/// instructions and knows how to paint itself onto a Canvas.
 public protocol Layer {
-    func render(in ctx: CGContext, path: CGPath, bounds: CGRect)
+    func render(on canvas: Canvas, path: Path, bounds: Rect)
 }
 
 // MARK: - Shape Layer
@@ -279,30 +276,9 @@ public struct ShapeLayer: Layer {
         self.paint = paint
     }
 
-    public func render(in ctx: CGContext, path: CGPath, bounds: CGRect) {
-        let resolved = shape.resolve(in: bounds).cgPath
-        ctx.saveGState()
-        if paint.opacity < 1 { ctx.setAlpha(paint.opacity) }
-        if paint.blendMode != .normal { ctx.setBlendMode(paint.blendMode.cgBlendMode) }
-
-        switch paint.fill {
-        case .color(let color):
-            ctx.addPath(resolved)
-            ctx.setFillColor(color.cgColor)
-            ctx.fillPath()
-        case .gradient(let gradient):
-            ctx.addPath(resolved)
-            ctx.clip()
-            GradientRenderer.draw(gradient, in: bounds, ctx: ctx)
-        case .image(let image, let fit):
-            ctx.addPath(resolved)
-            ctx.clip()
-            ImageRenderer.draw(image, fit: fit, in: bounds, ctx: ctx)
-        case .shader:
-            break
-        }
-
-        ctx.restoreGState()
+    public func render(on canvas: Canvas, path: Path, bounds: Rect) {
+        let resolved = shape.resolve(in: bounds)
+        canvas.draw(resolved, with: paint)
     }
 }
 
@@ -317,13 +293,11 @@ public struct ShadowLayer: Layer {
         self.color = color; self.offset = offset; self.blur = blur
     }
 
-    public func render(in ctx: CGContext, path: CGPath, bounds: CGRect) {
-        ctx.saveGState()
-        ctx.setShadow(offset: CGSize(width: offset.x, height: offset.y), blur: blur, color: color.cgColor)
-        ctx.addPath(path)
-        ctx.setFillColor(color.cgColor)
-        ctx.fillPath()
-        ctx.restoreGState()
+    public func render(on canvas: Canvas, path: Path, bounds: Rect) {
+        canvas.save()
+        canvas.filter(.shadow(color: color, offset: offset, blur: blur))
+        canvas.draw(path, with: .color(color))
+        canvas.restore()
     }
 }
 
@@ -337,15 +311,13 @@ public struct StrokeLayer: Layer {
         self.stroke = stroke; self.paint = paint
     }
 
-    public func render(in ctx: CGContext, path: CGPath, bounds: CGRect) {
-        var expandedPath = path
+    public func render(on canvas: Canvas, path: Path, bounds: Rect) {
+        var expanded = path
         if let dash = stroke.dash {
-            expandedPath = expandedPath.copy(dashingWithPhase: dash.phase, lengths: dash.pattern.map { CGFloat($0) })
+            expanded = expanded.dashed(phase: dash.phase, lengths: dash.pattern)
         }
-        expandedPath = expandedPath.copy(strokingWithWidth: stroke.width, lineCap: stroke.cap.cgLineCap, lineJoin: stroke.join.cgLineJoin, miterLimit: stroke.miterLimit)
-
-        let shapeLayer = ShapeLayer(Shape({ _ in Path(cgPath: expandedPath) }), paint)
-        shapeLayer.render(in: ctx, path: expandedPath, bounds: bounds)
+        expanded = expanded.stroked(width: stroke.width, cap: stroke.cap, join: stroke.join, miterLimit: stroke.miterLimit)
+        canvas.draw(expanded, with: paint)
     }
 }
 
@@ -354,86 +326,81 @@ public struct StrokeLayer: Layer {
 public struct ClipLayer: Layer {
     public let shape: Shape
     public let children: [any Layer]
-    public func render(in ctx: CGContext, path: CGPath, bounds: CGRect) {
-        ctx.saveGState()
-        ctx.addPath(shape.resolve(in: bounds).cgPath)
-        ctx.clip()
-        for child in children { child.render(in: ctx, path: path, bounds: bounds) }
-        ctx.restoreGState()
+    public func render(on canvas: Canvas, path: Path, bounds: Rect) {
+        canvas.save()
+        canvas.clip(shape.resolve(in: bounds))
+        for child in children { child.render(on: canvas, path: path, bounds: bounds) }
+        canvas.restore()
     }
 }
 
 public struct ScaleLayer: Layer {
     public let sx: Double, sy: Double
     public let children: [any Layer]
-    public func render(in ctx: CGContext, path: CGPath, bounds: CGRect) {
-        ctx.saveGState()
-        ctx.translateBy(x: bounds.midX, y: bounds.midY)
-        ctx.scaleBy(x: sx, y: sy)
-        ctx.translateBy(x: -bounds.midX, y: -bounds.midY)
-        for child in children { child.render(in: ctx, path: path, bounds: bounds) }
-        ctx.restoreGState()
+    public func render(on canvas: Canvas, path: Path, bounds: Rect) {
+        canvas.save()
+        canvas.translate(bounds.midX, bounds.midY)
+        canvas.scale(sx, sy)
+        canvas.translate(-bounds.midX, -bounds.midY)
+        for child in children { child.render(on: canvas, path: path, bounds: bounds) }
+        canvas.restore()
     }
 }
 
 public struct TranslateLayer: Layer {
     public let dx: Double, dy: Double
     public let children: [any Layer]
-    public func render(in ctx: CGContext, path: CGPath, bounds: CGRect) {
-        ctx.saveGState()
-        ctx.translateBy(x: dx, y: dy)
-        for child in children { child.render(in: ctx, path: path, bounds: bounds) }
-        ctx.restoreGState()
+    public func render(on canvas: Canvas, path: Path, bounds: Rect) {
+        canvas.save()
+        canvas.translate(dx, dy)
+        for child in children { child.render(on: canvas, path: path, bounds: bounds) }
+        canvas.restore()
     }
 }
 
 public struct RotateLayer: Layer {
     public let radians: Double
     public let children: [any Layer]
-    public func render(in ctx: CGContext, path: CGPath, bounds: CGRect) {
-        ctx.saveGState()
-        ctx.translateBy(x: bounds.midX, y: bounds.midY)
-        ctx.rotate(by: radians)
-        ctx.translateBy(x: -bounds.midX, y: -bounds.midY)
-        for child in children { child.render(in: ctx, path: path, bounds: bounds) }
-        ctx.restoreGState()
+    public func render(on canvas: Canvas, path: Path, bounds: Rect) {
+        canvas.save()
+        canvas.translate(bounds.midX, bounds.midY)
+        canvas.rotate(radians)
+        canvas.translate(-bounds.midX, -bounds.midY)
+        for child in children { child.render(on: canvas, path: path, bounds: bounds) }
+        canvas.restore()
     }
 }
 
 public struct AffineTransformLayer: Layer {
     public let transform: Transform2D
     public let children: [any Layer]
-    public func render(in ctx: CGContext, path: CGPath, bounds: CGRect) {
-        ctx.saveGState()
-        ctx.concatenate(transform.cgAffineTransform)
-        for child in children { child.render(in: ctx, path: path, bounds: bounds) }
-        ctx.restoreGState()
+    public func render(on canvas: Canvas, path: Path, bounds: Rect) {
+        canvas.save()
+        canvas.transform(transform)
+        for child in children { child.render(on: canvas, path: path, bounds: bounds) }
+        canvas.restore()
     }
 }
 
 public struct FadeLayer: Layer {
     public let opacity: Double
     public let children: [any Layer]
-    public func render(in ctx: CGContext, path: CGPath, bounds: CGRect) {
-        ctx.saveGState()
-        ctx.setAlpha(opacity)
-        ctx.beginTransparencyLayer(auxiliaryInfo: nil)
-        for child in children { child.render(in: ctx, path: path, bounds: bounds) }
-        ctx.endTransparencyLayer()
-        ctx.restoreGState()
+    public func render(on canvas: Canvas, path: Path, bounds: Rect) {
+        canvas.save()
+        canvas.setAlpha(opacity)
+        for child in children { child.render(on: canvas, path: path, bounds: bounds) }
+        canvas.restore()
     }
 }
 
 public struct BlendLayer: Layer {
     public let mode: BlendMode
     public let children: [any Layer]
-    public func render(in ctx: CGContext, path: CGPath, bounds: CGRect) {
-        ctx.saveGState()
-        ctx.setBlendMode(mode.cgBlendMode)
-        ctx.beginTransparencyLayer(auxiliaryInfo: nil)
-        for child in children { child.render(in: ctx, path: path, bounds: bounds) }
-        ctx.endTransparencyLayer()
-        ctx.restoreGState()
+    public func render(on canvas: Canvas, path: Path, bounds: Rect) {
+        canvas.save()
+        canvas.setBlendMode(mode)
+        for child in children { child.render(on: canvas, path: path, bounds: bounds) }
+        canvas.restore()
     }
 }
 
@@ -441,80 +408,43 @@ public struct BlendLayer: Layer {
 public struct ComposeLayer: Layer {
     public let children: [any Layer]
 
-    public func render(in ctx: CGContext, path: CGPath, bounds: CGRect) {
-        ctx.saveGState()
-        ctx.beginTransparencyLayer(auxiliaryInfo: nil)
-        for child in children { child.render(in: ctx, path: path, bounds: bounds) }
-        ctx.endTransparencyLayer()
-        ctx.restoreGState()
+    public func render(on canvas: Canvas, path: Path, bounds: Rect) {
+        canvas.save()
+        for child in children { child.render(on: canvas, path: path, bounds: bounds) }
+        canvas.restore()
     }
 }
 
 /// Custom rendering escape hatch.
 public struct CustomLayer: Layer {
-    public let draw: (CGContext, CGPath, CGRect) -> Void
+    public let draw: (Canvas, Path, Rect) -> Void
 
-    public func render(in ctx: CGContext, path: CGPath, bounds: CGRect) {
-        draw(ctx, path, bounds)
+    public func render(on canvas: Canvas, path: Path, bounds: Rect) {
+        draw(canvas, path, bounds)
     }
 }
 
-// MARK: - Rendering Helpers
+// MARK: - SurfaceRenderer
 
-enum GradientRenderer {
-    static func draw(_ gradient: Gradient, in bounds: CGRect, ctx: CGContext) {
-        switch gradient {
-        case .linear(let g):
-            let colors = g.stops.map(\.color.cgColor) as CFArray
-            let locations: [CGFloat] = g.stops.map { CGFloat($0.location) }
-            guard let cg = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: locations) else { return }
-            let start = CGPoint(x: bounds.minX + g.start.x * bounds.width, y: bounds.minY + g.start.y * bounds.height)
-            let end = CGPoint(x: bounds.minX + g.end.x * bounds.width, y: bounds.minY + g.end.y * bounds.height)
-            ctx.drawLinearGradient(cg, start: start, end: end, options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
-        case .radial(let g):
-            let colors = g.stops.map(\.color.cgColor) as CFArray
-            let locations: [CGFloat] = g.stops.map { CGFloat($0.location) }
-            guard let cg = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: locations) else { return }
-            let center = CGPoint(x: bounds.minX + g.center.x * bounds.width, y: bounds.minY + g.center.y * bounds.height)
-            let radius = g.radius * min(bounds.width, bounds.height)
-            ctx.drawRadialGradient(cg, startCenter: center, startRadius: 0, endCenter: center, endRadius: radius, options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
-        case .angular:
-            break // TODO
+public struct SurfaceRenderer {
+    public let surface: Surface
+    public let shape: Shape
+    public let bounds: Rect
+
+    public init(surface: Surface, shape: Shape, bounds: Rect) {
+        self.surface = surface
+        self.shape = shape
+        self.bounds = bounds
+    }
+
+    public func render(on canvas: Canvas) {
+        let layers = surface.build(shape: shape)
+        let basePath = shape.resolve(in: bounds)
+        for layer in layers {
+            layer.render(on: canvas, path: basePath, bounds: bounds)
         }
     }
 }
-
-enum ImageRenderer {
-    static func draw(_ image: ImageSource, fit: ContentFit, in bounds: CGRect, ctx: CGContext) {
-        guard let cgImage = image.platformImage.cgImage else { return }
-        let imageSize = CGSize(width: cgImage.width, height: cgImage.height)
-        let dest = fittedRect(imageSize: imageSize, in: bounds, fit: fit)
-        ctx.saveGState()
-        ctx.translateBy(x: 0, y: bounds.minY + bounds.maxY)
-        ctx.scaleBy(x: 1, y: -1)
-        let flipped = CGRect(x: dest.minX, y: bounds.height - dest.maxY + bounds.minY, width: dest.width, height: dest.height)
-        ctx.draw(cgImage, in: flipped)
-        ctx.restoreGState()
-    }
-
-    static func fittedRect(imageSize: CGSize, in rect: CGRect, fit: ContentFit) -> CGRect {
-        let scaleX = rect.width / imageSize.width, scaleY = rect.height / imageSize.height
-        let scale: Double
-        switch fit {
-        case .cover: scale = max(scaleX, scaleY)
-        case .contain: scale = min(scaleX, scaleY)
-        case .fill: return rect
-        case .scaleDown: scale = min(1, min(scaleX, scaleY))
-        case .none: scale = 1
-        }
-        let w = imageSize.width * scale, h = imageSize.height * scale
-        return CGRect(x: rect.midX - w / 2, y: rect.midY - h / 2, width: w, height: h)
-    }
-}
-
-#endif
-
-import CoreGraphics
 
 /// A styled surface. Records rendering operations via fluent methods.
 /// Layers are materialized by `build(shape:)` at render time when the
@@ -678,28 +608,3 @@ public final class Surface {
 }
 
 // MARK: - SurfaceRenderer
-
-#if canImport(UIKit)
-import UIKit
-
-public struct SurfaceRenderer {
-    public let surface: Surface
-    public let shape: Shape
-    public let bounds: CGRect
-
-    public init(surface: Surface, shape: Shape, bounds: CGRect) {
-        self.surface = surface
-        self.shape = shape
-        self.bounds = bounds
-    }
-
-    public func render(in ctx: CGContext) {
-        let layers = surface.build(shape: shape)
-        let basePath = shape.resolve(in: bounds).cgPath
-        for layer in layers {
-            layer.render(in: ctx, path: basePath, bounds: bounds)
-        }
-    }
-}
-
-#endif

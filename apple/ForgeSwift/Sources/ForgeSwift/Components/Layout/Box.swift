@@ -217,7 +217,8 @@ class BoxView: UIView {
     override func draw(_ rect: CGRect) {
         guard let surface = surface, let ctx = UIGraphicsGetCurrentContext() else { return }
         let resolvedShape = shape ?? .rect()
-        SurfaceRenderer(surface: surface, shape: resolvedShape, bounds: bounds).render(in: ctx)
+        let canvas = CGCanvas(ctx)
+        SurfaceRenderer(surface: surface, shape: resolvedShape, bounds: Rect(bounds)).render(on: canvas)
     }
 
     // MARK: - Sizing

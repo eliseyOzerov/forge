@@ -15,8 +15,8 @@ final class SurfaceTests: XCTestCase {
     private func renderAndSample(_ surface: Surface, shape: Shape? = nil, at point: (Int, Int) = (50, 50), size: CGSize = CGSize(width: 100, height: 100)) -> (r: CGFloat, g: CGFloat, b: CGFloat, a: CGFloat) {
         let renderer = UIGraphicsImageRenderer(size: size)
         let image = renderer.image { ctx in
-            let sr = SurfaceRenderer(surface: surface, shape: shape ?? testShape, bounds: CGRect(origin: .zero, size: size))
-            sr.render(in: ctx.cgContext)
+            let sr = SurfaceRenderer(surface: surface, shape: shape ?? testShape, bounds: Rect(x: 0, y: 0, width: Double(size.width), height: Double(size.height)))
+            sr.render(on: CGCanvas(ctx.cgContext))
         }
         return pixelColor(of: image, at: point)
     }
