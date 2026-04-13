@@ -465,20 +465,137 @@ extension BoxView: UIScrollViewDelegate {
 
 public extension View {
     func centered() -> Box {
-        Box(.fill, alignment: .center, children: [self])
+        aligned(.center)
     }
 
     func padded(_ padding: Padding) -> Box {
-        Box(.fill, padding: padding, alignment: .topLeft, children: [self])
+        Box(padding: padding) { self }
+    }
+    
+    func padded(_ value: Double) -> Box {
+        Box(padding: .all(value)) { self }
+    }
+    
+    func aligned(_ alignment: Alignment) -> Box {
+        Box(.fill, alignment: alignment) { self }
+    }
+    
+    func framed(_ frame: Frame) -> Box {
+        Box(frame) { self }
     }
 
-    func padded(_ all: Double) -> Box {
-        Box(.fill, padding: Padding(all: all), alignment: .topLeft, children: [self])
+    func debug(_ color: UIColor = .red, label: String? = nil) -> DebugOverlay {
+        DebugOverlay(child: self, color: Color(platform: color), label: label)
+    }
+}
+
+// MARK: - DebugOverlay
+
+public struct DebugOverlay: ContainerView {
+    public let child: any View
+    public let color: Color
+    public let label: String?
+    public let children: [any View]
+
+    init(child: any View, color: Color, label: String?) {
+        self.child = child
+        self.color = color
+        self.label = label
+        self.children = [child]
     }
 
-    func debug(_ color: UIColor = .red) -> Box {
-        let c = Color(platform: color)
-        return Box(.hug, .color(c.withAlpha(0.1)).border(c, width: 1), children: [self])
+    public func makeRenderer() -> ContainerRenderer {
+        DebugOverlayRenderer(color: color, label: label)
+    }
+}
+
+final class DebugOverlayRenderer: ContainerRenderer {
+    let color: Color
+    let label: String?
+
+    init(color: Color, label: String?) {
+        self.color = color; self.label = label
+    }
+
+    func mount() -> PlatformView {
+        let view = DebugOverlayView()
+        view.debugColor = color
+        view.debugLabel = label
+        return view
+    }
+
+    func update(_ platformView: PlatformView) {
+        guard let view = platformView as? DebugOverlayView else { return }
+        view.debugColor = color
+        view.debugLabel = label
+        view.setNeedsDisplay()
+    }
+
+    func insert(_ platformView: PlatformView, at index: Int, into container: PlatformView) {
+        container.insertSubview(platformView, at: index)
+    }
+
+    func remove(_ platformView: PlatformView, from container: PlatformView) {
+        platformView.removeFromSuperview()
+    }
+
+    func move(_ platformView: PlatformView, to index: Int, in container: PlatformView) {
+        platformView.removeFromSuperview()
+        container.insertSubview(platformView, at: index)
+    }
+
+    func index(of platformView: PlatformView, in container: PlatformView) -> Int? {
+        container.subviews.firstIndex(of: platformView)
+    }
+}
+
+final class DebugOverlayView: UIView {
+    var debugColor: Color = .red
+    var debugLabel: String?
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isOpaque = false
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func sizeThatFits(_ size: CGSize) -> CGSize {
+        subviews.first?.sizeThatFits(size) ?? .zero
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        for child in subviews {
+            child.frame = bounds
+        }
+        setNeedsDisplay()
+    }
+
+    override func draw(_ rect: CGRect) {
+        guard let ctx = UIGraphicsGetCurrentContext() else { return }
+        let uiColor = debugColor.platformColor
+
+        // Tinted background
+        ctx.setFillColor(uiColor.withAlphaComponent(0.05).cgColor)
+        ctx.fill(bounds)
+
+        // Border
+        ctx.setStrokeColor(uiColor.withAlphaComponent(0.5).cgColor)
+        ctx.setLineWidth(1)
+        ctx.stroke(bounds.insetBy(dx: 0.5, dy: 0.5))
+
+        // Label
+        let hash = String(format: "%04x", abs(hashValue) % 0xFFFF)
+        let name = debugLabel ?? hash
+        let text = "\(name) (\(Int(bounds.minX)),\(Int(bounds.minY))) w:\(Int(bounds.width))/h:\(Int(bounds.height))"
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: UIFont.systemFont(ofSize: 9, weight: .medium),
+            .foregroundColor: uiColor,
+        ]
+        let size = (text as NSString).size(withAttributes: attrs)
+        let labelRect = CGRect(x: bounds.minX + 2, y: bounds.maxY + 2, width: size.width, height: size.height)
+        (text as NSString).draw(in: labelRect, withAttributes: attrs)
     }
 }
 

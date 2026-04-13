@@ -29,28 +29,31 @@ final class TextFieldDemoModel: ViewModel<TextFieldDemo> {
 
 final class TextFieldDemoBuilder: ViewBuilder<TextFieldDemoModel> {
     public override func build(context: BuildContext) -> any View {
-        Box(.fill) {
-            Column(spacing: 24, alignment: .topLeft) {
-                Text("Input Demo", style: TextStyle(font: Font(size: 24, weight: 700)))
+        Column(spacing: 24, alignment: .topLeft) {
+            Text("Input Demo", style: TextStyle(font: Font(size: 24, weight: 700)))
 
-                // Basic text field
-                TextField<String>(text: model.text,
-                    decoration: TextFieldDecoration(placeholder: "Type something...", label: "Text"))
+            // Basic text field
+            TextField<String>(text: model.text,
+                decoration: TextFieldDecoration(placeholder: "Type something...", label: "Text"))
+            .debug(.green)
 
-                // OTP / PIN
-                Text("OTP Code", style: TextStyle(font: Font(size: 14, weight: 500)))
-                SplitBoxInput(text: bind(\.otp), length: 6)
+            // OTP / PIN
+            Text("OTP Code", style: TextStyle(font: Font(size: 14, weight: 500)))
+            SplitBoxInput(text: bind(\.otp), length: 6)
 
-                // Token input
-                Text("Tags", style: TextStyle(font: Font(size: 14, weight: 500)))
-                TokenInput(values: bind(\.tags))
+            // Token input
+            Text("Tags", style: TextStyle(font: Font(size: 14, weight: 500)))
+            TokenInput(values: bind(\.tags))
 
-                // Credit card
-                Text("Payment", style: TextStyle(font: Font(size: 14, weight: 500)))
-                CreditCardInput(value: bind(\.card))
+            // Credit card
+            Text("Payment", style: TextStyle(font: Font(size: 14, weight: 500)))
+            CreditCardInput(value: bind(\.card))
 
-            }.padded(20)
         }
+        .debug(.blue)
+        .padded(20)
+        .centered()
+        .debug(.red)
     }
 
     private func oldBody() -> any View {

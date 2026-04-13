@@ -24,7 +24,31 @@ public struct Padding: Equatable, Hashable, Sendable {
     }
 
     public static let zero = Padding()
+    
+    public static func all(_ value: Double) -> Padding { Padding(all: value) }
+    
+    public static func horizontal(_ value: Double) -> Padding { Padding(horizontal: value) }
+    public static func vertical(_ value: Double) -> Padding { Padding(vertical: value) }
+    
+    public static func top(_ value: Double) -> Padding { Padding(top: value) }
+    public static func bottom(_ value: Double) -> Padding { Padding(bottom: value) }
+    public static func leading(_ value: Double) -> Padding { Padding(leading: value) }
+    public static func trailing(_ value: Double) -> Padding { Padding(trailing: value) }
 
     public var horizontal: Double { leading + trailing }
     public var vertical: Double { top + bottom }
+    
+    public func copy(top: Double? = nil, bottom: Double? = nil, leading: Double? = nil, trailing: Double? = nil) -> Padding {
+        Padding(
+            top: top ?? self.top,
+            bottom: bottom ?? self.bottom,
+            leading: leading ?? self.leading,
+            trailing: trailing ?? self.trailing,
+        )
+    }
+    
+    public func top(_ value: Double) -> Padding { copy(top: value) }
+    public func bottom(_ value: Double) -> Padding { copy(bottom: value) }
+    public func leading(_ value: Double) -> Padding { copy(leading: value) }
+    public func trailing(_ value: Double) -> Padding { copy(trailing: value) }
 }
