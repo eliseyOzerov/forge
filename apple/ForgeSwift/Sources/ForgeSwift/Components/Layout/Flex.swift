@@ -172,8 +172,8 @@ final class FlexView: UIView {
         let mainExtent = main(of: bounds.size)
         let crossExtent = cross(of: bounds.size)
 
-        // 1. Measure all children at their intrinsic (natural) size.
-        let slots = measureChildren(children)
+        // 1. Measure all children given available space.
+        let slots = measureChildren(children, proposing: bounds.size)
 
         // 2. Group into lines. Without wrap, everything is one line.
         var lines = splitIntoLines(slots: slots, mainExtent: mainExtent)
@@ -197,14 +197,15 @@ final class FlexView: UIView {
 
     // MARK: - Step 1: Measure
 
-    /// Ask each child for its intrinsic size. Fill children report their
-    /// content size (not the full proposed size) so line splitting works
-    /// correctly — fill expansion happens later in resolveFills.
-    private func measureChildren(_ children: [UIView]) -> [FlexSlot] {
+    /// Ask each child for its intrinsic size given the available space.
+    /// Fill children report their content size (not the full proposed
+    /// size) so line splitting works correctly — fill expansion happens
+    /// later in resolveFills.
+    private func measureChildren(_ children: [UIView], proposing: CGSize) -> [FlexSlot] {
         children.map { child in
             let childFrame = (child as? BoxView)?.boxFrame
             let extent = isH ? childFrame?.width : childFrame?.height
-            let size = child.sizeThatFits(CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude))
+            let size = child.sizeThatFits(proposing)
             return FlexSlot(view: child, intrinsicSize: size, mainExtent: extent, resolvedSize: size)
         }
     }
@@ -348,7 +349,7 @@ final class FlexView: UIView {
         let children = subviews
         guard !children.isEmpty else { return .zero }
 
-        let slots = measureChildren(children)
+        let slots = measureChildren(children, proposing: size)
         let proposedMain = main(of: size)
 
         if flexWrap {
