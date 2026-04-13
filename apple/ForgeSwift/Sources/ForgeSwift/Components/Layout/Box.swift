@@ -471,9 +471,8 @@ public extension View {
         Box(padding: .all(value)) { self }
     }
     
-    func aligned(_ alignment: Alignment, axis: Axis? = nil) -> Box {
-        let frame: Frame = axis == nil ? .fill : axis == .horizontal ? .fillWidth : .fillHeight
-        return Box(frame, alignment: alignment) { self }
+    func aligned(_ alignment: Alignment, fill: Frame = .fill) -> Box {
+        Box(fill, alignment: alignment) { self }
     }
     
     func framed(_ frame: Frame) -> Box {

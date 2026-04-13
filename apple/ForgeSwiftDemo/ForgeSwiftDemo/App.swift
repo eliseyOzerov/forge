@@ -55,7 +55,7 @@ final class TextFieldDemoBuilder: ViewBuilder<TextFieldDemoModel> {
             Column {
                 TextField(text: model.text, decoration: TextFieldDecoration(placeholder: "Hello"))
                     .framed(.fixed(100,30))
-                    .aligned(.centerLeft, axis: .horizontal)
+                    .aligned(.centerLeft, fill: .fillWidth)
                 Row {
                     TextField(text: model.text, decoration: TextFieldDecoration(placeholder: "Hello"))
                     TextField(text: model.otp, decoration: TextFieldDecoration(placeholder: "World!"))

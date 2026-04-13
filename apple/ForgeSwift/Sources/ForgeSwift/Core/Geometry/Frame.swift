@@ -58,5 +58,5 @@ public struct Frame: Sendable {
     
     public static let fillWidth = Frame(.fill(), .hug())
     public static let fillHeight = Frame(.hug(), .fill())
-    
+
 }
