@@ -163,4 +163,137 @@ final class VectorTests: XCTestCase {
         let b = Vec2(4, 5)
         XCTAssertEqual(a * b, Vec2(8, 15))
     }
+
+    // MARK: - Vec2 Constants
+
+    func testVec2Constants() {
+        XCTAssertEqual(Vec2.zero, Vec2(0, 0))
+        XCTAssertEqual(Vec2.one, Vec2(1, 1))
+        XCTAssertEqual(Vec2.unitX, Vec2(1, 0))
+        XCTAssertEqual(Vec2.unitY, Vec2(0, 1))
+    }
+
+    // MARK: - Vec2 Conversions
+
+    func testVec2CGPointRoundTrip() {
+        let v = Vec2(3.5, 7.2)
+        let back = Vec2(v.cgPoint)
+        XCTAssertEqual(back.x, 3.5, accuracy: 1e-10)
+        XCTAssertEqual(back.y, 7.2, accuracy: 1e-10)
+    }
+
+    func testVec2CGSizeRoundTrip() {
+        let v = Vec2(100, 50)
+        let back = Vec2(v.cgSize)
+        XCTAssertEqual(back.x, 100); XCTAssertEqual(back.y, 50)
+    }
+
+    // MARK: - Vec2 Edge Cases
+
+    func testVec2DivisionByZero() {
+        let v = Vec2(1, 1) / 0
+        XCTAssertTrue(v.x.isInfinite)
+        XCTAssertTrue(v.y.isInfinite)
+    }
+
+    func testVec2WithLengthZeroVector() {
+        let v = Vec2.zero.withLength(10)
+        XCTAssertEqual(v, .zero) // can't set length on zero vector
+    }
+
+    func testVec2DistanceSquared() {
+        let a = Vec2(0, 0)
+        let b = Vec2(3, 4)
+        XCTAssertEqual(a.distanceSquared(to: b), 25, accuracy: 1e-10)
+    }
+
+    func testVec2Midpoint() {
+        let m = Vec2.midpoint(Vec2(0, 0), Vec2(10, 20))
+        XCTAssertEqual(m, Vec2(5, 10))
+    }
+
+    func testVec2AngleTo() {
+        let a = Vec2(1, 0)
+        let b = Vec2(0, 1)
+        XCTAssertEqual(a.angle(to: b), .pi / 2, accuracy: 1e-10)
+    }
+
+    func testVec2ScalarMultiplyCommutative() {
+        let v = Vec2(3, 4)
+        XCTAssertEqual(v * 2, 2 * v)
+    }
+
+    // MARK: - Vec3 Extended
+
+    func testVec3Constants() {
+        XCTAssertEqual(Vec3.zero, Vec3(0, 0, 0))
+        XCTAssertEqual(Vec3.one, Vec3(1, 1, 1))
+        XCTAssertEqual(Vec3.unitX, Vec3(1, 0, 0))
+        XCTAssertEqual(Vec3.unitY, Vec3(0, 1, 0))
+        XCTAssertEqual(Vec3.unitZ, Vec3(0, 0, 1))
+    }
+
+    func testVec3Arithmetic() {
+        let a = Vec3(1, 2, 3)
+        let b = Vec3(4, 5, 6)
+        XCTAssertEqual(a + b, Vec3(5, 7, 9))
+        XCTAssertEqual(a - b, Vec3(-3, -3, -3))
+        XCTAssertEqual(a * 2, Vec3(2, 4, 6))
+    }
+
+    func testVec3Dot() {
+        let a = Vec3(1, 0, 0)
+        let b = Vec3(0, 1, 0)
+        XCTAssertEqual(a.dot(b), 0, accuracy: 1e-10)
+    }
+
+    func testVec3Normalized() {
+        let v = Vec3(0, 0, 5).normalized
+        XCTAssertEqual(v.z, 1, accuracy: 1e-10)
+    }
+
+    func testVec3FromComponents() {
+        let v = Vec3(components: [1, 2, 3])
+        XCTAssertEqual(v.x, 1); XCTAssertEqual(v.y, 2); XCTAssertEqual(v.z, 3)
+    }
+
+    func testVec3FromComponentsShort() {
+        let v = Vec3(components: [1])
+        XCTAssertEqual(v.x, 1); XCTAssertEqual(v.y, 0); XCTAssertEqual(v.z, 0)
+    }
+
+    // MARK: - Vec4 Extended
+
+    func testVec4Constants() {
+        XCTAssertEqual(Vec4.zero, Vec4(0, 0, 0, 0))
+        XCTAssertEqual(Vec4.one, Vec4(1, 1, 1, 1))
+    }
+
+    func testVec4Arithmetic() {
+        let a = Vec4(1, 2, 3, 4)
+        let b = Vec4(5, 6, 7, 8)
+        XCTAssertEqual(a + b, Vec4(6, 8, 10, 12))
+    }
+
+    func testVec4Length() {
+        let v = Vec4(1, 0, 0, 0)
+        XCTAssertEqual(v.length, 1, accuracy: 1e-10)
+    }
+
+    func testVec4FromComponents() {
+        let v = Vec4(components: [1, 2, 3, 4])
+        XCTAssertEqual(v.w, 4)
+    }
+
+    func testVec4FromComponentsShort() {
+        let v = Vec4(components: [])
+        XCTAssertEqual(v.x, 0); XCTAssertEqual(v.w, 0)
+    }
+
+    func testVec4Lerp() {
+        let a = Vec4(0, 0, 0, 0)
+        let b = Vec4(10, 20, 30, 40)
+        let mid = a.lerp(to: b, t: 0.5)
+        XCTAssertEqual(mid.x, 5); XCTAssertEqual(mid.w, 20)
+    }
 }
