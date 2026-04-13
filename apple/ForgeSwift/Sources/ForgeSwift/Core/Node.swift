@@ -267,8 +267,6 @@ public final class ComposedNode: Node {
         }
     }
 
-    /// Pin `child` to fill `parent`. Parent sizes to child's intrinsic
-    /// content via the pinning constraints.
     private func attach(_ child: PlatformView, inside parent: PlatformView) {
         parent.addSubview(child)
         child.pin(to: parent)

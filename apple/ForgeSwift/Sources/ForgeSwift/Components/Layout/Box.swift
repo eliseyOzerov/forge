@@ -284,6 +284,14 @@ class BoxView: UIView {
     override func didMoveToSuperview() {
         super.didMoveToSuperview()
         guard let superview else { return }
+        // Remove any constraints set by parent (e.g. pin(to:))
+        // that would conflict with our own sizing.
+        for constraint in superview.constraints where constraint.firstItem === self || constraint.secondItem === self {
+            superview.removeConstraint(constraint)
+        }
+        for constraint in constraints where constraint.firstItem === self {
+            removeConstraint(constraint)
+        }
         constrain {
             switch sizing.width {
             case .fix(let w): widthAnchor.equal(w)
