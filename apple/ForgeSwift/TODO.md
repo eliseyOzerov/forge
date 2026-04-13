@@ -16,36 +16,21 @@
 - Chip
 - CreditCardInput
 - Dial
-- EmailInput
 - IconToggle
 - Knob
-- MaskedInput
-- MultilineInput
-- NameInput
-- NumberInput
-- PasswordInput
-- PhoneInput
 - Radio
 - RangeSlider
-- SearchInput
 - Slider
-- SplitboxInput
 - Stepper
 - Switch
-- TextField
 - Tile
 - Toggle
 - ToggleGroup
-- TokenInput
 
 ## Layout
-- Box
 - Grid
-- HStack
 - Masonry
 - Table
-- Wrap
-- ZStack
 
 ## Overlays
 - Alert
