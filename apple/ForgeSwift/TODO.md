@@ -14,7 +14,6 @@
 ## Input
 - Checkbox
 - Chip
-- CreditCardInput
 - Dial
 - IconToggle
 - Knob

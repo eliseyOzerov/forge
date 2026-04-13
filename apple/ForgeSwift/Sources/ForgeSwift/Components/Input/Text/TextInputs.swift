@@ -310,4 +310,152 @@ public final class TokenInputBuilder: ViewBuilder<TokenInputModel> {
     }
 }
 
+// MARK: - CreditCardInput
+
+public struct CreditCard: Equatable {
+    public var number: String
+    public var expiry: String
+    public var cvv: String
+
+    public init(number: String = "", expiry: String = "", cvv: String = "") {
+        self.number = number; self.expiry = expiry; self.cvv = cvv
+    }
+
+    public var isComplete: Bool {
+        number.count >= 15 && expiry.count == 4 && cvv.count >= 3
+    }
+
+    public var type: CardType {
+        let digits = number.prefix(2)
+        guard let n = Int(digits) else { return .unknown }
+        if number.hasPrefix("4") { return .visa }
+        if (51...55).contains(n) { return .mastercard }
+        if number.hasPrefix("34") || number.hasPrefix("37") { return .amex }
+        if number.hasPrefix("6011") || number.hasPrefix("65") { return .discover }
+        return .unknown
+    }
+
+    public var formattedNumber: String {
+        let groupSize = type == .amex ? [4, 6, 5] : [4, 4, 4, 4]
+        var result = ""; var idx = number.startIndex
+        for (i, size) in groupSize.enumerated() {
+            guard idx < number.endIndex else { break }
+            if i > 0 { result.append(" ") }
+            let end = number.index(idx, offsetBy: size, limitedBy: number.endIndex) ?? number.endIndex
+            result.append(contentsOf: number[idx..<end])
+            idx = end
+        }
+        return result
+    }
+
+    public var formattedExpiry: String {
+        guard expiry.count >= 2 else { return expiry }
+        return expiry.prefix(2) + "/" + expiry.dropFirst(2)
+    }
+}
+
+public enum CardType: Sendable {
+    case visa, mastercard, amex, discover, unknown
+
+    public var name: String {
+        switch self {
+        case .visa: "Visa"; case .mastercard: "Mastercard"
+        case .amex: "Amex"; case .discover: "Discover"; case .unknown: "Card"
+        }
+    }
+
+    public var cvvLength: Int { self == .amex ? 4 : 3 }
+    public var numberLength: Int { self == .amex ? 15 : 16 }
+}
+
+/// Compound credit card input: number, expiry, CVV fields.
+public struct CreditCardInput: ModelView {
+    public let value: Binding<CreditCard>
+    public let style: StateProperty<TextFieldStyle>
+
+    public init(
+        value: Binding<CreditCard>,
+        style: StateProperty<TextFieldStyle> = .constant(TextFieldStyle())
+    ) {
+        self.value = value; self.style = style
+    }
+
+    public func makeModel(context: BuildContext) -> CreditCardModel { CreditCardModel() }
+    public func makeBuilder() -> CreditCardBuilder { CreditCardBuilder() }
+}
+
+public final class CreditCardModel: ViewModel<CreditCardInput> {
+    var number = ""
+    var expiry = ""
+    var cvv = ""
+
+    public override func didInit() {
+        number = view.value.value.number
+        expiry = view.value.value.expiry
+        cvv = view.value.value.cvv
+    }
+
+    func updateCard() {
+        view.value.value = CreditCard(number: number, expiry: expiry, cvv: cvv)
+        node?.markDirty()
+    }
+
+    var cardType: CardType { view.value.value.type }
+}
+
+public final class CreditCardBuilder: ViewBuilder<CreditCardModel> {
+    public override func build(context: BuildContext) -> any View {
+        let style = model.view.style(.idle)
+        let numberBinding = Binding<String>(
+            get: { [weak model] in model?.number ?? "" },
+            set: { [weak model] in
+                let filtered = String($0.filter { $0.isNumber }.prefix(model?.cardType.numberLength ?? 16))
+                model?.number = filtered
+                model?.updateCard()
+            }
+        )
+        let expiryBinding = Binding<String>(
+            get: { [weak model] in model?.expiry ?? "" },
+            set: { [weak model] in
+                let filtered = String($0.filter { $0.isNumber }.prefix(4))
+                model?.expiry = filtered
+                model?.updateCard()
+            }
+        )
+        let cvvBinding = Binding<String>(
+            get: { [weak model] in model?.cvv ?? "" },
+            set: { [weak model] in
+                let filtered = String($0.filter { $0.isNumber }.prefix(model?.cardType.cvvLength ?? 3))
+                model?.cvv = filtered
+                model?.updateCard()
+            }
+        )
+
+        return Column(spacing: 8, alignment: .topLeft) {
+            Text(model.cardType.name, style: style.label)
+            TextField<String>(text: numberBinding, logic: TextFieldLogic(
+                parser: TextParser { $0 }, formatter: TextFormatter { $0 },
+                transformer: TextTransformer { CreditCard(number: $0).formattedNumber },
+                filter: InputFilter { $0.allSatisfy { $0.isNumber } }
+            ), decoration: TextFieldDecoration(placeholder: "Card number"),
+               keyboard: KeyboardConfig(type: .number), style: model.view.style)
+
+            Row(spacing: 8) {
+                TextField<String>(text: expiryBinding, logic: TextFieldLogic(
+                    parser: TextParser { $0 }, formatter: TextFormatter { $0 },
+                    transformer: TextTransformer { CreditCard(expiry: $0).formattedExpiry },
+                    filter: InputFilter { $0.allSatisfy { $0.isNumber } }
+                ), decoration: TextFieldDecoration(placeholder: "MM/YY"),
+                   keyboard: KeyboardConfig(type: .number), style: model.view.style)
+
+                TextField<String>(text: cvvBinding, logic: TextFieldLogic(
+                    parser: TextParser { $0 }, formatter: TextFormatter { $0 },
+                    filter: InputFilter { $0.allSatisfy { $0.isNumber } }
+                ), decoration: TextFieldDecoration(placeholder: "CVV"),
+                   keyboard: KeyboardConfig(type: .number, secure: true), style: model.view.style)
+            }
+        }
+    }
+}
+
 #endif
