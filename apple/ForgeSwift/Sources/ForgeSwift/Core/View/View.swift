@@ -232,56 +232,34 @@ public extension ContainerRenderer {
     }
 }
 
-// MARK: - ChildrenBuilder
+// MARK: - ListBuilder
 
-/// Result builder for concise children-list construction in
-/// ContainerViews. Enables trailing-closure syntax:
-///
-///     VStack(spacing: 16) {
-///         Text("Hello")
-///         Button("Tap") { ... }
-///     }
-///
-/// This is a Swift-specific convenience on top of the canonical
-/// `init(children: [any View])` API. Other language implementations
-/// of Forge use their own idiomatic patterns (Kotlin trailing
-/// lambdas, Dart child lists, etc.); the shape of the underlying
-/// data is what stays consistent across platforms.
+/// Generic result builder that collects items into an array.
+/// Used for view children, transform sequences, or any list.
 @resultBuilder
-public struct ChildrenBuilder {
-    public static func buildExpression(_ view: any View) -> [any View] {
-        [view]
-    }
-
-    public static func buildBlock(_ components: [any View]...) -> [any View] {
-        components.flatMap { $0 }
-    }
-
-    public static func buildOptional(_ component: [any View]?) -> [any View] {
-        component ?? []
-    }
-
-    public static func buildEither(first component: [any View]) -> [any View] {
-        component
-    }
-
-    public static func buildEither(second component: [any View]) -> [any View] {
-        component
-    }
-
-    public static func buildArray(_ components: [[any View]]) -> [any View] {
-        components.flatMap { $0 }
-    }
+public struct ListBuilder<T> {
+    public static func buildExpression(_ item: T) -> [T] { [item] }
+    public static func buildBlock(_ components: [T]...) -> [T] { components.flatMap { $0 } }
+    public static func buildOptional(_ component: [T]?) -> [T] { component ?? [] }
+    public static func buildEither(first component: [T]) -> [T] { component }
+    public static func buildEither(second component: [T]) -> [T] { component }
+    public static func buildArray(_ components: [[T]]) -> [T] { components.flatMap { $0 } }
 }
 
-// MARK: - ChildBuilder (singular)
+/// Convenience: ListBuilder specialized for views.
+public typealias ChildrenBuilder = ListBuilder<any View>
+
+/// Convenience: ValueBuilder specialized for a single child view.
+public typealias ChildBuilder = ValueBuilder
+
+// MARK: - ValueBuilder (singular)
 
 /// Result builder that accepts exactly one child view. Use for
 /// components that wrap a single piece of content (Button, etc.).
 /// Attempting to place two view expressions in the closure is a
 /// compile-time error.
 @MainActor @resultBuilder
-public struct ChildBuilder {
+public struct ValueBuilder {
     public static func buildBlock(_ view: any View) -> any View { view }
     public static func buildOptional(_ view: (any View)?) -> any View { view ?? EmptyView() }
     public static func buildEither(first view: any View) -> any View { view }

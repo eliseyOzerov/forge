@@ -114,4 +114,10 @@ public extension DragTransform {
             transforms.reduce(pos) { $1($0) }
         }
     }
+
+    /// Chain transforms using builder syntax.
+    static func sequence(@ListBuilder<DragTransform> _ build: () -> [DragTransform]) -> DragTransform {
+        sequence(build())
+    }
+
 }
