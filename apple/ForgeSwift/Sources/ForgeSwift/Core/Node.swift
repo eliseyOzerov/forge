@@ -25,6 +25,26 @@ import UIKit
 import AppKit
 #endif
 
+/// Transparent wrapper view used by ComposedNode. Delegates sizing
+/// to its single child and pins that child to fill.
+#if canImport(UIKit)
+class ProxyView: UIView {
+    override func sizeThatFits(_ size: CGSize) -> CGSize {
+        subviews.first?.sizeThatFits(size) ?? .zero
+    }
+
+    override var intrinsicContentSize: CGSize {
+        subviews.first?.intrinsicContentSize ?? CGSize(width: UIView.noIntrinsicMetric, height: UIView.noIntrinsicMetric)
+    }
+}
+#elseif canImport(AppKit)
+class ProxyView: NSView {
+    override var intrinsicContentSize: NSSize {
+        subviews.first?.intrinsicContentSize ?? NSSize(width: NSView.noIntrinsicMetric, height: NSView.noIntrinsicMetric)
+    }
+}
+#endif
+
 @MainActor public class Node {
     public weak var parent: Node?
     public var platformView: PlatformView?
@@ -163,7 +183,7 @@ public final class ComposedNode: Node {
 
     public override init() {
         super.init()
-        self.platformView = PlatformView()
+        self.platformView = ProxyView()
     }
 
     override func setup(from view: any View) {

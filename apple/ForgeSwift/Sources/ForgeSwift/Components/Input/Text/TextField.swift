@@ -300,17 +300,18 @@ public final class TextFieldBuilder<T>: ViewBuilder<TextFieldModel<T>> {
         let style = model.view.style(model.currentState)
         let dec = model.view.decoration
 
-        return Column(spacing: 4, alignment: .topLeft) {
-            if style.labelPosition == .above, let label = dec.label {
-                Text(label, style: style.label)
-            }
-            TextFieldLeaf(model: model, style: style)
-            if let error = model.error {
-                Text(error, style: style.error)
-            } else if let helper = dec.helper {
-                Text(helper, style: style.helper)
-            }
-        }
+//        return Column(spacing: 4, alignment: .topLeft) {
+//            if style.labelPosition == .above, let label = dec.label {
+//                Text(label, style: style.label)
+//            }
+//            TextFieldLeaf(model: model, style: style)
+//            if let error = model.error {
+//                Text(error, style: style.error)
+//            } else if let helper = dec.helper {
+//                Text(helper, style: style.helper)
+//            }
+//        }
+        return TextFieldLeaf(model: model, style: style)
     }
 }
 
@@ -386,6 +387,7 @@ final class TextFieldWrapperView<T>: BoxView, UITextFieldDelegate {
 
     override func layoutSubviews() {
         super.layoutSubviews()
+        print("text field bounds: \(bounds)")
         textField.frame = CGRect(
             x: padding.leading, y: padding.top,
             width: bounds.width - padding.leading - padding.trailing,
