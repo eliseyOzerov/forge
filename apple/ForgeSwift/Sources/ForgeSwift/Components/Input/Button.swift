@@ -29,11 +29,13 @@ public struct Button: ModelView {
     public let style: StateProperty<BoxStyle>
     public let onTap: @MainActor () -> Void
     public let disabled: Bool
+    public let label: String?
 
     /// Body-based button with custom content.
     public init(
         style: StateProperty<BoxStyle> = .constant(BoxStyle()),
         disabled: Bool = false,
+        label: String? = nil,
         onTap: @escaping @MainActor () -> Void,
         @ChildrenBuilder body: () -> [any View]
     ) {
@@ -42,6 +44,7 @@ public struct Button: ModelView {
         self.style = style
         self.onTap = onTap
         self.disabled = disabled
+        self.label = label
     }
 
     /// Text shortcut.
@@ -55,6 +58,7 @@ public struct Button: ModelView {
         self.style = style
         self.onTap = onTap
         self.disabled = disabled
+        self.label = title
     }
 
     public func makeModel(context: BuildContext) -> ButtonModel { ButtonModel() }
@@ -152,7 +156,9 @@ final class TappableBoxRenderer: ContainerRenderer {
         view.boxAlignment = style.alignment
         view.boxOverflow = style.overflow
         view.buttonModel = model
+        view.accessibilityLabel = model.view.label
         view.isUserInteractionEnabled = true
+        view.updateAccessibility()
         view.setNeedsDisplay()
     }
 
@@ -178,6 +184,22 @@ final class TappableBoxRenderer: ContainerRenderer {
 
 final class TappableBoxView: BoxView {
     weak var buttonModel: ButtonModel?
+
+    func updateAccessibility() {
+        isAccessibilityElement = true
+        accessibilityTraits = .button
+        if buttonModel?.view.disabled == true {
+            accessibilityTraits.insert(.notEnabled)
+        }
+        if buttonModel?.currentState.contains(.selected) == true {
+            accessibilityTraits.insert(.selected)
+        }
+    }
+
+    override func accessibilityActivate() -> Bool {
+        buttonModel?.onTap?()
+        return true
+    }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         super.touchesBegan(touches, with: event)
