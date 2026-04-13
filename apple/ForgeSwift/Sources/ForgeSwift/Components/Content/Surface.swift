@@ -204,23 +204,7 @@ public struct Dash: Sendable {
     public static func even(_ length: Double) -> Dash { Dash([length, length]) }
 }
 
-// MARK: - Filter
-
-#if canImport(CoreImage)
-import CoreImage
-#endif
-
-public struct Filter {
-    #if canImport(CoreImage)
-    public let ciFilter: CIFilter
-    public init(_ ciFilter: CIFilter) { self.ciFilter = ciFilter }
-    public static func gaussianBlur(radius: Double) -> Filter {
-        let f = CIFilter(name: "CIGaussianBlur")!
-        f.setValue(radius, forKey: kCIInputRadiusKey)
-        return Filter(f)
-    }
-    #endif
-}
+// Filter is defined in Canvas.swift
 
 // MARK: - Transform2D
 
