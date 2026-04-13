@@ -9,20 +9,40 @@ import ForgeSwift
 @main
 class ForgeDemo: App {
     override var body: any View {
-        Column(spacing: 24, alignment: .topLeft) {
-            label("wrap")
-            Row(spacing: 8, lineSpacing: 8, wrap: true) {
-                for i in 1...15 {
-                    if i == 3 || i == 12 || i == 15 {
-                        Box(.width(.fill()).height(.fix(40)), .color(Color(0.9, 0.3, 0.3)), .roundedRect(radius: 8)) {
-                            Text("\(i)", style: TextStyle(font: Font(size: 16, weight: 600), color: .white, align: .center))
-                        }
-                    } else {
-                        chip("\(i)")
-                    }
+        Column(spacing: 24) {
+            Button(
+                "Tap me",
+                style: StateProperty { state in
+                    BoxStyle(
+                        .fillWidth.height(.fix(48)),
+                        state.contains(.pressed)
+                            ? .color(Color(0.1, 0.4, 0.9))
+                            : .color(Color(0.2, 0.5, 1.0)),
+                        .capsule(),
+                        padding: Padding(horizontal: 16)
+                    )
+                },
+                onTap: { print("tapped!") }
+            )
+
+            Button(
+                style: StateProperty { state in
+                    BoxStyle(
+                        .hug,
+                        .color(state.contains(.pressed) ? Color(0.8, 0.2, 0.2) : Color(0.9, 0.3, 0.3))
+                            .border(.white, width: 2),
+                        .roundedRect(radius: 12),
+                        padding: Padding(horizontal: 24, vertical: 12)
+                    )
+                },
+                onTap: { print("custom body tapped!") }
+            ) {
+                Row(spacing: 8) {
+                    Icon("star.fill", style: IconStyle(size: 18, color: .white))
+                    Text("Star", style: TextStyle(font: Font(size: 16, weight: 600), color: .white))
                 }
             }
-        }.padded(20)
+        }.padded(40).centered()
     }
 
     private func oldBody() -> any View {

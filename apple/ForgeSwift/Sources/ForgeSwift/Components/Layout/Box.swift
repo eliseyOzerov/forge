@@ -185,7 +185,7 @@ final class BoxRenderer: ContainerRenderer {
 
 // MARK: - BoxView
 
-final class BoxView: UIView, UIScrollViewDelegate {
+class BoxView: UIView, UIScrollViewDelegate {
     var boxShape: Shape?
     var boxSurface: Surface?
     var boxClip: Bool = true
