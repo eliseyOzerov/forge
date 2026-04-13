@@ -224,8 +224,13 @@ class BoxView: UIView {
 
     /// How big this view wants to be given a proposal.
     /// fix → exact value, fill → proposed size, hug → content size + padding.
+    /// Children are proposed the size minus padding so they don't overflow.
     override func sizeThatFits(_ size: CGSize) -> CGSize {
-        let content = childrenSize(proposing: size)
+        let innerSize = CGSize(
+            width: max(0, size.width - padding.leading - padding.trailing),
+            height: max(0, size.height - padding.top - padding.bottom)
+        )
+        let content = childrenSize(proposing: innerSize)
         let w: CGFloat = switch sizing.width {
         case .fix(let v): v
         case .fill: size.width
@@ -241,7 +246,11 @@ class BoxView: UIView {
 
     /// Content size ignoring fill — used by flex wrap for line splitting.
     func contentSizeThatFits(_ size: CGSize) -> CGSize {
-        let content = childrenSize(proposing: size)
+        let innerSize = CGSize(
+            width: max(0, size.width - padding.leading - padding.trailing),
+            height: max(0, size.height - padding.top - padding.bottom)
+        )
+        let content = childrenSize(proposing: innerSize)
         let w: CGFloat = switch sizing.width {
         case .fix(let v): v
         case .fill, .hug: content.width + padding.leading + padding.trailing
