@@ -325,8 +325,6 @@ final class FlexView: UIView {
     /// stacked sequentially with line spacing. Uses cross alignment
     /// to position the group of lines within the available cross extent.
     private func stackLines(_ lines: inout [FlexLine], crossExtent: CGFloat) {
-        guard lines.count > 1 else { return }
-
         let totalLineCross = lines.reduce(CGFloat(0)) { $0 + $1.crossSize }
         let totalLineSpacing = flexLineSpacing * CGFloat(lines.count - 1)
         let crossAlignFactor = isH ? (flexAlignment.y + 1) / 2 : (flexAlignment.x + 1) / 2
