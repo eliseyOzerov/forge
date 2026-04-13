@@ -42,13 +42,24 @@ public struct ValueTransition {
 
 // MARK: - StepperStyle
 
+/// Configuration for a stepper +/- button: its visual style and optional custom content.
+public struct StepperButton {
+    public var style: ButtonStyle
+    public var view: (any View)?
+
+    public init(
+        style: ButtonStyle = ButtonStyle(BoxStyle(.square(36), .color(Color(0.9, 0.9, 0.9)), .roundedRect(radius: 6)), textStyle: TextStyle(font: Font(size: 18, weight: 600))),
+        view: (any View)? = nil
+    ) {
+        self.style = style; self.view = view
+    }
+}
+
 public struct StepperStyle<T> {
     public var container: BoxStyle
     public var field: BoxStyle
-    public var decrementButton: ButtonStyle
-    public var incrementButton: ButtonStyle
-    public var decrementView: (any View)?
-    public var incrementView: (any View)?
+    public var decrement: StepperButton
+    public var increment: StepperButton
     public var text: TextStyle
     public var spacing: Double
     public var formatter: TextFormatter<T>?
@@ -60,10 +71,8 @@ public struct StepperStyle<T> {
     public init(
         container: BoxStyle = BoxStyle(padding: .zero),
         field: BoxStyle = BoxStyle(.hug, .color(Color(0.95, 0.95, 0.95)), .roundedRect(radius: 6), padding: Padding(horizontal: 8, vertical: 4)),
-        decrementButton: ButtonStyle = ButtonStyle(BoxStyle(.square(36), .color(Color(0.9, 0.9, 0.9)), .roundedRect(radius: 6)), textStyle: TextStyle(font: Font(size: 18, weight: 600))),
-        incrementButton: ButtonStyle = ButtonStyle(BoxStyle(.square(36), .color(Color(0.9, 0.9, 0.9)), .roundedRect(radius: 6)), textStyle: TextStyle(font: Font(size: 18, weight: 600))),
-        decrementView: (any View)? = nil,
-        incrementView: (any View)? = nil,
+        decrement: StepperButton = StepperButton(),
+        increment: StepperButton = StepperButton(),
         text: TextStyle = TextStyle(font: Font(size: 16), align: .center),
         spacing: Double = 4,
         formatter: TextFormatter<T>? = nil,
@@ -73,8 +82,7 @@ public struct StepperStyle<T> {
         transition: ValueTransition = .default
     ) {
         self.container = container; self.field = field
-        self.decrementButton = decrementButton; self.incrementButton = incrementButton
-        self.decrementView = decrementView; self.incrementView = incrementView
+        self.decrement = decrement; self.increment = increment
         self.text = text; self.spacing = spacing; self.formatter = formatter
         self.longPress = longPress; self.drag = drag
         self.haptic = haptic; self.transition = transition
@@ -252,26 +260,25 @@ public final class StepperBuilder<T: Numeric & Comparable & LosslessStringConver
     public override func build(context: BuildContext) -> any View {
         let style = model.view.style(model.currentState)
 
-        let decrementContent: any View = style.decrementView ?? Text("−", style: style.decrementButton.textStyle)
-        let incrementContent: any View = style.incrementView ?? Text("+", style: style.incrementButton.textStyle)
+        let decContent: any View = style.decrement.view ?? Text("−", style: style.decrement.style.textStyle)
+        let incContent: any View = style.increment.view ?? Text("+", style: style.increment.style.textStyle)
+
+        let decStyle = model.atMin ? dimmed(style.decrement.style) : style.decrement.style
+        let incStyle = model.atMax ? dimmed(style.increment.style) : style.increment.style
 
         return Box(style.container) {
             Row(spacing: style.spacing, alignment: .center) {
                 Button(
-                    style: .constant(model.atMin ? dimmed(style.decrementButton) : style.decrementButton),
+                    style: .constant(decStyle),
                     states: model.atMin ? .disabled : model.view.states,
                     onTap: { [weak model] in model?.decrement() }
-                ) {
-                    decrementContent
-                }
+                ) { decContent }
                 StepperFieldLeaf(model: model, style: style)
                 Button(
-                    style: .constant(model.atMax ? dimmed(style.incrementButton) : style.incrementButton),
+                    style: .constant(incStyle),
                     states: model.atMax ? .disabled : model.view.states,
                     onTap: { [weak model] in model?.increment() }
-                ) {
-                    incrementContent
-                }
+                ) { incContent }
             }
         }
     }
