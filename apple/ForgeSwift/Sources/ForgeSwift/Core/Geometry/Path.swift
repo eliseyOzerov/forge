@@ -124,8 +124,8 @@ public struct Path {
         Path(cgPath: cgPath.copy(dashingWithPhase: phase, lengths: lengths.map { CGFloat($0) }))
     }
 
-    public func stroked(width: Double, cap: CGLineCap = .butt, join: CGLineJoin = .miter, miterLimit: Double = 10) -> Path {
-        Path(cgPath: cgPath.copy(strokingWithWidth: width, lineCap: cap, lineJoin: join, miterLimit: miterLimit))
+    public func stroked(width: Double, cap: StrokeCap = .butt, join: StrokeJoin = .miter, miterLimit: Double = 10) -> Path {
+        Path(cgPath: cgPath.copy(strokingWithWidth: width, lineCap: cap.cgLineCap, lineJoin: join.cgLineJoin, miterLimit: miterLimit))
     }
 
     public func transformed(_ transform: CGAffineTransform) -> Path {

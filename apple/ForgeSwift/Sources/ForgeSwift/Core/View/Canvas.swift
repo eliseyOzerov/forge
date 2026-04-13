@@ -97,7 +97,7 @@ public extension Canvas {
     func strokeCircle(center: Vec2, radius: Double, color: Color, width: Double = 1) {
         let rect = Rect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2)
         var p = Path(); p.addEllipse(in: rect)
-        let stroked = p.stroked(width: width, cap: .butt, join: .miter, miterLimit: 10)
+        let stroked = p.stroked(width: width, cap: StrokeCap.butt, join: StrokeJoin.miter)
         draw(stroked, with: .color(color))
     }
 
@@ -105,7 +105,7 @@ public extension Canvas {
         var p = Path()
         let endAngle = start + sweep
         p.arc(center: Point(center.x, center.y), radius: radius, startAngle: start, endAngle: endAngle, clockwise: sweep < 0)
-        let stroked = p.stroked(width: width, cap: cap.cgLineCap, join: .miter, miterLimit: 10)
+        let stroked = p.stroked(width: width, cap: cap, join: StrokeJoin.miter)
         draw(stroked, with: .color(color))
     }
 }
@@ -202,31 +202,10 @@ public final class CGCanvas: Canvas {
     private func drawImage(_ source: ImageSource, fit: ContentFit, in bounds: Rect) {
         #if canImport(UIKit)
         guard let cgImage = source.platformImage.cgImage else { return }
-        let imageSize = CGSize(width: cgImage.width, height: cgImage.height)
-        let destRect = fitRect(imageSize: imageSize, in: bounds.cgRect, fit: fit)
-        ctx.draw(cgImage, in: destRect)
+        let imageSize = Size(Double(cgImage.width), Double(cgImage.height))
+        let destRect = fit.rect(for: imageSize, in: bounds)
+        ctx.draw(cgImage, in: destRect.cgRect)
         #endif
-    }
-
-    private func fitRect(imageSize: CGSize, in bounds: CGRect, fit: ContentFit) -> CGRect {
-        switch fit {
-        case .fill:
-            return bounds
-        case .contain:
-            let scale = min(bounds.width / imageSize.width, bounds.height / imageSize.height)
-            let w = imageSize.width * scale, h = imageSize.height * scale
-            return CGRect(x: bounds.midX - w / 2, y: bounds.midY - h / 2, width: w, height: h)
-        case .cover:
-            let scale = max(bounds.width / imageSize.width, bounds.height / imageSize.height)
-            let w = imageSize.width * scale, h = imageSize.height * scale
-            return CGRect(x: bounds.midX - w / 2, y: bounds.midY - h / 2, width: w, height: h)
-        case .scaleDown:
-            let scale = min(1, min(bounds.width / imageSize.width, bounds.height / imageSize.height))
-            let w = imageSize.width * scale, h = imageSize.height * scale
-            return CGRect(x: bounds.midX - w / 2, y: bounds.midY - h / 2, width: w, height: h)
-        case .none:
-            return CGRect(x: bounds.midX - imageSize.width / 2, y: bounds.midY - imageSize.height / 2, width: imageSize.width, height: imageSize.height)
-        }
     }
 }
 

@@ -119,7 +119,31 @@ public struct ImageSource {
 
 // MARK: - ContentFit
 
-public enum ContentFit: Sendable { case fill, contain, cover, scaleDown, none }
+public enum ContentFit: Sendable {
+    case fill, contain, cover, scaleDown, none
+
+    /// Compute the destination rect for content of `contentSize` fitted into `bounds`.
+    public func rect(for contentSize: Size, in bounds: Rect) -> Rect {
+        switch self {
+        case .fill:
+            return bounds
+        case .contain:
+            let scale = min(bounds.width / contentSize.width, bounds.height / contentSize.height)
+            let w = contentSize.width * scale, h = contentSize.height * scale
+            return Rect(x: bounds.midX - w / 2, y: bounds.midY - h / 2, width: w, height: h)
+        case .cover:
+            let scale = max(bounds.width / contentSize.width, bounds.height / contentSize.height)
+            let w = contentSize.width * scale, h = contentSize.height * scale
+            return Rect(x: bounds.midX - w / 2, y: bounds.midY - h / 2, width: w, height: h)
+        case .scaleDown:
+            let scale = min(1, min(bounds.width / contentSize.width, bounds.height / contentSize.height))
+            let w = contentSize.width * scale, h = contentSize.height * scale
+            return Rect(x: bounds.midX - w / 2, y: bounds.midY - h / 2, width: w, height: h)
+        case .none:
+            return Rect(x: bounds.midX - contentSize.width / 2, y: bounds.midY - contentSize.height / 2, width: contentSize.width, height: contentSize.height)
+        }
+    }
+}
 
 // MARK: - Shader
 
