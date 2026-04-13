@@ -8,45 +8,17 @@ public enum HapticStyle: Sendable {
     case none
 }
 
-// MARK: - ButtonAnimation
-
-public struct ButtonAnimation: Sendable {
-    public var duration: Double
-    public var curve: AnimationCurve
-
-    public init(duration: Double = 0.15, curve: AnimationCurve = .easeInOut) {
-        self.duration = duration
-        self.curve = curve
-    }
-
-    public static let `default` = ButtonAnimation()
-    public static let none = ButtonAnimation(duration: 0)
-
-    var uiViewAnimationOptions: UIView.AnimationOptions {
-        switch curve {
-        case .linear: .curveLinear
-        case .easeIn: .curveEaseIn
-        case .easeOut: .curveEaseOut
-        case .easeInOut: .curveEaseInOut
-        }
-    }
-}
-
-public enum AnimationCurve: Sendable {
-    case linear, easeIn, easeOut, easeInOut
-}
-
 // MARK: - ButtonStyle
 
 public struct ButtonStyle {
     public var box: BoxStyle
     public var haptic: HapticStyle
-    public var animation: ButtonAnimation?
+    public var animation: Animation?
 
     public init(
         _ box: BoxStyle = BoxStyle(),
         haptic: HapticStyle = .light,
-        animation: ButtonAnimation? = .default
+        animation: Animation? = .default
     ) {
         self.box = box
         self.haptic = haptic
@@ -206,10 +178,10 @@ public final class ButtonBuilder: ViewBuilder<ButtonModel> {
 struct TappableBox: ContainerView {
     let boxStyle: BoxStyle
     let model: ButtonModel
-    let animation: ButtonAnimation?
+    let animation: Animation?
     let children: [any View]
 
-    init(_ style: BoxStyle, model: ButtonModel, animation: ButtonAnimation?, @ChildrenBuilder content: () -> [any View]) {
+    init(_ style: BoxStyle, model: ButtonModel, animation: Animation?, @ChildrenBuilder content: () -> [any View]) {
         self.boxStyle = style
         self.model = model
         self.animation = animation
@@ -224,9 +196,9 @@ struct TappableBox: ContainerView {
 final class TappableBoxRenderer: ContainerRenderer {
     let style: BoxStyle
     let model: ButtonModel
-    let animation: ButtonAnimation?
+    let animation: Animation?
 
-    init(style: BoxStyle, model: ButtonModel, animation: ButtonAnimation?) {
+    init(style: BoxStyle, model: ButtonModel, animation: Animation?) {
         self.style = style
         self.model = model
         self.animation = animation
@@ -256,7 +228,7 @@ final class TappableBoxRenderer: ContainerRenderer {
         }
 
         if animated, let anim = animation, anim.duration > 0 {
-            UIView.animate(withDuration: anim.duration, delay: 0, options: anim.uiViewAnimationOptions) {
+            UIView.animate(withDuration: anim.duration, delay: 0, options: .curveEaseInOut) {
                 applyBlock()
                 view.layoutIfNeeded()
             }

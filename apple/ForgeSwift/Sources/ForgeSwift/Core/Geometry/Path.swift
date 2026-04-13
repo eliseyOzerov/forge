@@ -212,6 +212,25 @@ public struct Path {
         }
     }
 
+    /// Morph between two paths by sampling both at the same resolution
+    /// and interpolating point-by-point. Works for any two paths
+    /// regardless of their internal structure.
+    public static func lerp(from a: Path, to b: Path, t: Double, samples: Int = 64) -> Path {
+        let pointsA = a.sample(count: samples)
+        let pointsB = b.sample(count: samples)
+        guard pointsA.count == pointsB.count, !pointsA.isEmpty else {
+            return t < 0.5 ? a : b
+        }
+        var result = Path()
+        for i in 0..<pointsA.count {
+            let p = pointsA[i].point.lerp(to: pointsB[i].point, t: t)
+            if i == 0 { result.move(to: p) }
+            else { result.line(to: p) }
+        }
+        result.close()
+        return result
+    }
+
     // MARK: - Segments (internal)
 
     private var segments: [PathSegment] {

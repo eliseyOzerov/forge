@@ -154,7 +154,7 @@ final class ButtonTests: XCTestCase {
         let style = ButtonStyle()
         XCTAssertEqual(style.haptic, .light)
         XCTAssertNotNil(style.animation)
-        XCTAssertEqual(style.animation?.duration, 0.15)
+        XCTAssertEqual(style.animation?.duration, 0.2)
     }
 
     func testHapticStyleNone() {
@@ -162,14 +162,13 @@ final class ButtonTests: XCTestCase {
         XCTAssertEqual(style.haptic, .none)
     }
 
-    func testButtonAnimationNone() {
-        XCTAssertEqual(ButtonAnimation.none.duration, 0)
+    func testAnimationNone() {
+        XCTAssertEqual(Animation.none.duration, 0)
     }
 
-    func testButtonAnimationDefault() {
-        let anim = ButtonAnimation.default
-        XCTAssertEqual(anim.duration, 0.15)
-        XCTAssertEqual(anim.curve, .easeInOut)
+    func testAnimationDefault() {
+        let anim = Animation.default
+        XCTAssertEqual(anim.duration, 0.2)
     }
 
     // MARK: - TappableBoxView
