@@ -12,51 +12,7 @@ public enum Fill {
     case shader(Shader)
 }
 
-// MARK: - Color
-
-public struct Color: Equatable, Hashable, Sendable {
-    public var red: Double
-    public var green: Double
-    public var blue: Double
-    public var alpha: Double
-
-    public init(_ red: Double, _ green: Double, _ blue: Double, _ alpha: Double = 1) {
-        self.red = red; self.green = green; self.blue = blue; self.alpha = alpha
-    }
-
-    public func withAlpha(_ alpha: Double) -> Color {
-        Color(red, green, blue, alpha)
-    }
-
-    public var cgColor: CGColor {
-        CGColor(red: red, green: green, blue: blue, alpha: alpha)
-    }
-
-    public func lerp(to other: Color, t: Double) -> Color {
-        Color(red + (other.red - red) * t, green + (other.green - green) * t,
-              blue + (other.blue - blue) * t, alpha + (other.alpha - alpha) * t)
-    }
-
-    public static func hex(_ hex: UInt32, alpha: Double = 1) -> Color {
-        Color(Double((hex >> 16) & 0xFF) / 255, Double((hex >> 8) & 0xFF) / 255, Double(hex & 0xFF) / 255, alpha)
-    }
-
-    public static let black = Color(0, 0, 0)
-    public static let white = Color(1, 1, 1)
-    public static let clear = Color(0, 0, 0, 0)
-    public static let red = Color(1, 0, 0)
-    public static let green = Color(0, 1, 0)
-    public static let blue = Color(0, 0, 1)
-
-    #if canImport(UIKit)
-    public var platformColor: UIColor { UIColor(red: red, green: green, blue: blue, alpha: alpha) }
-    public init(platform: UIColor) {
-        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-        platform.getRed(&r, green: &g, blue: &b, alpha: &a)
-        self.init(Double(r), Double(g), Double(b), Double(a))
-    }
-    #endif
-}
+// Color is defined in Core/View/Color.swift
 
 // MARK: - Gradient
 
