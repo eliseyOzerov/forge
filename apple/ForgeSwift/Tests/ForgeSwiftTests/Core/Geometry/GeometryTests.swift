@@ -460,4 +460,79 @@ final class GeometryTests: XCTestCase {
         XCTAssertTrue(Edge.Set.horizontal.contains(.leading))
         XCTAssertFalse(Edge.Set.horizontal.contains(.top))
     }
+
+    // MARK: - Padding: copy & chained modifiers
+
+    func testPaddingCopyOverridesTop() {
+        let p = Padding(top: 10, bottom: 20, leading: 30, trailing: 40)
+        let p2 = p.copy(top: 99)
+        XCTAssertEqual(p2.top, 99)
+        XCTAssertEqual(p2.bottom, 20)
+        XCTAssertEqual(p2.leading, 30)
+        XCTAssertEqual(p2.trailing, 40)
+    }
+
+    func testPaddingChainedModifiers() {
+        let p = Padding.zero.top(10).leading(20)
+        XCTAssertEqual(p.top, 10)
+        XCTAssertEqual(p.leading, 20)
+        XCTAssertEqual(p.bottom, 0)
+        XCTAssertEqual(p.trailing, 0)
+    }
+
+    func testPaddingStaticTop() {
+        let p = Padding.top(15)
+        XCTAssertEqual(p.top, 15)
+        XCTAssertEqual(p.bottom, 0)
+        XCTAssertEqual(p.leading, 0)
+        XCTAssertEqual(p.trailing, 0)
+    }
+
+    func testPaddingStaticBottom() {
+        let p = Padding.bottom(15)
+        XCTAssertEqual(p.bottom, 15)
+        XCTAssertEqual(p.top, 0)
+    }
+
+    func testPaddingStaticLeading() {
+        let p = Padding.leading(15)
+        XCTAssertEqual(p.leading, 15)
+        XCTAssertEqual(p.trailing, 0)
+    }
+
+    func testPaddingStaticTrailing() {
+        let p = Padding.trailing(15)
+        XCTAssertEqual(p.trailing, 15)
+        XCTAssertEqual(p.leading, 0)
+    }
+
+    // MARK: - Frame: static factories & Extent min/max
+
+    func testFrameStaticWidth() {
+        let f = Frame.width(.fix(100))
+        if case .fix(let w) = f.width { XCTAssertEqual(w, 100) } else { XCTFail() }
+        if case .hug = f.height {} else { XCTFail() }
+    }
+
+    func testFrameStaticHeight() {
+        let f = Frame.height(.fill())
+        if case .hug = f.width {} else { XCTFail() }
+        if case .fill = f.height {} else { XCTFail() }
+    }
+
+    func testExtentHugWithMin() {
+        if case .hug(let min, _) = Extent.hug(min: 50) {
+            XCTAssertEqual(min, 50)
+        } else {
+            XCTFail()
+        }
+    }
+
+    func testExtentFillWithMax() {
+        if case .fill(_, _, let max) = Extent.fill(max: 200) {
+            XCTAssertEqual(max, 200)
+        } else {
+            XCTFail()
+        }
+    }
 }

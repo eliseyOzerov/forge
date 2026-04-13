@@ -305,4 +305,84 @@ final class PathTests: XCTestCase {
         XCTAssertTrue(i.contains(Point(30, 30)))
         XCTAssertFalse(i.contains(Point(10, 10)))
     }
+
+    // MARK: - addRoundedRect
+
+    func testAddRoundedRectNotEmpty() {
+        var path = Path()
+        path.addRoundedRect(Rect(x: 0, y: 0, width: 100, height: 80), cornerWidth: 10, cornerHeight: 10)
+        XCTAssertFalse(path.isEmpty)
+    }
+
+    func testAddRoundedRectBoundingBox() {
+        var path = Path()
+        path.addRoundedRect(Rect(x: 10, y: 20, width: 100, height: 80), cornerWidth: 10, cornerHeight: 10)
+        let bb = path.boundingBox
+        XCTAssertEqual(bb.x, 10, accuracy: 1)
+        XCTAssertEqual(bb.y, 20, accuracy: 1)
+        XCTAssertEqual(bb.width, 100, accuracy: 1)
+        XCTAssertEqual(bb.height, 80, accuracy: 1)
+    }
+
+    func testAddRoundedRectZeroCornerMatchesRect() {
+        var rounded = Path()
+        rounded.addRoundedRect(Rect(x: 0, y: 0, width: 50, height: 50), cornerWidth: 0, cornerHeight: 0)
+        // Should contain the center point like a regular rect
+        XCTAssertTrue(rounded.contains(Point(25, 25)))
+    }
+
+    // MARK: - quadCurve
+
+    func testQuadCurveNotEmpty() {
+        var path = Path()
+        path.move(to: Point(0, 0))
+        path.quadCurve(to: Point(100, 0), control: Point(50, 80))
+        XCTAssertFalse(path.isEmpty)
+    }
+
+    func testQuadCurveBoundingBoxEnclosesEndpoints() {
+        var path = Path()
+        path.move(to: Point(0, 0))
+        path.quadCurve(to: Point(100, 0), control: Point(50, 80))
+        let bb = path.boundingBox
+        XCTAssertLessThanOrEqual(bb.x, 0)
+        XCTAssertLessThanOrEqual(bb.y, 0)
+        XCTAssertGreaterThanOrEqual(bb.x + bb.width, 100)
+        // Control point pulls curve upward, bounding box should extend
+        XCTAssertGreaterThan(bb.height, 0)
+    }
+
+    // MARK: - contains with fill rule
+
+    func testContainsEvenOddRule() {
+        // Create a self-intersecting figure-8 shape
+        var path = Path()
+        path.addEllipse(in: Rect(x: 0, y: 0, width: 60, height: 40))
+        path.addEllipse(in: Rect(x: 20, y: 0, width: 60, height: 40))
+        // The overlapping center region should be "outside" with evenOdd
+        let center = Point(40, 20)
+        let windingResult = path.contains(center, using: .winding)
+        let evenOddResult = path.contains(center, using: .evenOdd)
+        // Winding: overlap counts as inside. EvenOdd: overlap cancels.
+        XCTAssertTrue(windingResult)
+        XCTAssertFalse(evenOddResult)
+    }
+
+    // MARK: - Boolean ops edge cases
+
+    @available(iOS 16.0, macOS 13.0, *)
+    func testUnionWithEmptyPath() {
+        var a = Path(); a.addRect(Rect(x: 0, y: 0, width: 50, height: 50))
+        let b = Path()
+        let result = a.union(b)
+        XCTAssertTrue(result.contains(Point(25, 25)))
+    }
+
+    @available(iOS 16.0, macOS 13.0, *)
+    func testIntersectionOfIdenticalPaths() {
+        var a = Path(); a.addRect(Rect(x: 0, y: 0, width: 50, height: 50))
+        var b = Path(); b.addRect(Rect(x: 0, y: 0, width: 50, height: 50))
+        let result = a.intersection(b)
+        XCTAssertTrue(result.contains(Point(25, 25)))
+    }
 }

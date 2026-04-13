@@ -108,4 +108,64 @@ final class AnalysisTests: XCTestCase {
         XCTAssertEqual(mean.x, 5, accuracy: 1e-10)
         XCTAssertEqual(mean.y, 10, accuracy: 1e-10)
     }
+
+    func testVectorStandardDeviation() {
+        let vecs = [Vec2(0, 0), Vec2(10, 0), Vec2(20, 0)]
+        let sd = Statistics.standardDeviation(vecs)
+        // mean x = 10, variance = (100+0+100)/3 ≈ 66.67, sd ≈ 8.165
+        XCTAssertGreaterThan(sd.x, 0)
+        XCTAssertEqual(sd.y, 0, accuracy: 1e-10)
+    }
+
+    // MARK: - Similarity: euclideanSquared & angular
+
+    func testEuclideanSquared() {
+        let a = Vec2(0, 0)
+        let b = Vec2(3, 4)
+        let sq = Similarity.euclideanSquared(a, b)
+        let eu = Similarity.euclidean(a, b)
+        XCTAssertEqual(sq, eu * eu, accuracy: 1e-10)
+        XCTAssertEqual(sq, 25, accuracy: 1e-10)
+    }
+
+    func testAngularIdentical() {
+        let a = Vec2(1, 0)
+        XCTAssertEqual(Similarity.angular(a, a), 0, accuracy: 1e-10)
+    }
+
+    func testAngularOrthogonal() {
+        let a = Vec2(1, 0)
+        let b = Vec2(0, 1)
+        XCTAssertEqual(Similarity.angular(a, b), 0.5, accuracy: 1e-10)
+    }
+
+    func testAngularOpposite() {
+        let a = Vec2(1, 0)
+        let b = Vec2(-1, 0)
+        XCTAssertEqual(Similarity.angular(a, b), 1.0, accuracy: 1e-10)
+    }
+
+    // MARK: - Statistics Edge Cases
+
+    func testVarianceEmpty() {
+        XCTAssertEqual(Statistics.variance([]), 0)
+    }
+
+    func testVarianceSingleElement() {
+        XCTAssertEqual(Statistics.variance([5.0]), 0)
+    }
+
+    func testMedianEmpty() {
+        XCTAssertEqual(Statistics.median([]), 0)
+    }
+
+    func testNormalizeMinMaxAllSame() {
+        let result = Statistics.normalizeMinMax([3, 3, 3])
+        XCTAssertEqual(result, [0, 0, 0])
+    }
+
+    func testNormalizeZScoreZeroStdDev() {
+        let result = Statistics.normalizeZScore([5, 5, 5])
+        XCTAssertEqual(result, [0, 0, 0])
+    }
 }

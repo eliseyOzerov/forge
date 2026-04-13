@@ -117,6 +117,33 @@ final class IconTests: XCTestCase {
         XCTAssertFalse(IconRenderingMode.hierarchical.isTemplate)
         XCTAssertFalse(IconRenderingMode.palette.isTemplate)
     }
+
+    // MARK: - Custom Size
+
+    func testCustomSize() {
+        let icon = Icon("star.fill", style: IconStyle(size: 48))
+        let view = icon.makeRenderer().mount() as! UIImageView
+        XCTAssertNotNil(view.image)
+        // Symbol configuration is baked into the image, verify image exists
+        // and is different from the default 24pt size
+        let defaultIcon = Icon("star.fill", style: IconStyle(size: 24))
+        let defaultView = defaultIcon.makeRenderer().mount() as! UIImageView
+        XCTAssertNotEqual(view.image?.size, defaultView.image?.size)
+    }
+
+    func testEmptyStringName() {
+        let icon = Icon("")
+        let view = icon.makeRenderer().mount() as! UIImageView
+        // Empty name produces no image
+        XCTAssertNil(view.image)
+    }
+
+    func testCombinedStyleColorAndSize() {
+        let icon = Icon("star.fill", style: IconStyle(size: 32, color: .blue))
+        let view = icon.makeRenderer().mount() as! UIImageView
+        XCTAssertNotNil(view.image)
+        XCTAssertEqual(view.tintColor, Color.blue.platformColor)
+    }
 }
 
 #endif

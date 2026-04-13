@@ -248,6 +248,91 @@ final class SurfaceTests: XCTestCase {
         XCTAssertGreaterThan(rTop, rBottom)
         XCTAssertGreaterThan(bBottom, bTop)
     }
+
+    // MARK: - Radial Gradient
+
+    func testRadialGradientAddsLayer() {
+        let stops = [GradientStop(Color(1, 0, 0), at: 0), GradientStop(Color(0, 0, 1), at: 1)]
+        let surface = Surface().gradient(.radial(RadialGradient(stops: stops)))
+        let layers = surface.build(shape: testShape)
+        XCTAssertEqual(layers.count, 1)
+    }
+
+    func testRadialGradientDefaults() {
+        let stops = [GradientStop(Color(1, 0, 0), at: 0), GradientStop(Color(0, 0, 1), at: 1)]
+        let g = RadialGradient(stops: stops)
+        XCTAssertEqual(g.center.x, 0.5)
+        XCTAssertEqual(g.center.y, 0.5)
+        XCTAssertEqual(g.radius, 0.5)
+    }
+
+    // MARK: - Angular Gradient
+
+    func testAngularGradientAddsLayer() {
+        let stops = [GradientStop(Color(1, 0, 0), at: 0), GradientStop(Color(0, 0, 1), at: 1)]
+        let surface = Surface().gradient(.angular(AngularGradient(stops: stops)))
+        let layers = surface.build(shape: testShape)
+        XCTAssertEqual(layers.count, 1)
+    }
+
+    func testAngularGradientDefaults() {
+        let stops = [GradientStop(Color(1, 0, 0), at: 0), GradientStop(Color(0, 0, 1), at: 1)]
+        let g = AngularGradient(stops: stops)
+        XCTAssertEqual(g.center.x, 0.5)
+        XCTAssertEqual(g.center.y, 0.5)
+        XCTAssertEqual(g.startAngle, 0)
+        XCTAssertEqual(g.endAngle, .pi * 2, accuracy: 0.001)
+    }
+
+    // MARK: - Stroke Dash
+
+    func testStrokeWithDashAddsLayer() {
+        let dash = Dash([5, 3])
+        let stroke = Stroke(width: 2, dash: dash)
+        let surface = Surface().stroke(stroke, .color(.black))
+        let layers = surface.build(shape: testShape)
+        XCTAssertEqual(layers.count, 1)
+    }
+
+    func testDashEvenFactory() {
+        let dash = Dash.even(10)
+        XCTAssertEqual(dash.pattern, [10, 10])
+        XCTAssertEqual(dash.phase, 0)
+    }
+
+    // MARK: - Transform Layers
+
+    func testTranslateWrapsChildren() {
+        let surface = Surface().color(.red).translate(10, 20)
+        let layers = surface.build(shape: testShape)
+        XCTAssertEqual(layers.count, 1)
+        XCTAssertTrue(layers[0] is TranslateLayer)
+    }
+
+    func testRotateWrapsChildren() {
+        let surface = Surface().color(.red).rotate(.pi / 4)
+        let layers = surface.build(shape: testShape)
+        XCTAssertEqual(layers.count, 1)
+        XCTAssertTrue(layers[0] is RotateLayer)
+    }
+
+    // MARK: - BlendMode Mapping
+
+    func testBlendModeNormal() {
+        XCTAssertEqual(BlendMode.normal.cgBlendMode, .normal)
+    }
+
+    func testBlendModeMultiply() {
+        XCTAssertEqual(BlendMode.multiply.cgBlendMode, .multiply)
+    }
+
+    func testBlendModeScreen() {
+        XCTAssertEqual(BlendMode.screen.cgBlendMode, .screen)
+    }
+
+    func testBlendModeOverlay() {
+        XCTAssertEqual(BlendMode.overlay.cgBlendMode, .overlay)
+    }
 }
 
 #endif
