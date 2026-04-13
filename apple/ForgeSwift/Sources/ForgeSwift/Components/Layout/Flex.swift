@@ -203,7 +203,7 @@ final class FlexView: UIView {
     /// later in resolveFills.
     private func measureChildren(_ children: [UIView], proposing: CGSize) -> [FlexSlot] {
         children.map { child in
-            let childFrame = (child as? BoxView)?.boxFrame
+            let childFrame = (child as? BoxView)?.sizing
             let extent = isH ? childFrame?.width : childFrame?.height
             let size = child.sizeThatFits(proposing)
             return FlexSlot(view: child, intrinsicSize: size, mainExtent: extent, resolvedSize: size)

@@ -357,10 +357,10 @@ final class UIKitTextFieldRenderer<T>: Renderer {
         field.font = style.text.font.resolvedFont
 
         wrapper.model = model
-        wrapper.boxFrame = style.field.frame
-        wrapper.boxSurface = style.field.surface
-        wrapper.boxShape = style.field.shape
-        wrapper.boxPadding = style.field.padding
+        wrapper.sizing = style.field.frame
+        wrapper.surface = style.field.surface
+        wrapper.shape = style.field.shape
+        wrapper.padding = style.field.padding
         wrapper.invalidateIntrinsicContentSize()
         wrapper.setNeedsDisplay()
     }
@@ -387,9 +387,9 @@ final class TextFieldWrapperView<T>: BoxView, UITextFieldDelegate {
     override func layoutSubviews() {
         super.layoutSubviews()
         textField.frame = CGRect(
-            x: boxPadding.leading, y: boxPadding.top,
-            width: bounds.width - boxPadding.leading - boxPadding.trailing,
-            height: bounds.height - boxPadding.top - boxPadding.bottom
+            x: padding.leading, y: padding.top,
+            width: bounds.width - padding.leading - padding.trailing,
+            height: bounds.height - padding.top - padding.bottom
         )
     }
 

@@ -156,13 +156,13 @@ final class BoxRenderer: ContainerRenderer {
     }
 
     private func apply(to view: BoxView) {
-        view.boxFrame = frame
-        view.boxShape = shape
-        view.boxSurface = surface
-        view.boxClip = clip
-        view.boxPadding = padding
-        view.boxAlignment = alignment
-        view.boxOverflow = overflow
+        view.sizing = frame
+        view.shape = shape
+        view.surface = surface
+        view.clip = clip
+        view.padding = padding
+        view.alignment = alignment
+        view.overflow = overflow
     }
 
     func insert(_ platformView: PlatformView, at index: Int, into container: PlatformView) {
@@ -189,13 +189,13 @@ final class BoxRenderer: ContainerRenderer {
 /// (alignment-based positioning), frame constraints, shape clipping,
 /// and optional scroll overflow.
 class BoxView: UIView, UIScrollViewDelegate {
-    var boxShape: Shape?
-    var boxSurface: Surface?
-    var boxClip: Bool = true
-    var boxFrame: Frame = .hug
-    var boxPadding: Padding = .zero
-    var boxAlignment: Alignment = .center
-    var boxOverflow: Overflow = .clip {
+    var shape: Shape?
+    var surface: Surface?
+    var clip: Bool = true
+    var sizing: Frame = .hug
+    var padding: Padding = .zero
+    var alignment: Alignment = .center
+    var overflow: Overflow = .clip {
         didSet { configureScroll() }
     }
 
@@ -215,8 +215,8 @@ class BoxView: UIView, UIScrollViewDelegate {
 
     /// Paint the surface behind children.
     override func draw(_ rect: CGRect) {
-        guard let surface = boxSurface, let ctx = UIGraphicsGetCurrentContext() else { return }
-        let resolvedShape = boxShape ?? .rect()
+        guard let surface = surface, let ctx = UIGraphicsGetCurrentContext() else { return }
+        let resolvedShape = shape ?? .rect()
         SurfaceRenderer(surface: surface, shape: resolvedShape, bounds: bounds).render(in: ctx)
     }
 
@@ -226,24 +226,24 @@ class BoxView: UIView, UIScrollViewDelegate {
     /// fix → exact value, fill/hug → content size + padding.
     override func sizeThatFits(_ size: CGSize) -> CGSize {
         let content = childrenSize(proposing: size)
-        let w: CGFloat = switch boxFrame.width {
+        let w: CGFloat = switch sizing.width {
         case .fix(let v): v
-        case .fill, .hug: content.width + boxPadding.leading + boxPadding.trailing
+        case .fill, .hug: content.width + padding.leading + padding.trailing
         }
-        let h: CGFloat = switch boxFrame.height {
+        let h: CGFloat = switch sizing.height {
         case .fix(let v): v
-        case .fill, .hug: content.height + boxPadding.top + boxPadding.bottom
+        case .fill, .hug: content.height + padding.top + padding.bottom
         }
         return CGSize(width: w, height: h)
     }
 
     /// fix → exact value, otherwise noIntrinsicMetric.
     override var intrinsicContentSize: CGSize {
-        let w: CGFloat = switch boxFrame.width {
+        let w: CGFloat = switch sizing.width {
         case .fix(let v): v
         default: UIView.noIntrinsicMetric
         }
-        let h: CGFloat = switch boxFrame.height {
+        let h: CGFloat = switch sizing.height {
         case .fix(let v): v
         default: UIView.noIntrinsicMetric
         }
@@ -269,12 +269,12 @@ class BoxView: UIView, UIScrollViewDelegate {
         super.didMoveToSuperview()
         guard let superview else { return }
         constrain {
-            switch boxFrame.width {
+            switch sizing.width {
             case .fix(let w): widthAnchor.equal(w)
             case .fill: leadingAnchor.equal(superview.leadingAnchor); trailingAnchor.equal(superview.trailingAnchor)
             case .hug: break
             }
-            switch boxFrame.height {
+            switch sizing.height {
             case .fix(let h): heightAnchor.equal(h)
             case .fill: topAnchor.equal(superview.topAnchor); bottomAnchor.equal(superview.bottomAnchor)
             case .hug: break
@@ -293,7 +293,7 @@ class BoxView: UIView, UIScrollViewDelegate {
     }
 
     /// Position each child within the padded inset rect, aligned
-    /// by boxAlignment. Fill children get the full inset dimension
+    /// by alignment. Fill children get the full inset dimension
     /// on their fill axis.
     private func layoutChildren() {
         let inset = paddedInset
@@ -309,15 +309,15 @@ class BoxView: UIView, UIScrollViewDelegate {
     /// The content area after padding.
     private var paddedInset: CGRect {
         CGRect(
-            x: boxPadding.leading, y: boxPadding.top,
-            width: bounds.width - boxPadding.leading - boxPadding.trailing,
-            height: bounds.height - boxPadding.top - boxPadding.bottom
+            x: padding.leading, y: padding.top,
+            width: bounds.width - padding.leading - padding.trailing,
+            height: bounds.height - padding.top - padding.bottom
         )
     }
 
     /// Measure a child, respecting fill extents and scroll axis.
     private func resolveChildSize(_ child: UIView, in inset: CGRect) -> CGSize {
-        let scrollAxis: Axis? = if case .scroll(let c) = boxOverflow { c.axis } else { nil }
+        let scrollAxis: Axis? = if case .scroll(let c) = overflow { c.axis } else { nil }
         let isScrolling = scrollView != nil
 
         // Propose: unlimited on scroll axis, inset size otherwise
@@ -327,21 +327,21 @@ class BoxView: UIView, UIScrollViewDelegate {
 
         // Fill children expand to fill the inset on their fill axis
         if let boxChild = child as? BoxView {
-            if case .fill = boxChild.boxFrame.width { size.width = inset.width }
-            if case .fill = boxChild.boxFrame.height { size.height = inset.height }
+            if case .fill = boxChild.sizing.width { size.width = inset.width }
+            if case .fill = boxChild.sizing.height { size.height = inset.height }
         }
 
         return size
     }
 
     /// Compute origin for a child of given size within the inset,
-    /// using boxAlignment. Scroll axes pin to the leading/top edge.
+    /// using alignment. Scroll axes pin to the leading/top edge.
     private func alignedOrigin(childSize: CGSize, in inset: CGRect) -> CGPoint {
-        let scrollAxis: Axis? = if case .scroll(let c) = boxOverflow { c.axis } else { nil }
+        let scrollAxis: Axis? = if case .scroll(let c) = overflow { c.axis } else { nil }
         let isScrolling = scrollView != nil
 
-        let fx = (boxAlignment.x + 1) / 2
-        let fy = (boxAlignment.y + 1) / 2
+        let fx = (alignment.x + 1) / 2
+        let fy = (alignment.y + 1) / 2
 
         let x: CGFloat = (isScrolling && scrollAxis != .vertical)
             ? inset.minX
@@ -356,7 +356,7 @@ class BoxView: UIView, UIScrollViewDelegate {
 
     /// Apply shape mask for clipping.
     private func applyShapeClip() {
-        if boxClip, let shape = boxShape {
+        if clip, let shape = shape {
             let maskLayer = CAShapeLayer()
             maskLayer.path = shape.resolve(in: bounds).cgPath
             layer.mask = maskLayer
@@ -393,7 +393,7 @@ class BoxView: UIView, UIScrollViewDelegate {
 extension BoxView {
     /// Create/remove UIScrollView based on overflow setting.
     func configureScroll() {
-        if case .scroll(let config) = boxOverflow {
+        if case .scroll(let config) = overflow {
             if scrollView == nil {
                 let sv = UIScrollView()
                 sv.delegate = self
@@ -427,8 +427,8 @@ extension BoxView {
         guard let sv = scrollView else { return }
         var contentW: CGFloat = 0, contentH: CGFloat = 0
         for child in sv.subviews {
-            contentW = max(contentW, child.frame.maxX + boxPadding.trailing)
-            contentH = max(contentH, child.frame.maxY + boxPadding.bottom)
+            contentW = max(contentW, child.frame.maxX + padding.trailing)
+            contentH = max(contentH, child.frame.maxY + padding.bottom)
         }
         sv.contentSize = CGSize(width: contentW, height: contentH)
         scrollState?.contentSize = Size(contentW, contentH)

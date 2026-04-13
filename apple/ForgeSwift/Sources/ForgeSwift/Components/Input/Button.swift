@@ -148,13 +148,13 @@ final class TappableBoxRenderer: ContainerRenderer {
     }
 
     private func apply(to view: TappableBoxView) {
-        view.boxFrame = style.frame
-        view.boxShape = style.shape
-        view.boxSurface = style.surface
-        view.boxClip = style.clip
-        view.boxPadding = style.padding
-        view.boxAlignment = style.alignment
-        view.boxOverflow = style.overflow
+        view.sizing = style.frame
+        view.shape = style.shape
+        view.surface = style.surface
+        view.clip = style.clip
+        view.padding = style.padding
+        view.alignment = style.alignment
+        view.overflow = style.overflow
         view.buttonModel = model
         view.accessibilityLabel = model.view.label
         view.isUserInteractionEnabled = true
