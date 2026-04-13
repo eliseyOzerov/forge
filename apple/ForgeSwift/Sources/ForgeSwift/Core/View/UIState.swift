@@ -10,6 +10,7 @@ public struct UIState: OptionSet, Sendable, Hashable {
     public static let focused  = UIState(rawValue: 1 << 3)
     public static let hovered  = UIState(rawValue: 1 << 4)
     public static let selected = UIState(rawValue: 1 << 5)
+    public static let loading  = UIState(rawValue: 1 << 6)
 }
 
 /// Maps a value from an input type. Generic function wrapper.

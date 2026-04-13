@@ -274,6 +274,39 @@ public struct ChildrenBuilder {
     }
 }
 
+// MARK: - ChildBuilder (singular)
+
+/// Result builder that accepts exactly one child view. Use for
+/// components that wrap a single piece of content (Button, etc.).
+/// Attempting to place two view expressions in the closure is a
+/// compile-time error.
+@MainActor @resultBuilder
+public struct ChildBuilder {
+    public static func buildBlock(_ view: any View) -> any View { view }
+    public static func buildOptional(_ view: (any View)?) -> any View { view ?? EmptyView() }
+    public static func buildEither(first view: any View) -> any View { view }
+    public static func buildEither(second view: any View) -> any View { view }
+}
+
+// MARK: - EmptyView
+
+/// A zero-size leaf view that renders nothing.
+public struct EmptyView: LeafView {
+    public init() {}
+    public func makeRenderer() -> Renderer { EmptyRenderer() }
+}
+
+private final class EmptyRenderer: Renderer {
+    func mount() -> PlatformView {
+        let view = PlatformView()
+        #if canImport(UIKit)
+        view.isHidden = true
+        #endif
+        return view
+    }
+    func update(_ platformView: PlatformView) {}
+}
+
 // MARK: - Identified
 
 /// A view wrapped with an explicit identity, so the reconciler can
