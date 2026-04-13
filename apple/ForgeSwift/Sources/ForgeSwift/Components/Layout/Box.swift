@@ -244,24 +244,6 @@ class BoxView: UIView {
         return CGSize(width: w, height: h)
     }
 
-    /// Content size ignoring fill — used by flex wrap for line splitting.
-    func contentSizeThatFits(_ size: CGSize) -> CGSize {
-        let innerSize = CGSize(
-            width: max(0, size.width - padding.leading - padding.trailing),
-            height: max(0, size.height - padding.top - padding.bottom)
-        )
-        let content = childrenSize(proposing: innerSize)
-        let w: CGFloat = switch sizing.width {
-        case .fix(let v): v
-        case .fill, .hug: content.width + padding.leading + padding.trailing
-        }
-        let h: CGFloat = switch sizing.height {
-        case .fix(let v): v
-        case .fill, .hug: content.height + padding.top + padding.bottom
-        }
-        return CGSize(width: w, height: h)
-    }
-
     /// fix → exact value, otherwise noIntrinsicMetric.
     override var intrinsicContentSize: CGSize {
         let w: CGFloat = switch sizing.width {

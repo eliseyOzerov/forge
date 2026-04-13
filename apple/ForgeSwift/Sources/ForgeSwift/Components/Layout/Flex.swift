@@ -116,18 +116,8 @@ struct FlexSlot {
     let view: UIView
     /// Natural size of the child, ignoring fill extents.
     let intrinsicSize: CGSize
-    /// The child's extent on the main axis (fill/fix/hug), read from BoxView.
-    let mainExtent: Extent?
-    /// Final size after fill distribution. Starts as intrinsicSize.
     var resolvedSize: CGSize
-    /// Final position within the FlexView's coordinate space.
     var origin: CGPoint = .zero
-
-    /// Returns the flex weight if this child has a fill extent, nil otherwise.
-    var mainFlex: Double? {
-        if case .fill(let flex, _, _) = mainExtent { return flex }
-        return nil
-    }
 }
 
 // MARK: - FlexLine
@@ -161,7 +151,6 @@ final class FlexView: UIView {
 
     /// True when main axis is horizontal (Row), false when vertical (Column).
     private var isH: Bool { flexAxis == .horizontal }
-    private var slots = [FlexSlot]()
 
     // MARK: - Layout
 
@@ -172,9 +161,9 @@ final class FlexView: UIView {
 
         let mainExtent = main(of: bounds.size)
         let crossExtent = cross(of: bounds.size)
-        print("measureChildren in layoutSubviews, proposing \(bounds.size)")
+        
         // 1. Measure all children given available space.
-        slots = measureChildren(children, proposing: bounds.size)
+        let slots = measureChildren(children, proposing: bounds.size)
         
         // 2. Group into lines. Without wrap, everything is one line.
         var lines = splitIntoLines(slots: slots, mainExtent: mainExtent)
@@ -197,36 +186,20 @@ final class FlexView: UIView {
     }
 
     // MARK: - Step 1: Measure
-    
-    private var proposedSize: CGSize? = nil
 
-    /// Ask each child for its intrinsic size given the available space.
-    /// Fill children report their content size (not the full proposed
-    /// size) so line splitting works correctly — fill expansion happens
-    /// later in resolveFills.
-    /// Measure children at their intrinsic content size (not fill-expanded).
-    /// Uses contentSizeThatFits for BoxView children so fill children
-    /// report their content size for line splitting, not the proposed size.
+    /// Measure each child by proposing an equal share of the main axis.
+    /// This prevents fill children from claiming the full proposed width.
+    /// Fill detection and expansion happens later in resolveFills.
     private func measureChildren(_ children: [UIView], proposing: CGSize) -> [FlexSlot] {
-        if proposedSize == proposing { return slots }
-        proposedSize = proposing
+        let count = CGFloat(children.count)
+        let perChildMain = count > 0 ? main(of: proposing) / count : main(of: proposing)
+        let perChildProposal = isH
+            ? CGSize(width: perChildMain, height: proposing.height)
+            : CGSize(width: proposing.width, height: perChildMain)
+
         return children.map { child in
-            let childSizing: Frame?
-            let size: CGSize
-
-            if let box = child as? BoxView {
-                childSizing = box.sizing
-                size = box.contentSizeThatFits(proposing)
-            } else if let proxy = child as? ProxyView {
-                childSizing = proxy.innerSizing
-                size = proxy.contentSizeThatFits(proposing)
-            } else {
-                childSizing = nil
-                size = child.sizeThatFits(proposing)
-            }
-
-            let extent = isH ? childSizing?.width : childSizing?.height
-            return FlexSlot(view: child, intrinsicSize: size, mainExtent: extent, resolvedSize: size)
+            let size = child.sizeThatFits(perChildProposal)
+            return FlexSlot(view: child, intrinsicSize: size, mainExtent: nil, resolvedSize: size)
         }
     }
 
@@ -267,12 +240,23 @@ final class FlexView: UIView {
     /// Flex is normalized against max(1, totalFlex) so flex=0.5 means
     /// "half the space" even when it's the only fill child.
     /// Also computes the line's cross size (tallest child).
+    /// Get the fill flex value for a view on the main axis, unwrapping ProxyViews.
+    private func fillFlex(of view: UIView) -> Double? {
+        let sizing: Frame?
+        if let box = view as? BoxView { sizing = box.sizing }
+        else if let proxy = view as? ProxyView { sizing = proxy.innerSizing }
+        else { return nil }
+        guard let s = sizing else { return nil }
+        if case .fill(let flex, _, _) = (isH ? s.width : s.height) { return flex }
+        return nil
+    }
+
     private func resolveFills(_ line: inout FlexLine, mainExtent: CGFloat, crossExtent: CGFloat) {
         // Sum up fixed children's main size and total flex weight.
         var totalFixed: CGFloat = 0
         var totalFlex: Double = 0
         for slot in line.slots {
-            if let flex = slot.mainFlex { totalFlex += flex }
+            if let flex = fillFlex(of: slot.view) { totalFlex += flex }
             else { totalFixed += main(of: slot.intrinsicSize) }
         }
 
@@ -282,7 +266,7 @@ final class FlexView: UIView {
 
         // Assign each fill child its proportional share.
         for i in 0..<line.slots.count {
-            if let flex = line.slots[i].mainFlex {
+            if let flex = fillFlex(of: line.slots[i].view) {
                 let normalizedFlex = max(1.0, totalFlex)
                 let share = freeSpace * flex / normalizedFlex
                 // Re-measure cross size now that we know the main size.
@@ -368,7 +352,7 @@ final class FlexView: UIView {
     override func sizeThatFits(_ size: CGSize) -> CGSize {
         let children = subviews
         guard !children.isEmpty else { return .zero }
-        print("measureChildren in sizeThatFits, proposing \(size)")
+        
         let slots = measureChildren(children, proposing: size)
         let proposedMain = main(of: size)
 
@@ -400,7 +384,7 @@ final class FlexView: UIView {
         var hasFillChild = false
 
         for slot in slots {
-            if slot.mainFlex != nil {
+            if fillFlex(of: slot.view) != nil {
                 hasFillChild = true
             } else {
                 mainTotal += main(of: slot.intrinsicSize)

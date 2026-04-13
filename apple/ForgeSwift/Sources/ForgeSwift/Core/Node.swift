@@ -42,13 +42,6 @@ class ProxyView: UIView {
         subviews.first?.frame = bounds
     }
 
-    /// Content size ignoring fill — unwraps through proxy/box chain.
-    func contentSizeThatFits(_ size: CGSize) -> CGSize {
-        if let box = subviews.first as? BoxView { return box.contentSizeThatFits(size) }
-        if let proxy = subviews.first as? ProxyView { return proxy.contentSizeThatFits(size) }
-        return subviews.first?.sizeThatFits(size) ?? .zero
-    }
-
     /// Unwrap through proxies to find the innermost BoxView's sizing.
     var innerSizing: Frame? {
         if let box = subviews.first as? BoxView { return box.sizing }
