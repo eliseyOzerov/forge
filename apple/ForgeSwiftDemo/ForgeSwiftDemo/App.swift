@@ -13,7 +13,13 @@ class ForgeDemo: App {
             label("wrap")
             Row(spacing: 8, lineSpacing: 8, wrap: true) {
                 for i in 1...15 {
-                    chip("\(i)")
+                    if i == 3 || i == 12 || i == 15 {
+                        Box(.width(.fill()).height(.fix(40)), .color(Color(0.9, 0.3, 0.3)), .roundedRect(radius: 8)) {
+                            Text("\(i)", style: TextStyle(font: Font(size: 16, weight: 600), color: .white, align: .center))
+                        }
+                    } else {
+                        chip("\(i)")
+                    }
                 }
             }
         }.padded(20)
