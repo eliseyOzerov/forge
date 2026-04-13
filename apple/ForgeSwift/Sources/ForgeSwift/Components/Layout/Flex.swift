@@ -298,23 +298,23 @@ final class FlexView: UIView {
         let proposedMain = main(of: size)
 
         if flexWrap {
-            let lines = splitIntoLines(slots: slots, mainExtent: proposedMain)
-            var totalCross: CGFloat = 0
-
-            for line in lines {
-                var lineCross: CGFloat = 0
-                for slot in line.slots {
-                    lineCross = max(lineCross, cross(of: slot.intrinsicSize))
-                }
-                totalCross += lineCross
-            }
-            totalCross += flexLineSpacing * CGFloat(max(0, lines.count - 1))
-
-            return isH
-                ? CGSize(width: proposedMain, height: totalCross)
-                : CGSize(width: totalCross, height: proposedMain)
+            return wrappedSize(slots: slots, proposedMain: proposedMain)
         }
+        return linearSize(slots: slots, proposedMain: proposedMain)
+    }
 
+    private func wrappedSize(slots: [FlexSlot], proposedMain: CGFloat) -> CGSize {
+        let lines = splitIntoLines(slots: slots, mainExtent: proposedMain)
+        let totalCross = lines.reduce(CGFloat(0)) { total, line in
+            total + line.slots.reduce(CGFloat(0)) { max($0, cross(of: $1.intrinsicSize)) }
+        } + flexLineSpacing * CGFloat(max(0, lines.count - 1))
+
+        return isH
+            ? CGSize(width: proposedMain, height: totalCross)
+            : CGSize(width: totalCross, height: proposedMain)
+    }
+
+    private func linearSize(slots: [FlexSlot], proposedMain: CGFloat) -> CGSize {
         var mainTotal: CGFloat = 0
         var crossMax: CGFloat = 0
         var hasFillChild = false
@@ -322,16 +322,14 @@ final class FlexView: UIView {
         for slot in slots {
             if slot.mainFlex != nil {
                 hasFillChild = true
-                crossMax = max(crossMax, cross(of: slot.intrinsicSize))
             } else {
                 mainTotal += main(of: slot.intrinsicSize)
-                crossMax = max(crossMax, cross(of: slot.intrinsicSize))
             }
+            crossMax = max(crossMax, cross(of: slot.intrinsicSize))
         }
 
-        mainTotal += flexSpacing * CGFloat(children.count - 1)
-
-        let mainResult = (flexSpread != .packed || hasFillChild) ? main(of: size) : mainTotal
+        mainTotal += flexSpacing * CGFloat(slots.count - 1)
+        let mainResult = (flexSpread != .packed || hasFillChild) ? proposedMain : mainTotal
 
         return isH ? CGSize(width: mainResult, height: crossMax) : CGSize(width: crossMax, height: mainResult)
     }
