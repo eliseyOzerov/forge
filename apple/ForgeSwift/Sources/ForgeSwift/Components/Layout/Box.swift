@@ -188,7 +188,7 @@ final class BoxRenderer: ContainerRenderer {
 /// The backing UIView for Box. Handles surface painting, child layout
 /// (alignment-based positioning), frame constraints, shape clipping,
 /// and optional scroll overflow.
-class BoxView: UIView, UIScrollViewDelegate {
+class BoxView: UIView {
     var shape: Shape?
     var surface: Surface?
     var clip: Bool = true
@@ -390,7 +390,7 @@ class BoxView: UIView, UIScrollViewDelegate {
 
 // MARK: - BoxView + Scroll
 
-extension BoxView {
+extension BoxView: UIScrollViewDelegate {
     /// Create/remove UIScrollView based on overflow setting.
     func configureScroll() {
         if case .scroll(let config) = overflow {
