@@ -156,7 +156,8 @@ final class FlexView: UIView {
         var lines = splitIntoLines(slots: slots, mainExtent: mainExtent)
 
         for i in 0..<lines.count {
-            resolveAndPositionLine(&lines[i], mainExtent: mainExtent, crossExtent: crossExtent)
+            resolveFills(&lines[i], mainExtent: mainExtent, crossExtent: crossExtent)
+            positionLine(&lines[i], mainExtent: mainExtent)
         }
 
         stackLines(&lines, crossExtent: crossExtent)
@@ -205,11 +206,9 @@ final class FlexView: UIView {
         return lines
     }
 
-    // MARK: - Step 3+4: Resolve fills and position within a line
+    // MARK: - Step 3: Resolve fill sizes
 
-    private func resolveAndPositionLine(_ line: inout FlexLine, mainExtent: CGFloat, crossExtent: CGFloat) {
-        let count = line.slots.count
-
+    private func resolveFills(_ line: inout FlexLine, mainExtent: CGFloat, crossExtent: CGFloat) {
         var totalFixed: CGFloat = 0
         var totalFlex: Double = 0
         for slot in line.slots {
@@ -217,7 +216,7 @@ final class FlexView: UIView {
             else { totalFixed += main(of: slot.intrinsicSize) }
         }
 
-        let spacingTotal = flexSpread == .packed ? flexSpacing * Double(count - 1) : 0
+        let spacingTotal = flexSpread == .packed ? flexSpacing * Double(line.slots.count - 1) : 0
         let freeSpace = max(0, mainExtent - totalFixed - spacingTotal)
 
         for i in 0..<line.slots.count {
@@ -232,8 +231,14 @@ final class FlexView: UIView {
         }
 
         line.crossSize = line.slots.reduce(CGFloat(0)) { max($0, cross(of: $1.resolvedSize)) }
+    }
 
+    // MARK: - Step 4: Position slots within a line
+
+    private func positionLine(_ line: inout FlexLine, mainExtent: CGFloat) {
+        let count = line.slots.count
         let totalChildrenMain = line.slots.reduce(CGFloat(0)) { $0 + main(of: $1.resolvedSize) }
+        let spacingTotal = flexSpread == .packed ? flexSpacing * Double(count - 1) : 0
         let remainingSpace = mainExtent - totalChildrenMain
         let (spaceBefore, spaceBetween) = resolveSpacing(freeSpace: remainingSpace, count: count)
 
@@ -249,7 +254,6 @@ final class FlexView: UIView {
         }
 
         for i in 0..<line.slots.count {
-            let childMain = main(of: line.slots[i].resolvedSize)
             let childCross = cross(of: line.slots[i].resolvedSize)
             let crossOffset = (line.crossSize - childCross) * crossAlignFactor
 
@@ -257,7 +261,7 @@ final class FlexView: UIView {
                 ? CGPoint(x: mainOffset, y: crossOffset)
                 : CGPoint(x: crossOffset, y: mainOffset)
 
-            mainOffset += childMain + spaceBetween
+            mainOffset += main(of: line.slots[i].resolvedSize) + spaceBetween
         }
     }
 
