@@ -67,7 +67,7 @@ public struct SVGRectData { public let id: String; public let x, y, width, heigh
 public struct SVGCircleData { public let id: String; public let cx, cy, r: CGFloat; public let attributes: SVGPaintAttributes }
 public struct SVGEllipseData { public let id: String; public let cx, cy, rx, ry: CGFloat; public let attributes: SVGPaintAttributes }
 public struct SVGLineData { public let id: String; public let x1, y1, x2, y2: CGFloat; public let attributes: SVGPaintAttributes }
-public struct SVGPolygonData { public let id: String; public let points: [CGPoint]; public let attributes: SVGPaintAttributes }
+public struct SVGPolygonData { public let id: String; public let points: [Point]; public let attributes: SVGPaintAttributes }
 public struct SVGGroupData { public let id: String; public let attributes: SVGPaintAttributes; public let children: [SVGElement] }
 
 // MARK: - Parser
@@ -257,11 +257,11 @@ public final class SVGParser: NSObject, XMLParserDelegate {
         return transform
     }
 
-    private func parsePoints(_ value: String) -> [CGPoint] {
+    private func parsePoints(_ value: String) -> [Point] {
         let numbers = value.split(whereSeparator: { $0 == " " || $0 == "," }).compactMap { Double($0) }
-        var points: [CGPoint] = []
+        var points: [Point] = []
         var i = 0
-        while i + 1 < numbers.count { points.append(CGPoint(x: numbers[i], y: numbers[i + 1])); i += 2 }
+        while i + 1 < numbers.count { points.append(Point(numbers[i], numbers[i + 1])); i += 2 }
         return points
     }
 
@@ -283,16 +283,16 @@ enum SVGPathDataParser {
         var path = Path()
         let tokens = tokenize(d)
         var i = 0
-        var current = CGPoint.zero
-        var lastControlPoint: CGPoint?
+        var current = Point.zero
+        var lastControlPoint: Point?
         var lastCommand: Character = " "
-        var subpathStart = CGPoint.zero
+        var subpathStart = Point.zero
 
         func nextNumber() -> CGFloat? {
             guard i < tokens.count, case .number(let n) = tokens[i] else { return nil }; i += 1; return n
         }
-        func nextPoint() -> CGPoint? {
-            guard let x = nextNumber(), let y = nextNumber() else { return nil }; return CGPoint(x: x, y: y)
+        func nextPoint() -> Point? {
+            guard let x = nextNumber(), let y = nextNumber() else { return nil }; return Point(Double(x), Double(y))
         }
 
         while i < tokens.count {
@@ -304,47 +304,47 @@ enum SVGPathDataParser {
             switch cmd {
             case "M":
                 guard let pt = nextPoint() else { break }
-                let t = isRel ? CGPoint(x: current.x + pt.x, y: current.y + pt.y) : pt
+                let t = isRel ? Point(current.x + pt.x, current.y + pt.y) : pt
                 path.move(to: t); current = t; subpathStart = t; lastControlPoint = nil
                 lastCommand = isRel ? "l" : "L"; continue
             case "L":
                 guard let pt = nextPoint() else { break }
-                let t = isRel ? CGPoint(x: current.x + pt.x, y: current.y + pt.y) : pt
+                let t = isRel ? Point(current.x + pt.x, current.y + pt.y) : pt
                 path.line(to: t); current = t; lastControlPoint = nil
             case "H":
                 guard let x = nextNumber() else { break }
-                let t = CGPoint(x: isRel ? current.x + x : x, y: current.y)
+                let t = Point(isRel ? current.x + Double(x) : Double(x), current.y)
                 path.line(to: t); current = t; lastControlPoint = nil
             case "V":
                 guard let y = nextNumber() else { break }
-                let t = CGPoint(x: current.x, y: isRel ? current.y + y : y)
+                let t = Point(current.x, isRel ? current.y + Double(y) : Double(y))
                 path.line(to: t); current = t; lastControlPoint = nil
             case "C":
                 guard let c1 = nextPoint(), let c2 = nextPoint(), let end = nextPoint() else { break }
-                let cp1 = isRel ? CGPoint(x: current.x + c1.x, y: current.y + c1.y) : c1
-                let cp2 = isRel ? CGPoint(x: current.x + c2.x, y: current.y + c2.y) : c2
-                let ep = isRel ? CGPoint(x: current.x + end.x, y: current.y + end.y) : end
+                let cp1 = isRel ? Point(current.x + c1.x, current.y + c1.y) : c1
+                let cp2 = isRel ? Point(current.x + c2.x, current.y + c2.y) : c2
+                let ep = isRel ? Point(current.x + end.x, current.y + end.y) : end
                 path.curve(to: ep, control1: cp1, control2: cp2); lastControlPoint = cp2; current = ep
             case "S":
                 guard let c2 = nextPoint(), let end = nextPoint() else { break }
-                let cp1 = lastControlPoint.map { CGPoint(x: 2 * current.x - $0.x, y: 2 * current.y - $0.y) } ?? current
-                let cp2 = isRel ? CGPoint(x: current.x + c2.x, y: current.y + c2.y) : c2
-                let ep = isRel ? CGPoint(x: current.x + end.x, y: current.y + end.y) : end
+                let cp1 = lastControlPoint.map { Point(2 * current.x - $0.x, 2 * current.y - $0.y) } ?? current
+                let cp2 = isRel ? Point(current.x + c2.x, current.y + c2.y) : c2
+                let ep = isRel ? Point(current.x + end.x, current.y + end.y) : end
                 path.curve(to: ep, control1: cp1, control2: cp2); lastControlPoint = cp2; current = ep
             case "Q":
                 guard let c1 = nextPoint(), let end = nextPoint() else { break }
-                let cp = isRel ? CGPoint(x: current.x + c1.x, y: current.y + c1.y) : c1
-                let ep = isRel ? CGPoint(x: current.x + end.x, y: current.y + end.y) : end
+                let cp = isRel ? Point(current.x + c1.x, current.y + c1.y) : c1
+                let ep = isRel ? Point(current.x + end.x, current.y + end.y) : end
                 path.quadCurve(to: ep, control: cp); lastControlPoint = cp; current = ep
             case "T":
                 guard let end = nextPoint() else { break }
-                let cp = lastControlPoint.map { CGPoint(x: 2 * current.x - $0.x, y: 2 * current.y - $0.y) } ?? current
-                let ep = isRel ? CGPoint(x: current.x + end.x, y: current.y + end.y) : end
+                let cp = lastControlPoint.map { Point(2 * current.x - $0.x, 2 * current.y - $0.y) } ?? current
+                let ep = isRel ? Point(current.x + end.x, current.y + end.y) : end
                 path.quadCurve(to: ep, control: cp); lastControlPoint = cp; current = ep
             case "A":
                 guard let rx = nextNumber(), let ry = nextNumber(), let rot = nextNumber(),
                       let la = nextNumber(), let sw = nextNumber(), let end = nextPoint() else { break }
-                let ep = isRel ? CGPoint(x: current.x + end.x, y: current.y + end.y) : end
+                let ep = isRel ? Point(current.x + end.x, current.y + end.y) : end
                 addArc(to: &path, from: current, to: ep, rx: abs(rx), ry: abs(ry), xRotation: rot, largeArc: la != 0, sweep: sw != 0)
                 current = ep; lastControlPoint = nil
             case "Z":
@@ -358,41 +358,42 @@ enum SVGPathDataParser {
 
     // MARK: - Arc
 
-    private static func addArc(to path: inout Path, from p1: CGPoint, to p2: CGPoint,
+    private static func addArc(to path: inout Path, from p1: Point, to p2: Point,
                                 rx: CGFloat, ry: CGFloat, xRotation: CGFloat, largeArc: Bool, sweep: Bool) {
         guard rx > 0, ry > 0, p1 != p2 else { if p1 != p2 { path.line(to: p2) }; return }
-        let phi = xRotation * .pi / 180
+        let phi = Double(xRotation) * .pi / 180
         let cosPhi = cos(phi), sinPhi = sin(phi)
         let dx = (p1.x - p2.x) / 2, dy = (p1.y - p2.y) / 2
         let x1p = cosPhi * dx + sinPhi * dy, y1p = -sinPhi * dx + cosPhi * dy
-        var rxSq = rx * rx, rySq = ry * ry
+        let rxD = Double(rx), ryD = Double(ry)
+        var rxSq = rxD * rxD, rySq = ryD * ryD
         let x1pSq = x1p * x1p, y1pSq = y1p * y1p
         let lambda = x1pSq / rxSq + y1pSq / rySq
-        var cRx = rx, cRy = ry
-        if lambda > 1 { let s = sqrt(lambda); cRx = s * rx; cRy = s * ry; rxSq = cRx * cRx; rySq = cRy * cRy }
+        var cRx = rxD, cRy = ryD
+        if lambda > 1 { let s = sqrt(lambda); cRx = s * rxD; cRy = s * ryD; rxSq = cRx * cRx; rySq = cRy * cRy }
         let num = max(0, rxSq * rySq - rxSq * y1pSq - rySq * x1pSq)
         let den = rxSq * y1pSq + rySq * x1pSq
-        var sq: CGFloat = den > 0 ? sqrt(num / den) : 0
+        var sq: Double = den > 0 ? sqrt(num / den) : 0
         if largeArc == sweep { sq = -sq }
         let cxp = sq * cRx * y1p / cRy, cyp = -sq * cRy * x1p / cRx
         let mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2
         let cx = cosPhi * cxp - sinPhi * cyp + mx, cy = sinPhi * cxp + cosPhi * cyp + my
-        func angle(ux: CGFloat, uy: CGFloat, vx: CGFloat, vy: CGFloat) -> CGFloat {
+        func angle(ux: Double, uy: Double, vx: Double, vy: Double) -> Double {
             let dot = ux * vx + uy * vy, len = sqrt(ux * ux + uy * uy) * sqrt(vx * vx + vy * vy)
-            var a: CGFloat = len > 0 ? acos(max(-1, min(1, dot / len))) : 0
+            var a: Double = len > 0 ? acos(max(-1, min(1, dot / len))) : 0
             if ux * vy - uy * vx < 0 { a = -a }; return a
         }
         let theta1 = angle(ux: 1, uy: 0, vx: (x1p - cxp) / cRx, vy: (y1p - cyp) / cRy)
         var dTheta = angle(ux: (x1p - cxp) / cRx, uy: (y1p - cyp) / cRy, vx: (-x1p - cxp) / cRx, vy: (-y1p - cyp) / cRy)
         if !sweep && dTheta > 0 { dTheta -= 2 * .pi } else if sweep && dTheta < 0 { dTheta += 2 * .pi }
         let segments = max(1, Int(ceil(abs(dTheta) / (.pi / 2))))
-        let segAngle = dTheta / CGFloat(segments)
+        let segAngle = dTheta / Double(segments)
         for s in 0..<segments {
-            let a1 = theta1 + CGFloat(s) * segAngle, a2 = a1 + segAngle
+            let a1 = theta1 + Double(s) * segAngle, a2 = a1 + segAngle
             let alpha = sin(segAngle) * (sqrt(4 + 3 * pow(tan(segAngle / 2), 2)) - 1) / 3
             let cos1 = cos(a1), sin1 = sin(a1), cos2 = cos(a2), sin2 = sin(a2)
-            func tx(_ px: CGFloat, _ py: CGFloat) -> CGPoint {
-                CGPoint(x: cosPhi * px - sinPhi * py + cx, y: sinPhi * px + cosPhi * py + cy)
+            func tx(_ px: Double, _ py: Double) -> Point {
+                Point(cosPhi * px - sinPhi * py + cx, sinPhi * px + cosPhi * py + cy)
             }
             let cp1 = tx(cRx * (cos1 - alpha * sin1), cRy * (sin1 + alpha * cos1))
             let cp2 = tx(cRx * (cos2 + alpha * sin2), cRy * (sin2 - alpha * cos2))
@@ -485,7 +486,7 @@ public struct SVGSurfaceBuilder {
         case .line(let data):
             var attrs = data.attributes; attrs.fill = .none
             if case .none = attrs.stroke { attrs.stroke = .color(.black) }
-            let path = Path.line(from: CGPoint(x: data.x1, y: data.y1), to: CGPoint(x: data.x2, y: data.y2))
+            let path = Path.line(from: Point(Double(data.x1), Double(data.y1)), to: Point(Double(data.x2), Double(data.y2)))
             buildDrawn(Shape({ _ in path }), attributes: attrs, id: data.id, on: s)
 
         case .polygon(let data):
@@ -730,7 +731,7 @@ final class GraphicView: UIView {
         let builder = SVGSurfaceBuilder(document: document, overrides: graphicOverrides, globalColor: graphicColor)
         let surface = builder.build()
         let viewBoxShape = Shape({ _ in
-            var p = Path(); p.addRect(document.viewBox); return p
+            var p = Path(); p.addRect(Rect(document.viewBox)); return p
         })
         let renderer = SurfaceRenderer(surface: surface, shape: viewBoxShape, bounds: bounds)
 

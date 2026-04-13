@@ -19,44 +19,40 @@ public struct Path {
 
     // MARK: - Building
 
-    public mutating func move(to point: CGPoint) {
-        cgPath.move(to: point)
+    public mutating func move(to point: Point) {
+        cgPath.move(to: point.cgPoint)
     }
 
-    public mutating func line(to point: CGPoint) {
-        cgPath.addLine(to: point)
+    public mutating func line(to point: Point) {
+        cgPath.addLine(to: point.cgPoint)
     }
 
-    public mutating func curve(to point: CGPoint, control1: CGPoint, control2: CGPoint) {
-        cgPath.addCurve(to: point, control1: control1, control2: control2)
+    public mutating func curve(to point: Point, control1: Point, control2: Point) {
+        cgPath.addCurve(to: point.cgPoint, control1: control1.cgPoint, control2: control2.cgPoint)
     }
 
-    public mutating func quadCurve(to point: CGPoint, control: CGPoint) {
-        cgPath.addQuadCurve(to: point, control: control)
+    public mutating func quadCurve(to point: Point, control: Point) {
+        cgPath.addQuadCurve(to: point.cgPoint, control: control.cgPoint)
     }
 
-    public mutating func arc(center: CGPoint, radius: Double, startAngle: Double, endAngle: Double, clockwise: Bool) {
-        cgPath.addArc(center: center, radius: radius, startAngle: startAngle, endAngle: endAngle, clockwise: clockwise)
-    }
-
-    public mutating func arcTo(_ point: CGPoint, tangent1: CGPoint, tangent2: CGPoint, radius: Double) {
-        cgPath.addArc(tangent1End: tangent1, tangent2End: tangent2, radius: radius)
+    public mutating func arc(center: Point, radius: Double, startAngle: Double, endAngle: Double, clockwise: Bool) {
+        cgPath.addArc(center: center.cgPoint, radius: radius, startAngle: startAngle, endAngle: endAngle, clockwise: clockwise)
     }
 
     public mutating func close() {
         cgPath.closeSubpath()
     }
 
-    public mutating func addRect(_ rect: CGRect) {
-        cgPath.addRect(rect)
+    public mutating func addRect(_ rect: Rect) {
+        cgPath.addRect(rect.cgRect)
     }
 
-    public mutating func addEllipse(in rect: CGRect) {
-        cgPath.addEllipse(in: rect)
+    public mutating func addEllipse(in rect: Rect) {
+        cgPath.addEllipse(in: rect.cgRect)
     }
 
-    public mutating func addRoundedRect(_ rect: CGRect, cornerWidth: Double, cornerHeight: Double) {
-        cgPath.addRoundedRect(in: rect, cornerWidth: cornerWidth, cornerHeight: cornerHeight)
+    public mutating func addRoundedRect(_ rect: Rect, cornerWidth: Double, cornerHeight: Double) {
+        cgPath.addRoundedRect(in: rect.cgRect, cornerWidth: cornerWidth, cornerHeight: cornerHeight)
     }
 
     public mutating func addPath(_ other: Path) {
@@ -65,14 +61,14 @@ public struct Path {
 
     // MARK: - Constructors
 
-    public static func line(from: CGPoint, to: CGPoint) -> Path {
+    public static func line(from: Point, to: Point) -> Path {
         var p = Path()
         p.move(to: from)
         p.line(to: to)
         return p
     }
 
-    public static func polyline(_ points: [CGPoint]) -> Path {
+    public static func polyline(_ points: [Point]) -> Path {
         var p = Path()
         guard let first = points.first else { return p }
         p.move(to: first)
@@ -82,13 +78,13 @@ public struct Path {
         return p
     }
 
-    public static func polygon(_ points: [CGPoint]) -> Path {
+    public static func polygon(_ points: [Point]) -> Path {
         var p = polyline(points)
         p.close()
         return p
     }
 
-    public static func bezier(_ points: [CGPoint]) -> Path {
+    public static func bezier(_ points: [Point]) -> Path {
         var p = Path()
         guard points.count >= 4, (points.count - 1) % 3 == 0 else { return p }
         p.move(to: points[0])
@@ -100,23 +96,23 @@ public struct Path {
         return p
     }
 
-    public static func arc(in rect: CGRect, startAngle: Double, sweepAngle: Double) -> Path {
+    public static func arc(in rect: Rect, startAngle: Double, sweepAngle: Double) -> Path {
         var p = Path()
-        let center = CGPoint(x: rect.midX, y: rect.midY)
+        let center = rect.center
         let radius = min(rect.width, rect.height) / 2
         p.arc(center: center, radius: radius, startAngle: startAngle, endAngle: startAngle + sweepAngle, clockwise: sweepAngle < 0)
         return p
     }
 
-    public static func spiral(in rect: CGRect, turns: Double = 3, startRadius: Double = 0, endRadius: Double? = nil, samples: Int = 200) -> Path {
+    public static func spiral(in rect: Rect, turns: Double = 3, startRadius: Double = 0, endRadius: Double? = nil, samples: Int = 200) -> Path {
         var p = Path()
-        let center = CGPoint(x: rect.midX, y: rect.midY)
+        let center = rect.center
         let maxR = endRadius ?? min(rect.width, rect.height) / 2
         for i in 0...samples {
             let t = Double(i) / Double(samples)
             let angle = turns * 2 * .pi * t
             let r = startRadius + (maxR - startRadius) * t
-            let point = CGPoint(x: center.x + cos(angle) * r, y: center.y + sin(angle) * r)
+            let point = Point(center.x + cos(angle) * r, center.y + sin(angle) * r)
             if i == 0 { p.move(to: point) } else { p.line(to: point) }
         }
         return p
@@ -139,12 +135,12 @@ public struct Path {
 
     // MARK: - Queries
 
-    public var boundingBox: CGRect { cgPath.boundingBoxOfPath }
+    public var boundingBox: Rect { Rect(cgPath.boundingBoxOfPath) }
     public var isEmpty: Bool { cgPath.isEmpty }
-    public var currentPoint: CGPoint { cgPath.currentPoint }
+    public var currentPoint: Point { Point(cgPath.currentPoint) }
 
-    public func contains(_ point: CGPoint, using rule: CGPathFillRule = .winding) -> Bool {
-        cgPath.contains(point, using: rule)
+    public func contains(_ point: Point, using rule: CGPathFillRule = .winding) -> Bool {
+        cgPath.contains(point.cgPoint, using: rule)
     }
 
     // MARK: - Boolean Ops (iOS 16+)
@@ -171,12 +167,10 @@ public struct Path {
 
     // MARK: - Path Metrics
 
-    /// Total arc length of the path.
     public var length: Double {
         segments.reduce(0) { $0 + $1.length }
     }
 
-    /// Position and tangent angle at a given distance along the path.
     public func tangent(at distance: Double) -> PathTangent? {
         let segs = segments
         guard !segs.isEmpty else { return nil }
@@ -185,9 +179,9 @@ public struct Path {
         for seg in segs {
             if remaining <= seg.length {
                 let t = seg.length > 0 ? remaining / seg.length : 0
-                let point = CGPoint(
-                    x: seg.start.x + (seg.end.x - seg.start.x) * t,
-                    y: seg.start.y + (seg.end.y - seg.start.y) * t
+                let point = Point(
+                    seg.start.x + (seg.end.x - seg.start.x) * t,
+                    seg.start.y + (seg.end.y - seg.start.y) * t
                 )
                 let angle = atan2(seg.end.y - seg.start.y, seg.end.x - seg.start.x)
                 return PathTangent(point: point, angle: angle)
@@ -195,7 +189,6 @@ public struct Path {
             remaining -= seg.length
         }
 
-        // Past the end — return last point
         if let last = segs.last {
             let angle = atan2(last.end.y - last.start.y, last.end.x - last.start.x)
             return PathTangent(point: last.end, angle: angle)
@@ -203,12 +196,10 @@ public struct Path {
         return nil
     }
 
-    /// Position at a given distance along the path.
-    public func point(at distance: Double) -> CGPoint? {
+    public func point(at distance: Double) -> Point? {
         tangent(at: distance)?.point
     }
 
-    /// Sample the path at evenly spaced intervals.
     public func sample(count: Int) -> [PathTangent] {
         let totalLength = length
         guard totalLength > 0, count > 1 else {
@@ -221,30 +212,31 @@ public struct Path {
         }
     }
 
-    /// Flatten the path into line segments for metric computation.
+    // MARK: - Segments (internal)
+
     private var segments: [PathSegment] {
         var result: [PathSegment] = []
-        var current = CGPoint.zero
-        var subpathStart = CGPoint.zero
+        var current = Point.zero
+        var subpathStart = Point.zero
 
         cgPath.applyWithBlock { element in
             switch element.pointee.type {
             case .moveToPoint:
-                current = element.pointee.points[0]
+                current = Point(element.pointee.points[0])
                 subpathStart = current
             case .addLineToPoint:
-                let end = element.pointee.points[0]
+                let end = Point(element.pointee.points[0])
                 result.append(PathSegment(start: current, end: end))
                 current = end
             case .addQuadCurveToPoint:
-                let cp = element.pointee.points[0]
-                let end = element.pointee.points[1]
+                let cp = Point(element.pointee.points[0])
+                let end = Point(element.pointee.points[1])
                 Path.flattenQuad(from: current, control: cp, to: end, into: &result)
                 current = end
             case .addCurveToPoint:
-                let cp1 = element.pointee.points[0]
-                let cp2 = element.pointee.points[1]
-                let end = element.pointee.points[2]
+                let cp1 = Point(element.pointee.points[0])
+                let cp2 = Point(element.pointee.points[1])
+                let end = Point(element.pointee.points[2])
                 Path.flattenCubic(from: current, control1: cp1, control2: cp2, to: end, into: &result)
                 current = end
             case .closeSubpath:
@@ -256,69 +248,64 @@ public struct Path {
                 break
             }
         }
-
         return result
     }
 
     // MARK: - Curve Flattening
 
-    private static func flattenQuad(from p0: CGPoint, control cp: CGPoint, to p2: CGPoint, into segments: inout [PathSegment], depth: Int = 0) {
+    private static func flattenQuad(from p0: Point, control cp: Point, to p2: Point, into segments: inout [PathSegment], depth: Int = 0) {
         if depth > 8 || isFlat(p0, cp, p2) {
             segments.append(PathSegment(start: p0, end: p2))
             return
         }
-        let mid01 = CGPoint(x: (p0.x + cp.x) / 2, y: (p0.y + cp.y) / 2)
-        let mid12 = CGPoint(x: (cp.x + p2.x) / 2, y: (cp.y + p2.y) / 2)
-        let mid = CGPoint(x: (mid01.x + mid12.x) / 2, y: (mid01.y + mid12.y) / 2)
+        let mid01 = Vec2.midpoint(p0, cp)
+        let mid12 = Vec2.midpoint(cp, p2)
+        let mid = Vec2.midpoint(mid01, mid12)
         flattenQuad(from: p0, control: mid01, to: mid, into: &segments, depth: depth + 1)
         flattenQuad(from: mid, control: mid12, to: p2, into: &segments, depth: depth + 1)
     }
 
-    private static func flattenCubic(from p0: CGPoint, control1 cp1: CGPoint, control2 cp2: CGPoint, to p3: CGPoint, into segments: inout [PathSegment], depth: Int = 0) {
+    private static func flattenCubic(from p0: Point, control1 cp1: Point, control2 cp2: Point, to p3: Point, into segments: inout [PathSegment], depth: Int = 0) {
         if depth > 8 || isFlat(p0, cp1, cp2, p3) {
             segments.append(PathSegment(start: p0, end: p3))
             return
         }
-        let mid01 = CGPoint(x: (p0.x + cp1.x) / 2, y: (p0.y + cp1.y) / 2)
-        let mid12 = CGPoint(x: (cp1.x + cp2.x) / 2, y: (cp1.y + cp2.y) / 2)
-        let mid23 = CGPoint(x: (cp2.x + p3.x) / 2, y: (cp2.y + p3.y) / 2)
-        let mid012 = CGPoint(x: (mid01.x + mid12.x) / 2, y: (mid01.y + mid12.y) / 2)
-        let mid123 = CGPoint(x: (mid12.x + mid23.x) / 2, y: (mid12.y + mid23.y) / 2)
-        let mid = CGPoint(x: (mid012.x + mid123.x) / 2, y: (mid012.y + mid123.y) / 2)
+        let mid01 = Vec2.midpoint(p0, cp1)
+        let mid12 = Vec2.midpoint(cp1, cp2)
+        let mid23 = Vec2.midpoint(cp2, p3)
+        let mid012 = Vec2.midpoint(mid01, mid12)
+        let mid123 = Vec2.midpoint(mid12, mid23)
+        let mid = Vec2.midpoint(mid012, mid123)
         flattenCubic(from: p0, control1: mid01, control2: mid012, to: mid, into: &segments, depth: depth + 1)
         flattenCubic(from: mid, control1: mid123, control2: mid23, to: p3, into: &segments, depth: depth + 1)
     }
 
-    private static func isFlat(_ p0: CGPoint, _ p1: CGPoint, _ p2: CGPoint) -> Bool {
-        let dx = p2.x - p0.x, dy = p2.y - p0.y
-        let d = abs((p1.x - p0.x) * dy - (p1.y - p0.y) * dx)
-        return d * d <= 0.25 * (dx * dx + dy * dy)
+    private static func isFlat(_ p0: Point, _ p1: Point, _ p2: Point) -> Bool {
+        let d = p2 - p0
+        let det = abs((p1.x - p0.x) * d.y - (p1.y - p0.y) * d.x)
+        return det * det <= 0.25 * d.lengthSquared
     }
 
-    private static func isFlat(_ p0: CGPoint, _ p1: CGPoint, _ p2: CGPoint, _ p3: CGPoint) -> Bool {
-        let dx = p3.x - p0.x, dy = p3.y - p0.y
-        let d1 = abs((p1.x - p3.x) * dy - (p1.y - p3.y) * dx)
-        let d2 = abs((p2.x - p3.x) * dy - (p2.y - p3.y) * dx)
+    private static func isFlat(_ p0: Point, _ p1: Point, _ p2: Point, _ p3: Point) -> Bool {
+        let d = p3 - p0
+        let d1 = abs((p1.x - p3.x) * d.y - (p1.y - p3.y) * d.x)
+        let d2 = abs((p2.x - p3.x) * d.y - (p2.y - p3.y) * d.x)
         let dSq = (d1 + d2) * (d1 + d2)
-        return dSq <= 0.25 * (dx * dx + dy * dy)
+        return dSq <= 0.25 * d.lengthSquared
     }
 }
 
 // MARK: - Supporting Types
 
 public struct PathTangent {
-    public let point: CGPoint
+    public let point: Point
     public let angle: Double
-
-    /// Unit direction vector at this point.
     public var direction: Vec2 { Vec2(cos(angle), sin(angle)) }
-
-    /// Normal (perpendicular, 90° counter-clockwise from direction).
     public var normal: Vec2 { Vec2(-sin(angle), cos(angle)) }
 }
 
 private struct PathSegment {
-    let start: CGPoint
-    let end: CGPoint
-    var length: Double { hypot(end.x - start.x, end.y - start.y) }
+    let start: Point
+    let end: Point
+    var length: Double { (end - start).length }
 }

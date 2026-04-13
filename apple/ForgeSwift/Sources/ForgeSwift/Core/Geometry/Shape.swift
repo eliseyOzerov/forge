@@ -23,7 +23,7 @@ public struct Shape {
             let pts = vertices(rect)
             var p = Path()
             for (i, pt) in pts.enumerated() {
-                if i == 0 { p.move(to: pt.cgPoint) } else { p.line(to: pt.cgPoint) }
+                if i == 0 { p.move(to: pt) } else { p.line(to: pt) }
             }
             p.close()
             return p
@@ -56,7 +56,7 @@ public struct Shape {
     public static func roundedRect(radius: Double) -> Shape {
         Shape({ rect in
             var p = Path()
-            p.addRoundedRect(rect.cgRect, cornerWidth: radius, cornerHeight: radius)
+            p.addRoundedRect(rect, cornerWidth: radius, cornerHeight: radius)
             return p
         })
     }
@@ -64,7 +64,7 @@ public struct Shape {
     public static func ellipse() -> Shape {
         Shape({ rect in
             var p = Path()
-            p.addEllipse(in: rect.cgRect)
+            p.addEllipse(in: rect)
             return p
         })
     }
@@ -74,7 +74,7 @@ public struct Shape {
             let side = min(rect.width, rect.height)
             let centered = Rect(x: rect.midX - side / 2, y: rect.midY - side / 2, width: side, height: side)
             var p = Path()
-            p.addEllipse(in: centered.cgRect)
+            p.addEllipse(in: centered)
             return p
         })
     }
@@ -83,7 +83,7 @@ public struct Shape {
         Shape({ rect in
             let radius = min(rect.width, rect.height) / 2
             var p = Path()
-            p.addRoundedRect(rect.cgRect, cornerWidth: radius, cornerHeight: radius)
+            p.addRoundedRect(rect, cornerWidth: radius, cornerHeight: radius)
             return p
         })
     }
@@ -266,12 +266,12 @@ extension Shape {
             let nextLen = toNext.length
 
             guard prevLen > 0, nextLen > 0 else {
-                if i == 0 { path.move(to: curr.cgPoint) } else { path.line(to: curr.cgPoint) }
+                if i == 0 { path.move(to: curr) } else { path.line(to: curr) }
                 continue
             }
 
             if radius <= 0 {
-                if i == 0 { path.move(to: curr.cgPoint) } else { path.line(to: curr.cgPoint) }
+                if i == 0 { path.move(to: curr) } else { path.line(to: curr) }
                 continue
             }
 
@@ -279,7 +279,7 @@ extension Shape {
             let halfAngle = acos(min(1, max(-1, d))) / 2
 
             guard halfAngle > 0.001 else {
-                if i == 0 { path.move(to: curr.cgPoint) } else { path.line(to: curr.cgPoint) }
+                if i == 0 { path.move(to: curr) } else { path.line(to: curr) }
                 continue
             }
 
@@ -296,7 +296,7 @@ extension Shape {
             let tangentA = curr + prevDir * offset
             let tangentB = curr + nextDir * offset
 
-            if i == 0 { path.move(to: tangentA.cgPoint) } else { path.line(to: tangentA.cgPoint) }
+            if i == 0 { path.move(to: tangentA) } else { path.line(to: tangentA) }
 
             if smooth <= 0 {
                 let bisector = prevDir + nextDir
@@ -308,13 +308,13 @@ extension Shape {
                     let center = curr + bisectorNorm * centerDist * sign
                     let startAngle = atan2(tangentA.y - center.y, tangentA.x - center.x)
                     let endAngle = atan2(tangentB.y - center.y, tangentB.x - center.x)
-                    path.arc(center: center.cgPoint, radius: effectiveRadius, startAngle: startAngle, endAngle: endAngle, clockwise: !concave)
+                    path.arc(center: center, radius: effectiveRadius, startAngle: startAngle, endAngle: endAngle, clockwise: !concave)
                 }
             } else {
                 let k = 0.552 + smooth * 0.25
                 let cpA = tangentA.lerp(to: curr, t: k)
                 let cpB = tangentB.lerp(to: curr, t: k)
-                path.curve(to: tangentB.cgPoint, control1: cpA.cgPoint, control2: cpB.cgPoint)
+                path.curve(to: tangentB, control1: cpA, control2: cpB)
             }
         }
 
@@ -342,8 +342,8 @@ extension Shape {
             let tangentA = curr + (toPrev / prevLen) * offset
             let tangentB = curr + (toNext / nextLen) * offset
 
-            if i == 0 { path.move(to: tangentA.cgPoint) } else { path.line(to: tangentA.cgPoint) }
-            path.line(to: tangentB.cgPoint)
+            if i == 0 { path.move(to: tangentA) } else { path.line(to: tangentA) }
+            path.line(to: tangentB)
         }
 
         path.close()
