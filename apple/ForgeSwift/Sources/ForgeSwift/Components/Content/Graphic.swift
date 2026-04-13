@@ -434,11 +434,9 @@ enum SVGPathDataParser {
     }
 }
 
-import CoreGraphics
-
-/// Converts an SVGDocument into a Surface using the SurfaceBuilder API.
-/// No platform-specific code — just records instructions.
-public struct SVGSurfaceBuilder {
+/// Paints an SVGDocument directly onto a Canvas. No intermediate
+/// Surface or Layer tree — just immediate draw calls.
+public struct SVGPainter {
     public let document: SVGDocument
     public let overrides: [String: GraphicOverride]
     public let globalColor: Color?
@@ -449,95 +447,85 @@ public struct SVGSurfaceBuilder {
         self.globalColor = globalColor
     }
 
-    public func build() -> Surface {
-        Surface { s in
-            for element in document.elements {
-                buildElement(element, on: s)
-            }
-            return s
+    public func paint(on canvas: Canvas) {
+        for element in document.elements {
+            paintElement(element, on: canvas)
         }
     }
 
-    // MARK: - Element → Builder calls
+    // MARK: - Element → Canvas calls
 
-    private func buildElement(_ element: SVGElement, on s: Surface) {
+    private func paintElement(_ element: SVGElement, on canvas: Canvas) {
         switch element {
         case .path(let data):
             let path = SVGPathDataParser.parse(data.d)
-            buildDrawn(Shape({ _ in path }), attributes: data.attributes, id: data.id, on: s)
+            paintDrawn(path, attributes: data.attributes, id: data.id, on: canvas)
 
         case .rect(let data):
             let r = Rect(x: data.x, y: data.y, width: data.width, height: data.height)
-            let shape = data.rx > 0 || data.ry > 0
+            let path = data.rx > 0 || data.ry > 0
                 ? Shape.roundedRect(radius: data.rx > 0 ? data.rx : data.ry).resolve(in: r)
                 : Shape.rect().resolve(in: r)
-            buildDrawn(Shape({ _ in shape }), attributes: data.attributes, id: data.id, on: s)
+            paintDrawn(path, attributes: data.attributes, id: data.id, on: canvas)
 
         case .circle(let data):
             let r = Rect.fromCircle(center: Point(data.cx, data.cy), radius: data.r)
             let path = Shape.ellipse().resolve(in: r)
-            buildDrawn(Shape({ _ in path }), attributes: data.attributes, id: data.id, on: s)
+            paintDrawn(path, attributes: data.attributes, id: data.id, on: canvas)
 
         case .ellipse(let data):
             let r = Rect(x: data.cx - data.rx, y: data.cy - data.ry, width: data.rx * 2, height: data.ry * 2)
             let path = Shape.ellipse().resolve(in: r)
-            buildDrawn(Shape({ _ in path }), attributes: data.attributes, id: data.id, on: s)
+            paintDrawn(path, attributes: data.attributes, id: data.id, on: canvas)
 
         case .line(let data):
             var attrs = data.attributes; attrs.fill = .none
             if case .none = attrs.stroke { attrs.stroke = .color(.black) }
             let path = Path.line(from: Point(Double(data.x1), Double(data.y1)), to: Point(Double(data.x2), Double(data.y2)))
-            buildDrawn(Shape({ _ in path }), attributes: attrs, id: data.id, on: s)
+            paintDrawn(path, attributes: attrs, id: data.id, on: canvas)
 
         case .polygon(let data):
             guard !data.points.isEmpty else { return }
-            buildDrawn(Shape({ _ in Path.polygon(data.points) }), attributes: data.attributes, id: data.id, on: s)
+            paintDrawn(Path.polygon(data.points), attributes: data.attributes, id: data.id, on: canvas)
 
         case .polyline(let data):
             guard !data.points.isEmpty else { return }
-            buildDrawn(Shape({ _ in Path.polyline(data.points) }), attributes: data.attributes, id: data.id, on: s)
+            paintDrawn(Path.polyline(data.points), attributes: data.attributes, id: data.id, on: canvas)
 
         case .group(let data):
             if overrides[data.id]?.isHidden == true { return }
             let opacity = overrides[data.id]?.opacity ?? Double(data.attributes.opacity)
             let hasTransform = data.attributes.transform != .identity
 
-            s.compose { inner in
-                if hasTransform { inner.transform(Transform2D(data.attributes.transform)) }
-                if opacity < 1 { inner.fade(opacity) }
-                for child in data.children { buildElement(child, on: inner) }
-                return inner
-            }
+            canvas.save()
+            if hasTransform { canvas.transform(Transform2D(data.attributes.transform)) }
+            if opacity < 1 { canvas.setAlpha(opacity) }
+            for child in data.children { paintElement(child, on: canvas) }
+            canvas.restore()
         }
     }
 
-    private func buildDrawn(_ shape: Shape, attributes: SVGPaintAttributes, id: String, on s: Surface) {
+    private func paintDrawn(_ path: Path, attributes: SVGPaintAttributes, id: String, on canvas: Canvas) {
         let ov = overrides[id]
         if ov?.isHidden == true { return }
 
-        let opacity = ov?.opacity ?? CGFloat(attributes.opacity)
+        let opacity = ov?.opacity ?? Double(attributes.opacity)
         let hasTransform = attributes.transform != .identity
 
-        if hasTransform || opacity < 1 {
-            s.compose { inner in
-                if hasTransform { inner.transform(Transform2D(attributes.transform)) }
-                if opacity < 1 { inner.fade(opacity) }
-                addFillAndStroke(shape, attributes: attributes, ov: ov, on: inner)
-                return inner
-            }
-        } else {
-            addFillAndStroke(shape, attributes: attributes, ov: ov, on: s)
-        }
-    }
+        canvas.save()
+        if hasTransform { canvas.transform(Transform2D(attributes.transform)) }
+        if opacity < 1 { canvas.setAlpha(opacity) }
 
-    private func addFillAndStroke(_ shape: Shape, attributes: SVGPaintAttributes, ov: GraphicOverride?, on s: Surface) {
         if let fillColor = resolveFill(attributes, override: ov) {
-            s.shape({ _ in shape }, .color(fillColor))
+            canvas.draw(path, with: .color(fillColor))
         }
         if let strokeColor = resolveStroke(attributes, override: ov) {
             let width = ov?.strokeWidth ?? attributes.strokeWidth
-            s.stroke(Stroke(width: width, cap: StrokeCap(attributes.strokeLineCap), join: StrokeJoin(attributes.strokeLineJoin)), .color(strokeColor))
+            let stroked = path.stroked(width: width, cap: StrokeCap(attributes.strokeLineCap), join: StrokeJoin(attributes.strokeLineJoin))
+            canvas.draw(stroked, with: .color(strokeColor))
         }
+
+        canvas.restore()
     }
 
     // MARK: - Color Resolution
@@ -728,16 +716,11 @@ final class GraphicView: UIView {
             return
         }
 
-        let builder = SVGSurfaceBuilder(document: document, overrides: graphicOverrides, globalColor: graphicColor)
-        let surface = builder.build()
-        let viewBoxShape = Shape({ _ in
-            var p = Path(); p.addRect(Rect(document.viewBox)); return p
-        })
-        let renderer = SurfaceRenderer(surface: surface, shape: viewBoxShape, bounds: Rect(bounds))
+        let painter = SVGPainter(document: document, overrides: graphicOverrides, globalColor: graphicColor)
 
         let imgRenderer = UIGraphicsImageRenderer(size: size)
         cachedImage = imgRenderer.image { imgCtx in
-            renderer.render(on: CGCanvas(imgCtx.cgContext))
+            painter.paint(on: CGCanvas(imgCtx.cgContext))
         }
         cachedBoundsSize = size
         cachedImage?.draw(in: bounds)
