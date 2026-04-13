@@ -222,9 +222,25 @@ class BoxView: UIView {
 
     // MARK: - Sizing
 
-    /// Reports the minimum size this view needs.
-    /// fix → exact value, fill/hug → content size + padding.
+    /// How big this view wants to be given a proposal.
+    /// fix → exact value, fill → proposed size, hug → content size + padding.
     override func sizeThatFits(_ size: CGSize) -> CGSize {
+        let content = childrenSize(proposing: size)
+        let w: CGFloat = switch sizing.width {
+        case .fix(let v): v
+        case .fill: size.width
+        case .hug: content.width + padding.leading + padding.trailing
+        }
+        let h: CGFloat = switch sizing.height {
+        case .fix(let v): v
+        case .fill: size.height
+        case .hug: content.height + padding.top + padding.bottom
+        }
+        return CGSize(width: w, height: h)
+    }
+
+    /// Content size ignoring fill — used by flex wrap for line splitting.
+    func contentSizeThatFits(_ size: CGSize) -> CGSize {
         let content = childrenSize(proposing: size)
         let w: CGFloat = switch sizing.width {
         case .fix(let v): v

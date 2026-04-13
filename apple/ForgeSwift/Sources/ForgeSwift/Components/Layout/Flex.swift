@@ -201,11 +201,14 @@ final class FlexView: UIView {
     /// Fill children report their content size (not the full proposed
     /// size) so line splitting works correctly — fill expansion happens
     /// later in resolveFills.
+    /// Measure children at their intrinsic content size (not fill-expanded).
+    /// Uses contentSizeThatFits for BoxView children so fill children
+    /// report their content size for line splitting, not the proposed size.
     private func measureChildren(_ children: [UIView], proposing: CGSize) -> [FlexSlot] {
         children.map { child in
             let childFrame = (child as? BoxView)?.sizing
             let extent = isH ? childFrame?.width : childFrame?.height
-            let size = child.sizeThatFits(proposing)
+            let size = (child as? BoxView)?.contentSizeThatFits(proposing) ?? child.sizeThatFits(proposing)
             return FlexSlot(view: child, intrinsicSize: size, mainExtent: extent, resolvedSize: size)
         }
     }
