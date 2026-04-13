@@ -35,10 +35,22 @@ final class TextFieldDemoBuilder: ViewBuilder<TextFieldDemoModel> {
             // Basic text field
             TextField<String>(text: model.text,
                 decoration: TextFieldDecoration(placeholder: "Type something...", label: "Text"))
-            .debug(.blue)
+
+//            // OTP / PIN
+//            Text("OTP Code", style: TextStyle(font: Font(size: 14, weight: 500)))
+//            SplitBoxInput(text: bind(\.otp), length: 6)
+
+//            // Token input
+//            Text("Tags", style: TextStyle(font: Font(size: 14, weight: 500)))
+//            TokenInput(values: bind(\.tags))
+
+//            // Credit card
+//            Text("Payment", style: TextStyle(font: Font(size: 14, weight: 500)))
+//            CreditCardInput(value: bind(\.card))
 
         }
         .padded(20)
+        .centered()
     }
 
     private func oldBody() -> any View {
