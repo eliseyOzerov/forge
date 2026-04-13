@@ -9,11 +9,14 @@ import ForgeSwift
 @main
 class ForgeDemo: App {
     override var body: any View {
-        Box(.fill, overflow: .scroll(ScrollConfig(showsIndicators: false))) {
-            Box(.fixed(1000, 1000), .color(Color(0.9, 0.9, 0.95))) {
-                Text("1000x1000", style: TextStyle(font: Font(size: 24, weight: 700), align: .center))
+        Column(spacing: 24, alignment: .topLeft) {
+            label("wrap")
+            Row(spacing: 8, lineSpacing: 8, wrap: true) {
+                for i in 1...15 {
+                    chip("\(i)")
+                }
             }
-        }
+        }.padded(20)
     }
 
     private func oldBody() -> any View {
