@@ -1,5 +1,4 @@
-#if canImport(UIKit)
-import UIKit
+import Foundation
 
 // MARK: - Config Types
 
@@ -88,6 +87,9 @@ public struct StepperStyle<T> {
         self.haptic = haptic; self.transition = transition
     }
 }
+
+#if canImport(UIKit)
+import UIKit
 
 // MARK: - Stepper
 
