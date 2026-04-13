@@ -342,9 +342,7 @@ class BoxView: UIView {
         // Propose: unlimited on scroll axis, inset size otherwise
         let proposedW: CGFloat = (isScrolling && scrollAxis != .vertical) ? .greatestFiniteMagnitude : inset.width
         let proposedH: CGFloat = (isScrolling && scrollAxis != .horizontal) ? .greatestFiniteMagnitude : inset.height
-        print("asking child \(child) for size inside rect \(proposedW), \(proposedH)")
         var size = child.sizeThatFits(CGSize(width: proposedW, height: proposedH))
-        print("child \(child) size: \(size)")
         // Fill children expand to fill the inset on their fill axis
         if let boxChild = child as? BoxView {
             if case .fill = boxChild.sizing.width { size.width = inset.width }

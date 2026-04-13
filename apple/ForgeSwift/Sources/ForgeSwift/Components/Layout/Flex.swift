@@ -175,8 +175,6 @@ final class FlexView: UIView {
         // 1. Measure all children given available space.
         let slots = measureChildren(children, proposing: bounds.size)
         
-        print("flex children: \(slots)")
-
         // 2. Group into lines. Without wrap, everything is one line.
         var lines = splitIntoLines(slots: slots, mainExtent: mainExtent)
 

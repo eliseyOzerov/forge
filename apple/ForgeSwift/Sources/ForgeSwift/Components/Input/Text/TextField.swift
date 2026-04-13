@@ -387,7 +387,6 @@ final class TextFieldWrapperView<T>: BoxView, UITextFieldDelegate {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        print("text field bounds: \(bounds)")
         textField.frame = CGRect(
             x: padding.leading, y: padding.top,
             width: bounds.width - padding.leading - padding.trailing,
