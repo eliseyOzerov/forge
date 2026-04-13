@@ -4,7 +4,7 @@ import UIKit
 @testable import ForgeSwift
 
 @MainActor
-final class DraggableTests: XCTestCase {
+final class PlaneTests: XCTestCase {
 
     // MARK: - Helpers
 
@@ -15,9 +15,9 @@ final class DraggableTests: XCTestCase {
         anchor: Bool = true,
         relative: Bool = false,
         states: UIState = .idle
-    ) -> DraggableModel {
+    ) -> PlaneModel {
         let binding = Binding(offset)
-        let draggable = Draggable(
+        let draggable = Plane(
             offset: binding,
             active: active,
             target: target,
@@ -25,7 +25,7 @@ final class DraggableTests: XCTestCase {
             relative: relative,
             states: states
         ) { EmptyView() }
-        let model = DraggableModel()
+        let model = PlaneModel()
         model.handleDidInit(draggable)
         model.containerSize = Size(200, 200)
         return model
@@ -136,11 +136,11 @@ final class DraggableTests: XCTestCase {
     func testOnStartFired() {
         var started = false
         let binding = Binding(Vec2.zero)
-        let draggable = Draggable(
+        let draggable = Plane(
             offset: binding,
             onStart: { _ in started = true }
         ) { EmptyView() }
-        let model = DraggableModel()
+        let model = PlaneModel()
         model.handleDidInit(draggable)
         model.handleDragStart(at: Vec2(10, 10))
         XCTAssertTrue(started)
@@ -149,12 +149,12 @@ final class DraggableTests: XCTestCase {
     func testOnChangedFired() {
         var changed: Vec2?
         let binding = Binding(Vec2.zero)
-        let draggable = Draggable(
+        let draggable = Plane(
             offset: binding,
             anchor: false,
             onChanged: { changed = $0 }
         ) { EmptyView() }
-        let model = DraggableModel()
+        let model = PlaneModel()
         model.handleDidInit(draggable)
         model.handleDragStart(at: Vec2(0, 0))
         model.handleDragUpdate(at: Vec2(25, 35))
@@ -165,11 +165,11 @@ final class DraggableTests: XCTestCase {
     func testOnEndFired() {
         var ended = false
         let binding = Binding(Vec2.zero)
-        let draggable = Draggable(
+        let draggable = Plane(
             offset: binding,
             onEnd: { _ in ended = true }
         ) { EmptyView() }
-        let model = DraggableModel()
+        let model = PlaneModel()
         model.handleDidInit(draggable)
         model.handleDragStart(at: Vec2(0, 0))
         model.handleDragEnd()

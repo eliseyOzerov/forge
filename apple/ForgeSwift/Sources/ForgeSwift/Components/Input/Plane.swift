@@ -1,6 +1,6 @@
 import Foundation
 
-// MARK: - Draggable
+// MARK: - Plane
 
 /// A gesture primitive that turns pan gestures into offset values.
 /// Everything that involves dragging builds on this: sliders, knobs,
@@ -11,7 +11,7 @@ import Foundation
 /// - `target`: snaps to final position on release, with animation
 ///
 /// ```swift
-/// Draggable(
+/// Plane(
 ///     offset: $thumbPosition,
 ///     active: .horizontal,            // lock to x-axis
 ///     target: .snap(to: detents),     // snap to nearest detent
@@ -20,7 +20,7 @@ import Foundation
 ///     Circle(size: 24, color: .blue)
 /// }
 /// ```
-public struct Draggable: ModelView {
+public struct Plane: ModelView {
     public let offset: Binding<Vec2>
     public let active: DragTransform?
     public let target: DragTransform?
@@ -53,13 +53,13 @@ public struct Draggable: ModelView {
         self.body = body()
     }
 
-    public func makeModel(context: BuildContext) -> DraggableModel { DraggableModel() }
-    public func makeBuilder() -> DraggableBuilder { DraggableBuilder() }
+    public func makeModel(context: BuildContext) -> PlaneModel { PlaneModel() }
+    public func makeBuilder() -> PlaneBuilder { PlaneBuilder() }
 }
 
 // MARK: - Model
 
-public final class DraggableModel: ViewModel<Draggable> {
+public final class PlaneModel: ViewModel<Plane> {
     var isPressed = false
     var anchorOffset: Vec2 = .zero
     var containerSize: Size = .zero
@@ -172,17 +172,17 @@ public final class DraggableModel: ViewModel<Draggable> {
 
 // MARK: - Builder
 
-public final class DraggableBuilder: ViewBuilder<DraggableModel> {
+public final class PlaneBuilder: ViewBuilder<PlaneModel> {
     public override func build(context: BuildContext) -> any View {
-        DraggableLeaf(model: model)
+        PlaneLeaf(model: model)
     }
 }
 
 // MARK: - Leaf
 
-struct DraggableLeaf: LeafView {
-    let model: DraggableModel
-    func makeRenderer() -> Renderer { DraggableRenderer(model: model) }
+struct PlaneLeaf: LeafView {
+    let model: PlaneModel
+    func makeRenderer() -> Renderer { PlaneRenderer(model: model) }
 }
 
 // MARK: - UIKit Renderer
@@ -190,26 +190,26 @@ struct DraggableLeaf: LeafView {
 #if canImport(UIKit)
 import UIKit
 
-final class DraggableRenderer: Renderer {
-    let model: DraggableModel
+final class PlaneRenderer: Renderer {
+    let model: PlaneModel
 
-    init(model: DraggableModel) { self.model = model }
+    init(model: PlaneModel) { self.model = model }
 
     func mount() -> PlatformView {
-        let view = DraggableView()
+        let view = PlaneView()
         view.model = model
         return view
     }
 
     func update(_ platformView: PlatformView) {
-        guard let view = platformView as? DraggableView else { return }
+        guard let view = platformView as? PlaneView else { return }
         view.model = model
         if model.motion.isRunning { view.startAnimation() }
     }
 }
 
-final class DraggableView: UIView {
-    weak var model: DraggableModel?
+final class PlaneView: UIView {
+    weak var model: PlaneModel?
     private var panGesture: UIPanGestureRecognizer!
     private let driver = DisplayLinkDriver()
 
