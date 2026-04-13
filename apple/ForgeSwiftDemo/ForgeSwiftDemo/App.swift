@@ -9,40 +9,61 @@ import ForgeSwift
 @main
 class ForgeDemo: App {
     override var body: any View {
-        Column(spacing: 24) {
-            Button(
-                "Tap me",
-                style: StateProperty { state in
-                    BoxStyle(
-                        .fillWidth.height(.fix(48)),
-                        state.contains(.pressed)
-                            ? .color(Color(0.1, 0.4, 0.9))
-                            : .color(Color(0.2, 0.5, 1.0)),
-                        .capsule(),
-                        padding: Padding(horizontal: 16)
-                    )
-                },
-                onTap: { print("tapped!") }
-            )
+        TextFieldDemo()
+    }
+}
 
-            Button(
-                style: StateProperty { state in
-                    BoxStyle(
-                        .hug,
-                        .color(state.contains(.pressed) ? Color(0.8, 0.2, 0.2) : Color(0.9, 0.3, 0.3))
-                            .border(.white, width: 2),
-                        .roundedRect(radius: 12),
-                        padding: Padding(horizontal: 24, vertical: 12)
-                    )
-                },
-                onTap: { print("custom body tapped!") }
-            ) {
-                Row(spacing: 8) {
-                    Icon("star.fill", style: IconStyle(size: 18, color: .white))
-                    Text("Star", style: TextStyle(font: Font(size: 16, weight: 600), color: .white))
-                }
-            }
-        }.padded(40).centered()
+// MARK: - TextField Demo
+
+struct TextFieldDemo: ModelView {
+    func makeModel(context: BuildContext) -> TextFieldDemoModel { TextFieldDemoModel() }
+    func makeBuilder() -> TextFieldDemoBuilder { TextFieldDemoBuilder() }
+}
+
+final class TextFieldDemoModel: ViewModel<TextFieldDemo> {
+    var name = ""
+    var email = ""
+    var password = ""
+    var phone = ""
+    var amount: Double = 0
+    var search = ""
+}
+
+final class TextFieldDemoBuilder: ViewBuilder<TextFieldDemoModel> {
+    public override func build(context: BuildContext) -> any View {
+        Box(.fill, overflow: .scroll(ScrollConfig(axis: .vertical))) {
+            Column(spacing: 20, alignment: .topLeft) {
+                Text("TextField Demo", style: TextStyle(font: Font(size: 24, weight: 700)))
+
+                // Basic
+                TextField<String>(text: bind(\.name),
+                    decoration: TextFieldDecoration(placeholder: "Your name", label: "Name"))
+
+                // Email
+                TextField<String>.email(text: bind(\.email),
+                    decoration: TextFieldDecoration(placeholder: "you@example.com", label: "Email"))
+
+                // Password
+                TextField<String>.password(text: bind(\.password),
+                    decoration: TextFieldDecoration(placeholder: "Enter password", label: "Password"))
+
+                // Phone
+                TextField<String>.phone(text: bind(\.phone))
+
+                // Number
+                TextField<Double>.number(value: bind(\.amount),
+                    label: "Amount", placeholder: "0.00")
+
+                // Search
+                TextField<String>.search(text: bind(\.search),
+                    onSubmit: { [weak model] in print("Search: \(model?.search ?? "")") })
+
+                // Masked date
+                TextField<String>.masked("##/##/####", text: bind(\.name),
+                    decoration: TextFieldDecoration(placeholder: "DD/MM/YYYY", label: "Date"))
+
+            }.padded(20)
+        }
     }
 
     private func oldBody() -> any View {
