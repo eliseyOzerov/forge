@@ -16,6 +16,38 @@ import UIKit
 ///     Text("Hello")
 /// }
 /// ```
+// MARK: - BoxStyle
+
+public struct BoxStyle {
+    public var frame: Frame
+    public var surface: Surface?
+    public var shape: Shape?
+    public var padding: Padding
+    public var alignment: Alignment
+    public var clip: Bool
+    public var overflow: Overflow
+
+    public init(
+        _ frame: Frame = .hug,
+        _ surface: Surface? = nil,
+        _ shape: Shape? = nil,
+        padding: Padding = .zero,
+        alignment: Alignment = .center,
+        clip: Bool = true,
+        overflow: Overflow = .clip
+    ) {
+        self.frame = frame
+        self.surface = surface
+        self.shape = shape
+        self.padding = padding
+        self.alignment = alignment
+        self.clip = clip
+        self.overflow = overflow
+    }
+}
+
+// MARK: - Box
+
 public struct Box: ContainerView {
     public let frame: Frame
     public let shape: Shape?
@@ -64,6 +96,18 @@ public struct Box: ContainerView {
         self.clip = clip
         self.overflow = overflow
         self.children = content()
+    }
+
+    public init(_ style: BoxStyle, children: [any View] = []) {
+        self.frame = style.frame; self.surface = style.surface; self.shape = style.shape
+        self.padding = style.padding; self.alignment = style.alignment
+        self.clip = style.clip; self.overflow = style.overflow; self.children = children
+    }
+
+    public init(_ style: BoxStyle, @ChildrenBuilder content: () -> [any View]) {
+        self.frame = style.frame; self.surface = style.surface; self.shape = style.shape
+        self.padding = style.padding; self.alignment = style.alignment
+        self.clip = style.clip; self.overflow = style.overflow; self.children = content()
     }
 
     public func makeRenderer() -> ContainerRenderer {
