@@ -556,6 +556,7 @@ final class DebugOverlayView: UIView {
     override init(frame: CGRect) {
         super.init(frame: frame)
         isOpaque = false
+        clipsToBounds = false
     }
 
     required init?(coder: NSCoder) { fatalError() }
