@@ -197,6 +197,28 @@ public extension ModelView {
     }
 }
 
+// MARK: - Buildable
+
+/// A ComposedView whose entire body is a single closure. Use for
+/// inline subtrees that need a BuildContext — typically to read a
+/// Provided value — without defining a dedicated type.
+///
+///     Buildable { ctx in
+///         let theme = ctx.watch(ColorTheme.self)
+///         return Text("hi", color: theme.label)
+///     }
+public struct Buildable: ComposedView {
+    private let body: @MainActor (BuildContext) -> any View
+
+    public init(_ body: @escaping @MainActor (BuildContext) -> any View) {
+        self.body = body
+    }
+
+    public func build(context: BuildContext) -> any View {
+        body(context)
+    }
+}
+
 // MARK: - Container
 
 /// A View with a fixed list of child views and a native container

@@ -326,7 +326,7 @@ final class StepperFieldRenderer<T: Numeric & Comparable & LosslessStringConvert
         let field = view.textField
         field.text = model.displayText()
         field.font = style.text.font.resolvedFont
-        field.textColor = style.text.color ?? .label
+        field.textColor = style.text.color?.platformColor ?? .label
         field.textAlignment = style.text.align.nsTextAlignment
         field.keyboardType = .decimalPad
 

@@ -8,7 +8,7 @@ import CoreText
 
 public struct TextStyle: Sendable {
     public var font: Font
-    public var color: PlatformColor?
+    public var color: Color?
     public var maxLines: Int?
     public var align: TextAlign
     public var textCase: TextCase
@@ -17,7 +17,7 @@ public struct TextStyle: Sendable {
 
     public init(
         font: Font = Font(),
-        color: PlatformColor? = nil,
+        color: Color? = nil,
         maxLines: Int? = nil,
         align: TextAlign = .leading,
         textCase: TextCase = .none,
@@ -350,12 +350,12 @@ public struct TextDecoration: Sendable {
 }
 
 public struct TextLineConfig: Sendable {
-    public var color: PlatformColor?
+    public var color: Color?
     public var position: TextLinePosition
     public var style: Int
 
     public init(
-        color: PlatformColor? = nil,
+        color: Color? = nil,
         position: TextLinePosition = .underline,
         style: Int = 0x01
     ) {
@@ -375,12 +375,12 @@ public enum TextLinePosition: String, Sendable {
 }
 
 public struct ShadowConfig: Sendable {
-    public var color: PlatformColor
+    public var color: Color
     public var radius: CGFloat
     public var offset: CGSize
 
     public init(
-        color: PlatformColor = PlatformColor.black.withAlphaComponent(0.33),
+        color: Color = Color.black.withAlpha(0.33),
         radius: CGFloat = 1,
         offset: CGSize = CGSize(width: 0, height: 1)
     ) {
@@ -447,22 +447,22 @@ final class UIKitTextRenderer: Renderer {
             .kern: style.font.tracking,
         ]
 
-        attributes[.foregroundColor] = style.color ?? UIColor.label
+        attributes[.foregroundColor] = style.color?.platformColor ?? UIColor.label
 
         if let decoration = style.decoration {
             if let line = decoration.line {
                 switch line.position {
                 case .underline:
                     attributes[.underlineStyle] = line.style
-                    if let color = line.color { attributes[.underlineColor] = color }
+                    if let color = line.color { attributes[.underlineColor] = color.platformColor }
                 case .strikethrough:
                     attributes[.strikethroughStyle] = line.style
-                    if let color = line.color { attributes[.strikethroughColor] = color }
+                    if let color = line.color { attributes[.strikethroughColor] = color.platformColor }
                 }
             }
             if let shadow = decoration.shadow {
                 let nsShadow = NSShadow()
-                nsShadow.shadowColor = shadow.color
+                nsShadow.shadowColor = shadow.color.platformColor
                 nsShadow.shadowBlurRadius = shadow.radius
                 nsShadow.shadowOffset = shadow.offset
                 attributes[.shadow] = nsShadow

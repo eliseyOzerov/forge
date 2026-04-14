@@ -66,6 +66,12 @@ class ProxyView: NSView {
     var subscriptions: [Subscription] = []
     var onDirty: (() -> Void)?
 
+    /// Values injected into the subtree by a Provided<T> view. Keyed
+    /// by the provided type. Each slot wraps an Observable so consumer
+    /// nodes can subscribe and rebuild when the provider replaces the
+    /// value. Walked by findSlot via the parent chain.
+    var providedSlots: [ObjectIdentifier: AnyProvidedSlot] = [:]
+
     public init() {}
 
     /// Create a new Node for the given View and run its first-time
@@ -117,6 +123,40 @@ class ProxyView: NSView {
         }
         subscriptions.append(sub)
         return observable.value
+    }
+
+    /// Type-erased subscribe-and-mark-dirty. Used by Provided/consumer
+    /// machinery to subscribe to an Observable whose element type the
+    /// caller doesn't know statically.
+    public func watchAny(_ observable: AnyObservable) {
+        let sub = observable.observeChange { [weak self] in
+            self?.markDirty()
+        }
+        subscriptions.append(sub)
+    }
+
+    /// Install or update a Provided<T> slot on this node. Called by
+    /// Provided.build during the provider's own build pass. If a slot
+    /// for T already exists, its observable is updated (firing
+    /// observers — i.e. consumer nodes rebuild). Otherwise a fresh
+    /// slot is created. v1: always fires on update; equality-skip is
+    /// a future optimization.
+    public func installSlot<T>(_ value: T) {
+        let key = ObjectIdentifier(T.self)
+        if let existing = providedSlots[key] as? ProvidedSlot<T> {
+            existing.observable.value = value
+        } else {
+            providedSlots[key] = ProvidedSlot(value)
+        }
+    }
+
+    /// Walk the parent chain looking for a Provided<T> slot. Returns
+    /// the first match, or nil if no ancestor provides T. v1 walks
+    /// every call — caching is a future optimization.
+    public func findSlot<T>(_ type: T.Type) -> ProvidedSlot<T>? {
+        let key = ObjectIdentifier(type)
+        if let slot = providedSlots[key] as? ProvidedSlot<T> { return slot }
+        return parent?.findSlot(type)
     }
 
     public func markDirty() {

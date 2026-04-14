@@ -11,7 +11,14 @@
 //  themselves — hand them to the Node.
 //
 
-@MainActor public final class Observable<T> {
+/// Type-erased view of an Observable. Lets generic code (e.g.
+/// BuildContext.watch) subscribe to changes without knowing the
+/// element type. Observable<T> conforms automatically.
+@MainActor public protocol AnyObservable {
+    func observeChange(_ callback: @escaping @MainActor () -> Void) -> Subscription
+}
+
+@MainActor public final class Observable<T>: AnyObservable {
     private var _value: T
     private var nextId: Int = 0
     private var observers: [Int: @MainActor (T) -> Void] = [:]
@@ -41,6 +48,10 @@
         return Subscription { [weak self] in
             self?.observers.removeValue(forKey: id)
         }
+    }
+
+    public func observeChange(_ callback: @escaping @MainActor () -> Void) -> Subscription {
+        observe { _ in callback() }
     }
 }
 
