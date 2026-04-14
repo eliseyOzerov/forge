@@ -14,7 +14,9 @@
 @MainActor public final class Resolver {
     public init() {}
 
-    private var rootNode: Node?
+    /// The mounted root. Exposed (read-only) for views that compose
+    /// multiple Resolvers and need to reconcile across updates.
+    public private(set) var rootNode: Node?
 
     public func mount(_ view: any View) -> PlatformView {
         let node = Node.inflate(view)
