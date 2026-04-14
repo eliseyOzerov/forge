@@ -234,12 +234,34 @@ final class RouterHostView: UIView {
             presentLightbox(route, style: style, handle: handle)
         case .toast(let style):
             presentToast(route, style: style, handle: handle)
-        case .modal, .alert, .drawer, .popover, .coachMark, .contextMenu:
-            // v2 — bridge stub.
-            #if DEBUG
-            print("[Forge] Router: presentation \(route.presentation) not yet bridged; skipping.")
-            #endif
+        case .modal(let style):
+            presentCustom(route, handle: handle, kind: .modal(style))
+        case .alert(let style):
+            presentCustom(route, handle: handle, kind: .alert(style))
+        case .drawer(let style):
+            presentCustom(route, handle: handle, kind: .drawer(style))
+        case .popover(let style):
+            presentCustom(route, handle: handle, kind: .popover(style))
+        case .contextMenu(let style):
+            presentCustom(route, handle: handle, kind: .contextMenu(style))
+        case .coachMark(let style):
+            presentCustom(route, handle: handle, kind: .coachMark(style))
         }
+    }
+
+    private func presentCustom(_ route: AnyRoute, handle: RouterHandle, kind: OverlayTransitioningDelegate.Kind) {
+        let vc = ForgeHostingController(route: route, handle: handle)
+        vc.modalPresentationStyle = .custom
+        let delegate = OverlayTransitioningDelegate(kind: kind)
+        vc.overlayTransitioningDelegate = delegate
+        vc.transitioningDelegate = delegate
+        vc.view.backgroundColor = .clear
+
+        hostedSheetId = route.id
+        hostedSheetVC = vc
+
+        let presenter: UIViewController = nav.topViewController ?? nav
+        presenter.present(vc, animated: window != nil)
     }
 
     private func presentSheet(_ route: AnyRoute, style: SheetStyle, handle: RouterHandle) {
@@ -443,6 +465,11 @@ public final class ForgeHostingController: UIViewController {
     private var trailingResolver: Resolver?
 
     private var onBackHandler: (() -> Void)?
+
+    /// Retains the transitioning delegate used when this VC is
+    /// presented as a custom overlay (modal, drawer, popover, etc.).
+    /// UIKit only weak-references the delegate, so it must live here.
+    var overlayTransitioningDelegate: NSObject?
 
     init(route: AnyRoute, handle: RouterHandle) {
         self.route = route
