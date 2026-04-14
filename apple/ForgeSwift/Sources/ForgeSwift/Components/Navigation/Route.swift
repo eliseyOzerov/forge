@@ -11,22 +11,135 @@
 
 import Foundation
 
+// MARK: - NavigationItem
+
+/// Per-route configuration for the native iOS navigation bar. Fields
+/// map to UINavigationItem; the host (ForgeHostingController) applies
+/// them when the route becomes active.
+///
+/// Mirrors the shape of Wave's AppBar widget so Wave screens can port
+/// with minimal adaptation, but backed by UINavigationItem on iOS
+/// rather than a custom bar view.
+public struct NavigationItem {
+    /// Title string. If `main` is also set, `main` wins.
+    public var title: String?
+
+    /// Custom title view. Rendered as a UIView via Resolver and
+    /// installed as `navigationItem.titleView`.
+    public var main: (any View)?
+
+    /// Leading bar item. If nil and `hideImplicitBackButton` is false,
+    /// the system back button is shown.
+    public var leading: (any View)?
+
+    /// Trailing bar item.
+    public var trailing: (any View)?
+
+    /// Widget displayed below the main bar content (search, tabs,
+    /// segmented controls). Wired via a custom accessory view; v1
+    /// places it in the nav bar's scroll-edge accessory area if
+    /// available, otherwise a bottom bar within the hosted view.
+    public var bottom: (any View)?
+
+    /// Bar background. State-aware (`.scrolledUnder` / `.idle`) —
+    /// mapped to UINavigationBarAppearance.standardAppearance vs
+    /// scrollEdgeAppearance on iOS.
+    public var background: StateProperty<BoxStyle>?
+
+    /// Whether the navigation bar is hidden for this route.
+    public var hidden: Bool
+
+    /// Suppresses the system back button when `leading` is nil.
+    public var hideImplicitBackButton: Bool
+
+    /// Override the back action. If set, replaces the system back
+    /// button with a custom one that calls this closure on tap.
+    /// Typical use: guard against data loss before popping.
+    public var onBack: (() -> Void)?
+
+    /// Alignment for the main/title slot across the full bar width.
+    /// Mirrors AppBar.mainAlignment — if centered content overflows
+    /// leading/trailing, the layout falls back to centering in the
+    /// remaining free space.
+    public var mainAlignment: HorizontalAlignment
+
+    /// Padding around the bar's content.
+    public var contentPadding: Padding?
+
+    public init(
+        title: String? = nil,
+        main: (any View)? = nil,
+        leading: (any View)? = nil,
+        trailing: (any View)? = nil,
+        bottom: (any View)? = nil,
+        background: StateProperty<BoxStyle>? = nil,
+        hidden: Bool = false,
+        hideImplicitBackButton: Bool = false,
+        onBack: (() -> Void)? = nil,
+        mainAlignment: HorizontalAlignment = .center,
+        contentPadding: Padding? = nil
+    ) {
+        self.title = title
+        self.main = main
+        self.leading = leading
+        self.trailing = trailing
+        self.bottom = bottom
+        self.background = background
+        self.hidden = hidden
+        self.hideImplicitBackButton = hideImplicitBackButton
+        self.onBack = onBack
+        self.mainAlignment = mainAlignment
+        self.contentPadding = contentPadding
+    }
+}
+
+public enum HorizontalAlignment: Sendable {
+    case leading, center, trailing
+}
+
+// MARK: - RoutePresentation
+
+/// How a route is presented on screen. Screen routes go into the
+/// UINavigationController stack. Sheet routes are presented via
+/// UISheetPresentationController atop the current stack.
+///
+/// v1 constraint: only the last route in the resolved stack may be
+/// a sheet; interleaving sheets and screens is not yet supported.
+public enum RoutePresentation: Sendable {
+    case screen
+    case sheet(
+        detents: [SheetDetent] = [.large],
+        grabberVisible: Bool = true,
+        cornerRadius: Double? = nil,
+        isDismissable: Bool = true
+    )
+}
+
+public enum SheetDetent: Sendable, Hashable {
+    case medium
+    case large
+    /// Fractional height of the screen, 0.0 to 1.0.
+    case fraction(Double)
+    /// Absolute height in points.
+    case height(Double)
+}
+
 // MARK: - Route
 
 @MainActor public protocol Route: Hashable {
     /// The view rendered when this route is active.
     func body() -> any View
 
-    /// Optional title shown in the navigation bar.
-    var title: String? { get }
+    /// Per-route navigation bar configuration.
+    var navigationItem: NavigationItem { get }
 
-    /// Whether the nav bar is hidden for this route.
-    var navigationBarHidden: Bool { get }
+    /// How this route is presented. Defaults to `.screen`.
+    var presentation: RoutePresentation { get }
 }
 
 public extension Route {
-    var title: String? { nil }
-    var navigationBarHidden: Bool { false }
+    var navigationItem: NavigationItem { NavigationItem() }
+    var presentation: RoutePresentation { .screen }
 }
 
 // MARK: - AnyRoute
@@ -35,14 +148,14 @@ public extension Route {
 /// type is irrelevant; identity is preserved via AnyHashable.
 public struct AnyRoute: Hashable {
     public let id: AnyHashable
-    public let title: String?
-    public let navigationBarHidden: Bool
+    public let navigationItem: NavigationItem
+    public let presentation: RoutePresentation
     public let body: @MainActor () -> any View
 
     @MainActor public init<R: Route>(_ route: R) {
         self.id = AnyHashable(route)
-        self.title = route.title
-        self.navigationBarHidden = route.navigationBarHidden
+        self.navigationItem = route.navigationItem
+        self.presentation = route.presentation
         self.body = { route.body() }
     }
 

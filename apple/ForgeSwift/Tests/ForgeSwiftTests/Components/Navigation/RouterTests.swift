@@ -67,18 +67,57 @@ final class RouterTests: XCTestCase {
         XCTAssertEqual(ids(h.resolvedStack), ["a"])
     }
 
-    func testPopIgnoresDeclarative() {
+    func testPopRemovesTopDeclarativeViaSuppression() {
         let h = handle(with: [r("a"), r("b")])
         h.pop()
+        XCTAssertEqual(ids(h.resolvedStack), ["a"])
+    }
+
+    func testSuppressionPersistsAcrossDeclarativeRebuild() {
+        let h = handle(with: [r("a"), r("b")])
+        h.pop()
+        // Builder re-emits b; should stay suppressed.
+        h.setDeclarative([AnyRoute(r("a")), AnyRoute(r("b"))])
+        XCTAssertEqual(ids(h.resolvedStack), ["a"])
+    }
+
+    func testUnsuppressBringsRouteBack() {
+        let h = handle(with: [r("a"), r("b")])
+        h.pop()
+        XCTAssertEqual(ids(h.resolvedStack), ["a"])
+        h.unsuppress(id: AnyHashable(r("b")))
         XCTAssertEqual(ids(h.resolvedStack), ["a", "b"])
     }
 
-    func testPopToRootClearsImperative() {
+    func testRemoveByRouteValue() {
+        let h = handle(with: [r("a"), r("b"), r("c")])
+        h.remove(r("b"))
+        XCTAssertEqual(ids(h.resolvedStack), ["a", "c"])
+    }
+
+    func testRemoveImperativeRoute() {
         let h = handle(with: [r("a")])
         h.push(r("b"))
         h.push(r("c"))
-        h.popToRoot()
+        h.remove(r("b"))
+        XCTAssertEqual(ids(h.resolvedStack), ["a", "c"])
+    }
+
+    func testPopToRootClearsImperativeAndSuppression() {
+        let h = handle(with: [r("a"), r("b")])
+        h.push(r("c"))
+        h.pop()  // removes c (imperative)
+        h.pop()  // suppresses b
         XCTAssertEqual(ids(h.resolvedStack), ["a"])
+        h.popToRoot()
+        XCTAssertEqual(ids(h.resolvedStack), ["a", "b"])
+    }
+
+    func testSetImperativeClearsSuppression() {
+        let h = handle(with: [r("a"), r("b")])
+        h.pop()  // suppresses b
+        h.setImperative([r("z")])
+        XCTAssertEqual(ids(h.resolvedStack), ["a", "b", "z"])
     }
 
     // MARK: - Insert
@@ -204,11 +243,47 @@ final class RouterTests: XCTestCase {
         XCTAssertEqual(ids(h.resolvedStack), ["a", "c"])
     }
 
-    func testReplaceTopOnDeclarativeAddsImperative() {
+    func testReplaceTopOnDeclarativeSuppressesAndPushes() {
         let h = handle(with: [r("a"), r("b")])
         h.replaceTop(with: r("c"))
-        // b is declarative — replaceTop can't remove it, but pushes c on top
-        XCTAssertEqual(ids(h.resolvedStack), ["a", "b", "c"])
+        // b suppressed, c pushed on top of a
+        XCTAssertEqual(ids(h.resolvedStack), ["a", "c"])
+    }
+
+    // MARK: - Presentation
+
+    struct SheetTestRoute: Route {
+        let name: String
+        func body() -> any View { EmptyView() }
+        var presentation: RoutePresentation {
+            .sheet(detents: [.medium, .large])
+        }
+    }
+
+    func testDefaultPresentationIsScreen() {
+        let h = handle(with: [r("a")])
+        guard case .screen = h.resolvedStack[0].presentation else {
+            return XCTFail("Expected .screen, got \(h.resolvedStack[0].presentation)")
+        }
+    }
+
+    func testSheetPresentationPreserved() {
+        let h = RouterHandle()
+        h.setDeclarative([AnyRoute(SheetTestRoute(name: "s"))])
+        guard case .sheet(let detents, _, _, _) = h.resolvedStack[0].presentation else {
+            return XCTFail("Expected .sheet")
+        }
+        XCTAssertEqual(detents.count, 2)
+    }
+
+    func testMixedPushSheetOverScreen() {
+        let h = handle(with: [r("root")])
+        h.push(SheetTestRoute(name: "s"))
+        XCTAssertEqual(h.resolvedStack.count, 2)
+        guard case .screen = h.resolvedStack[0].presentation,
+              case .sheet = h.resolvedStack[1].presentation else {
+            return XCTFail("Expected screen then sheet")
+        }
     }
 
     // MARK: - onChange

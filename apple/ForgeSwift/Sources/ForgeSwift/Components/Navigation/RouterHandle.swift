@@ -37,6 +37,12 @@ import Foundation
     /// insertions can anchor later ones (chaining).
     fileprivate(set) var imperative: [Insertion] = []
 
+    /// Declarative route ids that have been explicitly removed via
+    /// pop / remove. Persists across declarative rebuilds — a
+    /// suppressed route stays hidden even if the builder re-emits it.
+    /// Cleared by popToRoot / setImperative.
+    fileprivate(set) var suppressed: Set<AnyHashable> = []
+
     public init() {}
 
     // MARK: - Insertion
@@ -122,38 +128,68 @@ import Foundation
         appendInsertion(AnyRoute(route), anchor: anchor, side: side, current: current)
     }
 
-    /// Pop the top imperative route. Declarative routes are owned by
-    /// the builder — to remove them, the caller must update the state
-    /// their declarative closure reads.
+    /// Remove the top route from the resolved stack regardless of
+    /// origin. Imperative routes are dropped from the insertion list;
+    /// declarative routes are added to the suppression set, which
+    /// persists across rebuilds — re-showing a suppressed declarative
+    /// route requires `unsuppress(_:)` or `popToRoot`.
     public func pop() {
-        guard !imperative.isEmpty else { return }
-        imperative.removeLast()
-        onChange?()
+        let stack = resolvedStack
+        guard let top = stack.last else { return }
+        remove(id: top.id)
     }
 
-    /// Remove all imperative routes. Leaves the declarative list
-    /// untouched.
-    public func popToRoot() {
-        guard !imperative.isEmpty else { return }
-        imperative.removeAll()
-        onChange?()
+    /// Remove a specific route from the resolved stack by identity.
+    /// Same origin rules as `pop` — imperative drops from the list,
+    /// declarative enters the suppression set.
+    public func remove<R: Route>(_ route: R) {
+        remove(id: AnyHashable(route))
     }
 
-    /// Replace the top of the resolved stack. If the top is imperative,
-    /// replaces it in place; if the top is declarative, adds a new
-    /// imperative route after it.
-    public func replaceTop<R: Route>(with route: R) {
-        if !imperative.isEmpty {
-            imperative.removeLast()
+    public func remove(id: AnyHashable) {
+        if let idx = imperative.lastIndex(where: { $0.route.id == id }) {
+            imperative.remove(at: idx)
+            onChange?()
+            return
         }
+        if declarative.contains(where: { $0.id == id }) {
+            suppressed.insert(id)
+            onChange?()
+        }
+    }
+
+    /// Remove a route from the suppression set, so a re-emitted
+    /// declarative route can appear again.
+    public func unsuppress(id: AnyHashable) {
+        guard suppressed.remove(id) != nil else { return }
+        onChange?()
+    }
+
+    /// Clear all imperative routes AND the suppression set. Leaves the
+    /// declarative list untouched; the next render reflects whatever
+    /// the builder currently emits.
+    public func popToRoot() {
+        guard !imperative.isEmpty || !suppressed.isEmpty else { return }
+        imperative.removeAll()
+        suppressed.removeAll()
+        onChange?()
+    }
+
+    /// Replace the top of the resolved stack with a new imperative
+    /// route. Equivalent to pop() + push(route) — works uniformly for
+    /// imperative and declarative tops.
+    public func replaceTop<R: Route>(with route: R) {
+        pop()
         push(route)
     }
 
     /// Wholesale replace the imperative layer. Useful for "sign out →
     /// reset navigation" flows where you want to reset the stack to
-    /// whatever the declarative layer currently says.
+    /// whatever the declarative layer currently says. Also clears the
+    /// suppression set.
     public func setImperative(_ routes: [any Route]) {
         imperative.removeAll()
+        suppressed.removeAll()
         for route in routes {
             push(route)
         }
@@ -162,10 +198,10 @@ import Foundation
     // MARK: - Resolve
 
     /// The stack the host should render. Evaluated on every read.
-    /// Declarative first, then imperative insertions folded in by
-    /// their anchor + fallback rules.
+    /// Declarative first (filtered through the suppression set), then
+    /// imperative insertions folded in by their anchor + fallback rules.
     public var resolvedStack: [AnyRoute] {
-        var result = declarative
+        var result = declarative.filter { !suppressed.contains($0.id) }
         for insertion in imperative {
             foldIn(insertion, into: &result)
         }

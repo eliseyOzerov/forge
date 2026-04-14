@@ -110,9 +110,16 @@ final class RouterHostView: UIView {
     private let nav = UINavigationController()
     private weak var handle: RouterHandle?
 
-    /// Route ids currently represented in nav.viewControllers, in
-    /// the same order as nav.viewControllers.
-    private var hostedIds: [AnyHashable] = []
+    /// Route ids currently in nav.viewControllers, same order.
+    private var hostedScreenIds: [AnyHashable] = []
+
+    /// Id of the sheet currently presented atop the nav, or nil if
+    /// none. Tracked separately from the nav stack.
+    private var hostedSheetId: AnyHashable?
+
+    /// The VC we last presented as a sheet (retained weakly by the
+    /// presenting stack; we just need its id for diff checks).
+    private weak var hostedSheetVC: UIViewController?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -152,28 +159,103 @@ final class RouterHostView: UIView {
     private func reconcile() {
         guard let handle else { return }
         let target = handle.resolvedStack
-        let targetIds = target.map { $0.id }
 
-        // Fast path: nothing to do.
-        if targetIds == hostedIds { return }
+        // Partition: leading screens go to nav stack; the first sheet
+        // we encounter ends the screen run and becomes the presented
+        // sheet. Any routes after that first sheet are ignored in v1
+        // (nested presentation is not yet supported).
+        var screens: [AnyRoute] = []
+        var sheet: AnyRoute? = nil
+        for route in target {
+            switch route.presentation {
+            case .screen:
+                if sheet == nil { screens.append(route) }
+                // screens after a sheet are unsupported for now
+            case .sheet:
+                if sheet == nil { sheet = route }
+            }
+        }
 
-        // Map existing viewControllers by route id so we can reuse
-        // them when the same route survives.
+        reconcileScreens(screens, handle: handle)
+        reconcileSheet(sheet, handle: handle)
+    }
+
+    private func reconcileScreens(_ routes: [AnyRoute], handle: RouterHandle) {
+        let targetIds = routes.map { $0.id }
+        if targetIds == hostedScreenIds { return }
+
         var existingById: [AnyHashable: UIViewController] = [:]
-        for (idx, id) in hostedIds.enumerated() where idx < nav.viewControllers.count {
+        for (idx, id) in hostedScreenIds.enumerated() where idx < nav.viewControllers.count {
             existingById[id] = nav.viewControllers[idx]
         }
 
-        let newVCs: [UIViewController] = target.map { route in
+        let newVCs: [UIViewController] = routes.map { route in
             if let existing = existingById[route.id] {
                 return existing
             }
             return ForgeHostingController(route: route, handle: handle)
         }
 
-        let shouldAnimate = window != nil && !hostedIds.isEmpty
+        let shouldAnimate = window != nil && !hostedScreenIds.isEmpty
         nav.setViewControllers(newVCs, animated: shouldAnimate)
-        hostedIds = targetIds
+        hostedScreenIds = targetIds
+    }
+
+    private func reconcileSheet(_ route: AnyRoute?, handle: RouterHandle) {
+        // Same sheet as before — nothing to do.
+        if route?.id == hostedSheetId { return }
+
+        // Need to dismiss current if different or gone.
+        if hostedSheetId != nil, let presented = nav.presentedViewController,
+           presented === hostedSheetVC {
+            presented.dismiss(animated: true) { [weak self] in
+                self?.presentSheetIfNeeded(route, handle: handle)
+            }
+            hostedSheetId = nil
+            hostedSheetVC = nil
+            return
+        }
+
+        presentSheetIfNeeded(route, handle: handle)
+    }
+
+    private func presentSheetIfNeeded(_ route: AnyRoute?, handle: RouterHandle) {
+        guard let route else { return }
+        guard case .sheet(let detents, let grabber, let cornerRadius, let dismissable) = route.presentation else {
+            return
+        }
+
+        let vc = ForgeHostingController(route: route, handle: handle)
+        if let sheet = vc.sheetPresentationController {
+            sheet.detents = detents.map { Self.uiDetent(from: $0) }
+            sheet.prefersGrabberVisible = grabber
+            if let cornerRadius { sheet.preferredCornerRadius = cornerRadius }
+        }
+        vc.isModalInPresentation = !dismissable
+
+        hostedSheetId = route.id
+        hostedSheetVC = vc
+
+        // Present on the topmost screen VC.
+        let presenter: UIViewController = nav.topViewController ?? nav
+        presenter.present(vc, animated: window != nil)
+    }
+
+    private static func uiDetent(from detent: SheetDetent) -> UISheetPresentationController.Detent {
+        switch detent {
+        case .medium: return .medium()
+        case .large: return .large()
+        case .fraction(let f):
+            if #available(iOS 16.0, *) {
+                return .custom { ctx in ctx.maximumDetentValue * f }
+            }
+            return f < 0.75 ? .medium() : .large()
+        case .height(let h):
+            if #available(iOS 16.0, *) {
+                return .custom { _ in h }
+            }
+            return .large()
+        }
     }
 
     // MARK: Parent VC lookup
@@ -191,17 +273,28 @@ final class RouterHostView: UIView {
 // MARK: - ForgeHostingController
 
 /// UIViewController that hosts a Forge view via its own Resolver,
-/// with the router handle wired into the subtree via Provided.
+/// with the router handle wired into the subtree via Provided. Also
+/// configures the native UINavigationItem from the route's
+/// NavigationItem — title, custom title view, leading/trailing bar
+/// buttons, hidden state, custom back action.
 public final class ForgeHostingController: UIViewController {
     private let route: AnyRoute
     private weak var handle: RouterHandle?
-    private let resolver = Resolver()
+    private let contentResolver = Resolver()
+
+    /// Separate resolvers for each bar slot — each is its own subtree,
+    /// retained here for the lifetime of the hosted controller so its
+    /// Node graph isn't collected.
+    private var mainResolver: Resolver?
+    private var leadingResolver: Resolver?
+    private var trailingResolver: Resolver?
+
+    private var onBackHandler: (() -> Void)?
 
     init(route: AnyRoute, handle: RouterHandle) {
         self.route = route
         self.handle = handle
         super.init(nibName: nil, bundle: nil)
-        self.title = route.title
     }
 
     required init?(coder: NSCoder) { fatalError() }
@@ -215,15 +308,78 @@ public final class ForgeHostingController: UIViewController {
         let wrapped = Provided(handle) { [route] in
             route.body()
         }
-        let platform = resolver.mount(wrapped)
+        let platform = contentResolver.mount(wrapped)
         platform.frame = container.bounds
         platform.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         container.addSubview(platform)
+
+        configureNavigationItem()
     }
 
     public override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        navigationController?.setNavigationBarHidden(route.navigationBarHidden, animated: animated)
+        navigationController?.setNavigationBarHidden(route.navigationItem.hidden, animated: animated)
+    }
+
+    // MARK: Nav item configuration
+
+    private func configureNavigationItem() {
+        let item = route.navigationItem
+        let nav = self.navigationItem
+
+        // Title + optional custom title view. Keep the string title
+        // set so the back button on a pushed child can display it.
+        self.title = item.title
+        if let main = item.main {
+            let resolver = Resolver()
+            mainResolver = resolver
+            nav.titleView = resolver.mount(wrap(main))
+        } else {
+            nav.titleView = nil
+        }
+
+        // Leading: custom view > onBack intercept > system back.
+        if let leading = item.leading {
+            let resolver = Resolver()
+            leadingResolver = resolver
+            let v = resolver.mount(wrap(leading))
+            nav.leftBarButtonItem = UIBarButtonItem(customView: v)
+            nav.hidesBackButton = true
+        } else if let onBack = item.onBack {
+            onBackHandler = onBack
+            let button = UIBarButtonItem(
+                image: UIImage(systemName: "chevron.backward"),
+                style: .plain,
+                target: self,
+                action: #selector(customBackTapped)
+            )
+            nav.leftBarButtonItem = button
+            nav.hidesBackButton = true
+        } else {
+            nav.leftBarButtonItem = nil
+            nav.hidesBackButton = item.hideImplicitBackButton
+        }
+
+        // Trailing.
+        if let trailing = item.trailing {
+            let resolver = Resolver()
+            trailingResolver = resolver
+            let v = resolver.mount(wrap(trailing))
+            nav.rightBarButtonItem = UIBarButtonItem(customView: v)
+        } else {
+            nav.rightBarButtonItem = nil
+        }
+    }
+
+    @objc private func customBackTapped() {
+        onBackHandler?()
+    }
+
+    /// Wrap a bar-slot view with Provided(handle) so a button living
+    /// in the nav bar can still call ctx.router.push/pop/etc.
+    private func wrap(_ view: any View) -> any View {
+        guard let handle else { return view }
+        return Provided(handle) { view }
     }
 }
 
