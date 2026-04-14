@@ -602,4 +602,71 @@ final class DebugOverlayView: UIView {
     }
 }
 
+// MARK: - BoxRole
+
+public struct BoxRole: NamedKey {
+    public let name: String
+    public init(_ name: String) { self.name = name }
+}
+
+public extension BoxRole {
+    static let primary    = BoxRole("primary")
+    static let secondary  = BoxRole("secondary")
+    static let tertiary   = BoxRole("tertiary")
+    static let quaternary = BoxRole("quaternary")
+
+    static let defaultChain: [BoxRole] = [.primary, .secondary, .tertiary, .quaternary]
+}
+
+// MARK: - BoxTheme
+
+/// Role-keyed BoxStyles with cascade. Surfaces, cards, panels read
+/// via `ctx.theme(.box).primary`.
+public struct BoxTheme: Copyable {
+    public var styles: [BoxRole: BoxStyle]
+    public var chain: [BoxRole]
+
+    public init(_ styles: [BoxRole: BoxStyle], chain: [BoxRole] = BoxRole.defaultChain) {
+        self.styles = styles
+        self.chain = chain
+    }
+
+    public init(_ priority: PriorityTokens<BoxStyle>) {
+        var map: [BoxRole: BoxStyle] = [:]
+        for (level, style) in priority.values {
+            map[BoxRole(level.name)] = style
+        }
+        self.init(map)
+    }
+
+    public init(
+        primary: BoxStyle,
+        secondary: BoxStyle? = nil,
+        tertiary: BoxStyle? = nil,
+        quaternary: BoxStyle? = nil
+    ) {
+        self.init(PriorityTokens(
+            primary: primary, secondary: secondary,
+            tertiary: tertiary, quaternary: quaternary
+        ))
+    }
+
+    public subscript(_ role: BoxRole) -> BoxStyle {
+        styles.cascade(role, chain: chain) ?? BoxStyle()
+    }
+
+    public var primary:    BoxStyle { self[.primary] }
+    public var secondary:  BoxStyle { self[.secondary] }
+    public var tertiary:   BoxStyle { self[.tertiary] }
+    public var quaternary: BoxStyle { self[.quaternary] }
+
+    public static func standard() -> BoxTheme {
+        BoxTheme(primary: BoxStyle())
+    }
+}
+
+public extension ThemeSlot where T == BoxTheme {
+    static var box: ThemeSlot<BoxTheme> { .init(BoxTheme.self) }
+}
+
 #endif

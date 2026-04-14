@@ -1,3 +1,4 @@
+#if canImport(UIKit)
 import UIKit
 
 // MARK: - Constraint Helpers
@@ -146,3 +147,5 @@ extension NSLayoutYAxisAnchor {
         return constraint
     }
 }
+
+#endif

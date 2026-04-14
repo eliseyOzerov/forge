@@ -614,4 +614,69 @@ public extension TextField where T: Numeric & LosslessStringConvertible {
     }
 }
 
+// MARK: - TextFieldRole
+
+public struct TextFieldRole: NamedKey {
+    public let name: String
+    public init(_ name: String) { self.name = name }
+}
+
+public extension TextFieldRole {
+    static let primary    = TextFieldRole("primary")
+    static let secondary  = TextFieldRole("secondary")
+    static let tertiary   = TextFieldRole("tertiary")
+    static let quaternary = TextFieldRole("quaternary")
+
+    static let defaultChain: [TextFieldRole] = [.primary, .secondary, .tertiary, .quaternary]
+}
+
+// MARK: - TextFieldTheme
+
+public struct TextFieldTheme: Copyable {
+    public var styles: [TextFieldRole: TextFieldStyle]
+    public var chain: [TextFieldRole]
+
+    public init(_ styles: [TextFieldRole: TextFieldStyle], chain: [TextFieldRole] = TextFieldRole.defaultChain) {
+        self.styles = styles
+        self.chain = chain
+    }
+
+    public init(_ priority: PriorityTokens<TextFieldStyle>) {
+        var map: [TextFieldRole: TextFieldStyle] = [:]
+        for (level, style) in priority.values {
+            map[TextFieldRole(level.name)] = style
+        }
+        self.init(map)
+    }
+
+    public init(
+        primary: TextFieldStyle,
+        secondary: TextFieldStyle? = nil,
+        tertiary: TextFieldStyle? = nil,
+        quaternary: TextFieldStyle? = nil
+    ) {
+        self.init(PriorityTokens(
+            primary: primary, secondary: secondary,
+            tertiary: tertiary, quaternary: quaternary
+        ))
+    }
+
+    public subscript(_ role: TextFieldRole) -> TextFieldStyle {
+        styles.cascade(role, chain: chain) ?? TextFieldStyle()
+    }
+
+    public var primary:    TextFieldStyle { self[.primary] }
+    public var secondary:  TextFieldStyle { self[.secondary] }
+    public var tertiary:   TextFieldStyle { self[.tertiary] }
+    public var quaternary: TextFieldStyle { self[.quaternary] }
+
+    public static func standard() -> TextFieldTheme {
+        TextFieldTheme(primary: TextFieldStyle())
+    }
+}
+
+public extension ThemeSlot where T == TextFieldTheme {
+    static var textField: ThemeSlot<TextFieldTheme> { .init(TextFieldTheme.self) }
+}
+
 #endif

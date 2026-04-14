@@ -457,4 +457,69 @@ public extension Toggle {
     }
 }
 
+// MARK: - ToggleRole
+
+public struct ToggleRole: NamedKey {
+    public let name: String
+    public init(_ name: String) { self.name = name }
+}
+
+public extension ToggleRole {
+    static let primary    = ToggleRole("primary")
+    static let secondary  = ToggleRole("secondary")
+    static let tertiary   = ToggleRole("tertiary")
+    static let quaternary = ToggleRole("quaternary")
+
+    static let defaultChain: [ToggleRole] = [.primary, .secondary, .tertiary, .quaternary]
+}
+
+// MARK: - ToggleTheme
+
+public struct ToggleTheme: Copyable {
+    public var styles: [ToggleRole: ToggleStyle]
+    public var chain: [ToggleRole]
+
+    public init(_ styles: [ToggleRole: ToggleStyle], chain: [ToggleRole] = ToggleRole.defaultChain) {
+        self.styles = styles
+        self.chain = chain
+    }
+
+    public init(_ priority: PriorityTokens<ToggleStyle>) {
+        var map: [ToggleRole: ToggleStyle] = [:]
+        for (level, style) in priority.values {
+            map[ToggleRole(level.name)] = style
+        }
+        self.init(map)
+    }
+
+    public init(
+        primary: ToggleStyle,
+        secondary: ToggleStyle? = nil,
+        tertiary: ToggleStyle? = nil,
+        quaternary: ToggleStyle? = nil
+    ) {
+        self.init(PriorityTokens(
+            primary: primary, secondary: secondary,
+            tertiary: tertiary, quaternary: quaternary
+        ))
+    }
+
+    public subscript(_ role: ToggleRole) -> ToggleStyle {
+        styles.cascade(role, chain: chain) ?? ToggleStyle()
+    }
+
+    public var primary:    ToggleStyle { self[.primary] }
+    public var secondary:  ToggleStyle { self[.secondary] }
+    public var tertiary:   ToggleStyle { self[.tertiary] }
+    public var quaternary: ToggleStyle { self[.quaternary] }
+
+    public static func standard() -> ToggleTheme {
+        ToggleTheme(primary: ToggleStyle())
+    }
+}
+
+public extension ThemeSlot where T == ToggleTheme {
+    static var toggle: ThemeSlot<ToggleTheme> { .init(ToggleTheme.self) }
+}
+
 #endif

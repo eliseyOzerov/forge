@@ -49,7 +49,7 @@ final class ColorThemeTests: XCTestCase {
     func testCopyMutatesOnlyRequestedFields() {
         let theme = ColorTheme.light()
         let copy = theme.copy {
-            $0.surface.primary = .red
+            $0.roles[.surface] = PriorityTokens(primary: .red)
         }
         XCTAssertEqual(copy.surface.primary, .red)
         XCTAssertEqual(copy.label.primary, theme.label.primary)  // untouched
@@ -58,7 +58,7 @@ final class ColorThemeTests: XCTestCase {
     // MARK: - PriorityTokens
 
     func testPriorityFallsBackToPrimary() {
-        let tokens = PriorityTokens(primary: .red)
+        let tokens = PriorityTokens<Color>(primary: .red)
         XCTAssertEqual(tokens.primary, .red)
         XCTAssertEqual(tokens.secondary, .red)
         XCTAssertEqual(tokens.tertiary, .red)
@@ -66,14 +66,14 @@ final class ColorThemeTests: XCTestCase {
     }
 
     func testPriorityCascadesThroughDefinedLevels() {
-        let tokens = PriorityTokens(primary: .red, secondary: .green)
+        let tokens = PriorityTokens<Color>(primary: .red, secondary: .green)
         XCTAssertEqual(tokens.secondary, .green)
         XCTAssertEqual(tokens.tertiary, .green)    // falls back to secondary
         XCTAssertEqual(tokens.quaternary, .green)  // falls back to secondary
     }
 
     func testPriorityRespectsAllFourLevels() {
-        let tokens = PriorityTokens(
+        let tokens = PriorityTokens<Color>(
             primary: .red,
             secondary: .green,
             tertiary: .blue,
@@ -89,7 +89,7 @@ final class ColorThemeTests: XCTestCase {
 
     func testPaletteGeneratesAll12Hues() {
         let palette = ColorPalette.generate()
-        for hue in Hue.allCases {
+        for hue in Hue.canonical {
             let token = palette[hue]
             XCTAssertEqual(token.canonical, hue)
         }
@@ -257,7 +257,7 @@ final class ColorThemeTests: XCTestCase {
         let base = ColorTheme.light()
         let customBrand = Color(0.5, 0, 1).withInverse(.white)
         let custom = base.copy {
-            $0.brand.primary = customBrand
+            $0.roles[.brand] = PriorityTokens(primary: customBrand)
         }
         XCTAssertEqual(custom.brand.primary, customBrand)
         XCTAssertEqual(custom.label.primary, base.label.primary)  // unchanged

@@ -418,3 +418,68 @@ final class SliderView: UIView {
 }
 
 #endif
+
+// MARK: - SliderRole
+
+public struct SliderRole: NamedKey {
+    public let name: String
+    public init(_ name: String) { self.name = name }
+}
+
+public extension SliderRole {
+    static let primary    = SliderRole("primary")
+    static let secondary  = SliderRole("secondary")
+    static let tertiary   = SliderRole("tertiary")
+    static let quaternary = SliderRole("quaternary")
+
+    static let defaultChain: [SliderRole] = [.primary, .secondary, .tertiary, .quaternary]
+}
+
+// MARK: - SliderTheme
+
+public struct SliderTheme: Copyable {
+    public var styles: [SliderRole: SliderStyle]
+    public var chain: [SliderRole]
+
+    public init(_ styles: [SliderRole: SliderStyle], chain: [SliderRole] = SliderRole.defaultChain) {
+        self.styles = styles
+        self.chain = chain
+    }
+
+    public init(_ priority: PriorityTokens<SliderStyle>) {
+        var map: [SliderRole: SliderStyle] = [:]
+        for (level, style) in priority.values {
+            map[SliderRole(level.name)] = style
+        }
+        self.init(map)
+    }
+
+    public init(
+        primary: SliderStyle,
+        secondary: SliderStyle? = nil,
+        tertiary: SliderStyle? = nil,
+        quaternary: SliderStyle? = nil
+    ) {
+        self.init(PriorityTokens(
+            primary: primary, secondary: secondary,
+            tertiary: tertiary, quaternary: quaternary
+        ))
+    }
+
+    public subscript(_ role: SliderRole) -> SliderStyle {
+        styles.cascade(role, chain: chain) ?? SliderStyle()
+    }
+
+    public var primary:    SliderStyle { self[.primary] }
+    public var secondary:  SliderStyle { self[.secondary] }
+    public var tertiary:   SliderStyle { self[.tertiary] }
+    public var quaternary: SliderStyle { self[.quaternary] }
+
+    public static func standard() -> SliderTheme {
+        SliderTheme(primary: SliderStyle())
+    }
+}
+
+public extension ThemeSlot where T == SliderTheme {
+    static var slider: ThemeSlot<SliderTheme> { .init(SliderTheme.self) }
+}

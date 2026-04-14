@@ -459,34 +459,50 @@ private func lerpAngle(_ a: Double, _ b: Double, _ t: Double) -> Double {
 
 // MARK: - Hue
 
-/// Canonical hue names. Twelve slots spanning the color wheel; the
-/// enum is closed (hardcoded) so palette access is autocompletable.
-/// Custom named colors live under `palette.custom`.
-public enum Hue: String, CaseIterable, Sendable, Hashable {
-    case red, orange, yellow, lime, green, teal, cyan, sky, blue, purple, magenta, pink
+/// Canonical hue identifier. Open TokenKey — the 12 built-in hues are
+/// static members; apps add their own via `extension Hue`. The token's
+/// `defaultValue` is the hue angle in degrees; spacing is deliberately
+/// non-uniform (30° spacing around red/orange, tighter 20° through
+/// green/teal/cyan to give the teal family room, 40° from cyan to blue
+/// where perceptual difference is small).
+public struct Hue: TokenKey {
+    public let name: String
+    public let defaultValue: Double
+
+    public init(_ name: String, _ defaultValue: Double) {
+        self.name = name
+        self.defaultValue = defaultValue
+    }
+}
+
+public extension Hue {
+    static let pink    = Hue("pink",     0)
+    static let red     = Hue("red",     30)
+    static let orange  = Hue("orange",  60)
+    static let yellow  = Hue("yellow",  90)
+    static let lime    = Hue("lime",   120)
+    static let green   = Hue("green",  140)
+    static let teal    = Hue("teal",   160)
+    static let cyan    = Hue("cyan",   190)
+    static let sky     = Hue("sky",    230)
+    static let blue    = Hue("blue",   270)
+    static let purple  = Hue("purple", 300)
+    static let magenta = Hue("magenta", 330)
+
+    /// The twelve canonical hues. Use wherever `Hue.allCases` used to
+    /// apply — the open-struct form has no CaseIterable, but this
+    /// array captures the built-in set explicitly.
+    static let canonical: [Hue] = [
+        .pink, .red, .orange, .yellow, .lime, .green,
+        .teal, .cyan, .sky, .blue, .purple, .magenta,
+    ]
 }
 
 public extension Dictionary where Key == Hue, Value == Double {
-    /// Wave-derived default hue angles (degrees, 0-360). Spacing is
-    /// deliberately non-uniform: 30° between most hues, tighter
-    /// 20° spacing around green/teal/cyan to give the teal family
-    /// more room, and wider 40° spacing from cyan through sky to
-    /// blue where perceptual difference is small.
+    /// Default angles for the 12 canonical hues, read from each
+    /// hue's intrinsic `defaultValue`.
     static var defaultHueAngles: [Hue: Double] {
-        [
-            .pink: 0,
-            .red: 30,
-            .orange: 60,
-            .yellow: 90,
-            .lime: 120,
-            .green: 140,
-            .teal: 160,
-            .cyan: 190,
-            .sky: 230,
-            .blue: 270,
-            .purple: 300,
-            .magenta: 330,
-        ]
+        Dictionary(uniqueKeysWithValues: Hue.canonical.map { ($0, $0.defaultValue) })
     }
 }
 
@@ -711,22 +727,23 @@ public struct HueToken: Equatable, Hashable, Sendable, Copyable {
     public var standard: Color { primary.s5 }
 
     /// Platform-native system tint for this hue, if one exists and
-    /// this token is canonical (not rotated).
+    /// this token is canonical (not rotated). Matched by name so
+    /// user-added canonical hues return nil unless UIKit ships one
+    /// under that name.
     public var system: Color? {
         guard let canonical else { return nil }
         #if canImport(UIKit)
-        switch canonical {
-        case .red:     return Color(platform: UIColor.systemRed)
-        case .orange:  return Color(platform: UIColor.systemOrange)
-        case .yellow:  return Color(platform: UIColor.systemYellow)
-        case .green:   return Color(platform: UIColor.systemGreen)
-        case .teal:    return Color(platform: UIColor.systemTeal)
-        case .blue:    return Color(platform: UIColor.systemBlue)
-        case .purple:  return Color(platform: UIColor.systemPurple)
-        case .pink:    return Color(platform: UIColor.systemPink)
-        case .cyan:    return Color(platform: UIColor.systemCyan)
-        case .lime, .magenta, .sky:
-            return nil
+        switch canonical.name {
+        case "red":    return Color(platform: UIColor.systemRed)
+        case "orange": return Color(platform: UIColor.systemOrange)
+        case "yellow": return Color(platform: UIColor.systemYellow)
+        case "green":  return Color(platform: UIColor.systemGreen)
+        case "teal":   return Color(platform: UIColor.systemTeal)
+        case "blue":   return Color(platform: UIColor.systemBlue)
+        case "purple": return Color(platform: UIColor.systemPurple)
+        case "pink":   return Color(platform: UIColor.systemPink)
+        case "cyan":   return Color(platform: UIColor.systemCyan)
+        default:       return nil   // lime, magenta, sky, or user-added
         }
         #else
         return nil
@@ -761,35 +778,245 @@ public struct HueToken: Equatable, Hashable, Sendable, Copyable {
     }
 }
 
+// MARK: - CustomColor
+
+/// Named color outside the 12-hue grid (salmon, moss, lavender, etc.).
+/// The token carries a closure that derives a Color from the palette,
+/// so swapping the palette's seed automatically shifts every custom
+/// color coherently. Override via the theme if a specific brand needs
+/// a fixed value.
+///
+///     extension CustomColor {
+///         static let rose = CustomColor("rose") { $0.pink.vibrant.s5 }
+///     }
+public struct CustomColor: NamedKey {
+    public let name: String
+    public let derive: @Sendable (ColorPalette) -> Color
+
+    public init(_ name: String, _ derive: @escaping @Sendable (ColorPalette) -> Color) {
+        self.name = name
+        self.derive = derive
+    }
+}
+
+public extension CustomColor {
+    // MARK: Red family
+    static let amaranth   = CustomColor("amaranth")   { $0.magenta.vibrant.s6 }
+    static let burgundy   = CustomColor("burgundy")   { $0.red.muted.s10 }
+    static let carmine    = CustomColor("carmine")    { $0.red.primary.s8 }
+    static let claret     = CustomColor("claret")     { $0.red.muted.s7 }
+    static let crimson    = CustomColor("crimson")    { $0.red.vibrant.s7 }
+    static let dahlia     = CustomColor("dahlia")     { $0.red.vibrant.s8 }
+    static let garnet     = CustomColor("garnet")     { $0.red.primary.s9 }
+    static let maroon     = CustomColor("maroon")     { $0.red.muted.s9 }
+    static let russet     = CustomColor("russet")     { $0.orange.primary.s9 }
+    static let ruby       = CustomColor("ruby")       { $0.red.primary.s7 }
+    static let scarlet    = CustomColor("scarlet")    { $0.red.vibrant.s5 }
+    static let vermilion  = CustomColor("vermilion")  { $0.red.vibrant.s4 }
+
+    // MARK: Pink family
+    static let blush      = CustomColor("blush")      { $0.pink.muted.s2 }
+    static let cerise     = CustomColor("cerise")     { $0.magenta.vibrant.s7 }
+    static let coral      = CustomColor("coral")      { $0.orange.vibrant.s3 }
+    static let rose       = CustomColor("rose")       { $0.pink.muted.s5 }
+    static let salmon     = CustomColor("salmon")     { $0.red.muted.s3 }
+
+    // MARK: Orange family
+    static let amber      = CustomColor("amber")      { $0.orange.vibrant.s5 }
+    static let apricot    = CustomColor("apricot")    { $0.orange.muted.s4 }
+    static let clay       = CustomColor("clay")       { $0.orange.muted.s7 }
+    static let ginger     = CustomColor("ginger")     { $0.orange.primary.s6 }
+    static let peach      = CustomColor("peach")      { $0.orange.muted.s2 }
+    static let rust       = CustomColor("rust")       { $0.orange.primary.s8 }
+
+    // MARK: Yellow family
+    static let arylide    = CustomColor("arylide")    { $0.yellow.muted.s5 }
+    static let aureolin   = CustomColor("aureolin")   { $0.yellow.vibrant.s5 }
+    static let cream      = CustomColor("cream")      { $0.yellow.muted.s1 }
+    static let daffodil   = CustomColor("daffodil")   { $0.yellow.vibrant.s4 }
+    static let dandelion  = CustomColor("dandelion")  { $0.yellow.primary.s4 }
+    static let gold       = CustomColor("gold")       { $0.yellow.vibrant.s6 }
+    static let marigold   = CustomColor("marigold")   { $0.orange.vibrant.s6 }
+    static let mustard    = CustomColor("mustard")    { $0.yellow.muted.s7 }
+    static let tuscany    = CustomColor("tuscany")    { $0.yellow.muted.s8 }
+
+    // MARK: Lime family
+    static let chartreuse = CustomColor("chartreuse") { $0.lime.vibrant.s4 }
+    static let olive      = CustomColor("olive")      { $0.lime.muted.s8 }
+    static let willow     = CustomColor("willow")     { $0.lime.muted.s3 }
+
+    // MARK: Green family
+    static let basil      = CustomColor("basil")      { $0.green.primary.s6 }
+    static let beryl      = CustomColor("beryl")      { $0.teal.muted.s4 }
+    static let emerald    = CustomColor("emerald")    { $0.green.vibrant.s6 }
+    static let forest     = CustomColor("forest")     { $0.green.primary.s9 }
+    static let jade       = CustomColor("jade")       { $0.green.primary.s7 }
+    static let juniper    = CustomColor("juniper")    { $0.teal.muted.s7 }
+    static let mint       = CustomColor("mint")       { $0.green.muted.s3 }
+    static let moss       = CustomColor("moss")       { $0.green.muted.s7 }
+    static let sage       = CustomColor("sage")       { $0.green.muted.s5 }
+    static let seafoam    = CustomColor("seafoam")    { $0.teal.muted.s3 }
+    static let viridian   = CustomColor("viridian")   { $0.teal.primary.s7 }
+
+    // MARK: Cyan / Teal family
+    static let turquoise  = CustomColor("turquoise")  { $0.cyan.vibrant.s4 }
+
+    // MARK: Blue family
+    static let aero       = CustomColor("aero")       { $0.sky.vibrant.s4 }
+    static let alice      = CustomColor("alice")      { $0.sky.muted.s1 }
+    static let azure      = CustomColor("azure")      { $0.blue.vibrant.s4 }
+    static let cadet      = CustomColor("cadet")      { $0.blue.muted.s4 }
+    static let cadmium    = CustomColor("cadmium")    { $0.blue.vibrant.s5 }
+    static let celeste    = CustomColor("celeste")    { $0.sky.muted.s2 }
+    static let cerulean   = CustomColor("cerulean")   { $0.sky.vibrant.s6 }
+    static let cobalt     = CustomColor("cobalt")     { $0.blue.vibrant.s7 }
+    static let indigo     = CustomColor("indigo")     { $0.blue.primary.s8 }
+    static let navy       = CustomColor("navy")       { $0.blue.primary.s10 }
+    static let periwinkle = CustomColor("periwinkle") { $0.blue.muted.s3 }
+    static let sapphire   = CustomColor("sapphire")   { $0.blue.primary.s7 }
+
+    // MARK: Purple / Violet family
+    static let amethyst   = CustomColor("amethyst")   { $0.purple.vibrant.s7 }
+    static let heather    = CustomColor("heather")    { $0.purple.muted.s6 }
+    static let iris       = CustomColor("iris")       { $0.purple.primary.s6 }
+    static let lavender   = CustomColor("lavender")   { $0.purple.muted.s3 }
+    static let lilac      = CustomColor("lilac")      { $0.purple.muted.s4 }
+    static let mauve      = CustomColor("mauve")      { $0.purple.muted.s5 }
+    static let orchid     = CustomColor("orchid")     { $0.magenta.vibrant.s4 }
+    static let plum       = CustomColor("plum")       { $0.purple.primary.s8 }
+    static let violet     = CustomColor("violet")     { $0.purple.vibrant.s6 }
+
+    // MARK: Magenta family
+    static let fuchsia    = CustomColor("fuchsia")    { $0.magenta.vibrant.s5 }
+
+    // MARK: Neutrals
+    static let ash        = CustomColor("ash")        { $0.blue.grayscale.s4 }
+    static let daisy      = CustomColor("daisy")      { $0.blue.grayscale.s0 }
+    static let ebony      = CustomColor("ebony")      { $0.blue.grayscale.s10 }
+    static let gray       = CustomColor("gray")       { $0.blue.grayscale.s5 }
+    static let ivory      = CustomColor("ivory")      { $0.yellow.muted.s0 }
+    static let pearl      = CustomColor("pearl")      { $0.blue.grayscale.s1 }
+    static let raven      = CustomColor("raven")      { $0.blue.grayscale.s9 }
+    static let sienna     = CustomColor("sienna")     { $0.orange.muted.s8 }
+}
+
 // MARK: - CustomColors
 
-/// App-extendable namespace for named colors that don't fit the
-/// 12-hue grid (salmon, moss, lavender, etc.). Ships with a few
-/// defaults derived from the palette's own positions so swapping
-/// palettes also swaps the custom derivatives. Apps extend this
-/// struct with more computed properties.
-///
-///     extension CustomColors {
-///         var lavender: Color { palette.purple.muted.s3 }
-///     }
+/// View onto a palette's custom colors. Resolves each token by
+/// applying its derivation to the palette, with per-token overrides
+/// for brand customization. `custom.crimson` is equivalent to
+/// `custom[.crimson]`.
 public struct CustomColors: Sendable {
-    /// Back-reference to the owning palette so custom colors can
-    /// derive from it (e.g. `palette.red.muted.s3`).
     public let palette: ColorPalette
+    public let overrides: [CustomColor: Color]
 
-    public init(palette: ColorPalette) {
+    public init(palette: ColorPalette, overrides: [CustomColor: Color] = [:]) {
         self.palette = palette
+        self.overrides = overrides
     }
 
-    // Default custom colors (sorted by hue).
-    public var crimson: Color { palette.red.vibrant.s7 }
-    public var salmon:  Color { palette.red.muted.s3 }
-    public var peach:   Color { palette.orange.muted.s2 }
-    public var moss:    Color { palette.green.muted.s7 }
-    public var mint:    Color { palette.green.muted.s3 }
-    public var azure:   Color { palette.blue.vibrant.s4 }
-    public var indigo:  Color { palette.blue.primary.s8 }
-    public var lavender: Color { palette.purple.muted.s3 }
+    public subscript(_ token: CustomColor) -> Color {
+        overrides[token] ?? token.derive(palette)
+    }
+
+    // Red family
+    public var amaranth:   Color { self[.amaranth] }
+    public var burgundy:   Color { self[.burgundy] }
+    public var carmine:    Color { self[.carmine] }
+    public var claret:     Color { self[.claret] }
+    public var crimson:    Color { self[.crimson] }
+    public var dahlia:     Color { self[.dahlia] }
+    public var garnet:     Color { self[.garnet] }
+    public var maroon:     Color { self[.maroon] }
+    public var russet:     Color { self[.russet] }
+    public var ruby:       Color { self[.ruby] }
+    public var scarlet:    Color { self[.scarlet] }
+    public var vermilion:  Color { self[.vermilion] }
+
+    // Pink family
+    public var blush:      Color { self[.blush] }
+    public var cerise:     Color { self[.cerise] }
+    public var coral:      Color { self[.coral] }
+    public var rose:       Color { self[.rose] }
+    public var salmon:     Color { self[.salmon] }
+
+    // Orange family
+    public var amber:      Color { self[.amber] }
+    public var apricot:    Color { self[.apricot] }
+    public var clay:       Color { self[.clay] }
+    public var ginger:     Color { self[.ginger] }
+    public var peach:      Color { self[.peach] }
+    public var rust:       Color { self[.rust] }
+
+    // Yellow family
+    public var arylide:    Color { self[.arylide] }
+    public var aureolin:   Color { self[.aureolin] }
+    public var cream:      Color { self[.cream] }
+    public var daffodil:   Color { self[.daffodil] }
+    public var dandelion:  Color { self[.dandelion] }
+    public var gold:       Color { self[.gold] }
+    public var marigold:   Color { self[.marigold] }
+    public var mustard:    Color { self[.mustard] }
+    public var tuscany:    Color { self[.tuscany] }
+
+    // Lime family
+    public var chartreuse: Color { self[.chartreuse] }
+    public var olive:      Color { self[.olive] }
+    public var willow:     Color { self[.willow] }
+
+    // Green family
+    public var basil:      Color { self[.basil] }
+    public var beryl:      Color { self[.beryl] }
+    public var emerald:    Color { self[.emerald] }
+    public var forest:     Color { self[.forest] }
+    public var jade:       Color { self[.jade] }
+    public var juniper:    Color { self[.juniper] }
+    public var mint:       Color { self[.mint] }
+    public var moss:       Color { self[.moss] }
+    public var sage:       Color { self[.sage] }
+    public var seafoam:    Color { self[.seafoam] }
+    public var viridian:   Color { self[.viridian] }
+
+    // Cyan / Teal family
+    public var turquoise:  Color { self[.turquoise] }
+
+    // Blue family
+    public var aero:       Color { self[.aero] }
+    public var alice:      Color { self[.alice] }
+    public var azure:      Color { self[.azure] }
+    public var cadet:      Color { self[.cadet] }
+    public var cadmium:    Color { self[.cadmium] }
+    public var celeste:    Color { self[.celeste] }
+    public var cerulean:   Color { self[.cerulean] }
+    public var cobalt:     Color { self[.cobalt] }
+    public var indigo:     Color { self[.indigo] }
+    public var navy:       Color { self[.navy] }
+    public var periwinkle: Color { self[.periwinkle] }
+    public var sapphire:   Color { self[.sapphire] }
+
+    // Purple / Violet family
+    public var amethyst:   Color { self[.amethyst] }
+    public var heather:    Color { self[.heather] }
+    public var iris:       Color { self[.iris] }
+    public var lavender:   Color { self[.lavender] }
+    public var lilac:      Color { self[.lilac] }
+    public var mauve:      Color { self[.mauve] }
+    public var orchid:     Color { self[.orchid] }
+    public var plum:       Color { self[.plum] }
+    public var violet:     Color { self[.violet] }
+
+    // Magenta family
+    public var fuchsia:    Color { self[.fuchsia] }
+
+    // Neutrals
+    public var ash:        Color { self[.ash] }
+    public var daisy:      Color { self[.daisy] }
+    public var ebony:      Color { self[.ebony] }
+    public var gray:       Color { self[.gray] }
+    public var ivory:      Color { self[.ivory] }
+    public var pearl:      Color { self[.pearl] }
+    public var raven:      Color { self[.raven] }
+    public var sienna:     Color { self[.sienna] }
 }
 
 // MARK: - ColorPalette
@@ -800,67 +1027,59 @@ public struct CustomColors: Sendable {
 /// (rotate all angles so the nearest canonical hue lands exactly
 /// at the seed color's hue — coherent palettes around a brand color).
 public struct ColorPalette: Sendable, Copyable {
-    public var red: HueToken
-    public var orange: HueToken
-    public var yellow: HueToken
-    public var lime: HueToken
-    public var green: HueToken
-    public var teal: HueToken
-    public var cyan: HueToken
-    public var sky: HueToken
-    public var blue: HueToken
-    public var purple: HueToken
-    public var magenta: HueToken
-    public var pink: HueToken
+    /// Hue tokens keyed by Hue. Canonical hues are populated by the
+    /// `.generate(...)` factories; user-added hues live here too.
+    public var tokens: [Hue: HueToken]
 
-    public init(
-        red: HueToken, orange: HueToken, yellow: HueToken, lime: HueToken,
-        green: HueToken, teal: HueToken, cyan: HueToken, sky: HueToken,
-        blue: HueToken, purple: HueToken, magenta: HueToken, pink: HueToken
-    ) {
-        self.red = red; self.orange = orange; self.yellow = yellow; self.lime = lime
-        self.green = green; self.teal = teal; self.cyan = cyan; self.sky = sky
-        self.blue = blue; self.purple = purple; self.magenta = magenta; self.pink = pink
+    /// Per-token overrides for custom-color derivations. By default
+    /// every `CustomColor` falls back to its palette-derived value;
+    /// set an entry here to pin a specific custom color to a fixed
+    /// Color regardless of palette.
+    public var customOverrides: [CustomColor: Color]
+
+    public init(tokens: [Hue: HueToken], customOverrides: [CustomColor: Color] = [:]) {
+        self.tokens = tokens
+        self.customOverrides = customOverrides
     }
 
-    /// Subscript access by Hue — useful for iterating or doing
-    /// dict-driven customization.
+    /// Subscript access by Hue. Unknown hues are generated on demand
+    /// from the hue's intrinsic angle — lazy fallback, not cached.
     public subscript(hue: Hue) -> HueToken {
-        switch hue {
-        case .red: return red
-        case .orange: return orange
-        case .yellow: return yellow
-        case .lime: return lime
-        case .green: return green
-        case .teal: return teal
-        case .cyan: return cyan
-        case .sky: return sky
-        case .blue: return blue
-        case .purple: return purple
-        case .magenta: return magenta
-        case .pink: return pink
-        }
+        if let token = tokens[hue] { return token }
+        return HueToken.generate(canonical: nil, angle: hue.defaultValue)
     }
+
+    // Dot-accessors for the 12 canonical hues.
+    public var pink:    HueToken { self[.pink] }
+    public var red:     HueToken { self[.red] }
+    public var orange:  HueToken { self[.orange] }
+    public var yellow:  HueToken { self[.yellow] }
+    public var lime:    HueToken { self[.lime] }
+    public var green:   HueToken { self[.green] }
+    public var teal:    HueToken { self[.teal] }
+    public var cyan:    HueToken { self[.cyan] }
+    public var sky:     HueToken { self[.sky] }
+    public var blue:    HueToken { self[.blue] }
+    public var purple:  HueToken { self[.purple] }
+    public var magenta: HueToken { self[.magenta] }
 
     /// App-defined custom named colors. Derives from `self` so
-    /// swapping palettes propagates through.
+    /// swapping palettes propagates through; `customOverrides`
+    /// pins specific entries to fixed colors.
     public var custom: CustomColors {
-        CustomColors(palette: self)
+        CustomColors(palette: self, overrides: customOverrides)
     }
 
-    /// Build a palette from the 12 default hue angles (or a custom
+    /// Build a palette from the 12 canonical hue angles (or a custom
     /// override map). All scales are generated via the default
     /// scale curves.
     public static func generate(hueAngles: [Hue: Double] = .defaultHueAngles) -> ColorPalette {
-        let defaults: [Hue: Double] = .defaultHueAngles
-        func tok(_ hue: Hue) -> HueToken {
-            HueToken.generate(canonical: hue, angle: hueAngles[hue] ?? defaults[hue]!)
+        var tokens: [Hue: HueToken] = [:]
+        for hue in Hue.canonical {
+            let angle = hueAngles[hue] ?? hue.defaultValue
+            tokens[hue] = HueToken.generate(canonical: hue, angle: angle)
         }
-        return ColorPalette(
-            red: tok(.red), orange: tok(.orange), yellow: tok(.yellow), lime: tok(.lime),
-            green: tok(.green), teal: tok(.teal), cyan: tok(.cyan), sky: tok(.sky),
-            blue: tok(.blue), purple: tok(.purple), magenta: tok(.magenta), pink: tok(.pink)
-        )
+        return ColorPalette(tokens: tokens)
     }
 
     /// Build a palette coherent with a brand color. The seed's hue
@@ -870,28 +1089,22 @@ public struct ColorPalette: Sendable, Copyable {
     /// default spacing is preserved — this is a rigid rotation, not
     /// a remapping.
     public static func generate(seed: Color) -> ColorPalette {
-        let seedDegRaw = seed.oklch.h * 180 / .pi
-        let seedDeg = normalizedDegrees(seedDegRaw)
+        let seedDeg = normalizedDegrees(seed.oklch.h * 180 / .pi)
 
-        let defaults: [Hue: Double] = .defaultHueAngles
-
-        // Find the canonical Hue whose default angle is nearest the
-        // seed hue. That hue will be rotated to seedDeg exactly;
-        // others rotate by the same offset.
         var nearestHue: Hue = .red
         var nearestDist = Double.infinity
-        for hue in Hue.allCases {
-            let d = angularDistance(defaults[hue]!, seedDeg)
+        for hue in Hue.canonical {
+            let d = angularDistance(hue.defaultValue, seedDeg)
             if d < nearestDist {
                 nearestDist = d
                 nearestHue = hue
             }
         }
-        let offset = seedDeg - defaults[nearestHue]!
+        let offset = seedDeg - nearestHue.defaultValue
 
         var angles: [Hue: Double] = [:]
-        for hue in Hue.allCases {
-            angles[hue] = normalizedDegrees(defaults[hue]! + offset)
+        for hue in Hue.canonical {
+            angles[hue] = normalizedDegrees(hue.defaultValue + offset)
         }
         return generate(hueAngles: angles)
     }
@@ -909,76 +1122,20 @@ private func normalizedDegrees(_ deg: Double) -> Double {
     return m < 0 ? m + 360 : m
 }
 
-// MARK: - PriorityTokens
+// MARK: - ColorRole
 
-/// Four-level priority stack: primary (required) plus three optional
-/// levels that fall back to the previous defined level. Ensures every
-/// accessor always returns a valid Color, so consumers don't need
-/// nil-checks.
-public struct PriorityTokens: Sendable, Copyable {
-    public var primary: Color
-    private var _secondary: Color?
-    private var _tertiary: Color?
-    private var _quaternary: Color?
-
-    public init(
-        primary: Color,
-        secondary: Color? = nil,
-        tertiary: Color? = nil,
-        quaternary: Color? = nil
-    ) {
-        self.primary = primary
-        self._secondary = secondary
-        self._tertiary = tertiary
-        self._quaternary = quaternary
-    }
-
-    /// Falls back to primary when unset.
-    public var secondary: Color { _secondary ?? primary }
-
-    /// Falls back to secondary-or-primary.
-    public var tertiary: Color { _tertiary ?? _secondary ?? primary }
-
-    /// Falls back to tertiary-or-secondary-or-primary.
-    public var quaternary: Color { _quaternary ?? _tertiary ?? _secondary ?? primary }
-
-    // Mutable override accessors for the Copyable pattern.
-    public var secondaryOverride: Color? {
-        get { _secondary }
-        set { _secondary = newValue }
-    }
-    public var tertiaryOverride: Color? {
-        get { _tertiary }
-        set { _tertiary = newValue }
-    }
-    public var quaternaryOverride: Color? {
-        get { _quaternary }
-        set { _quaternary = newValue }
-    }
+/// Semantic color roles — `surface`, `fill`, `label`, `brand`. Open
+/// NamedKey so apps can add their own roles (e.g. `.outline`).
+public struct ColorRole: NamedKey {
+    public let name: String
+    public init(_ name: String) { self.name = name }
 }
 
-// MARK: - StatusTokens
-
-/// Four semantic statuses, each with its own priority stack. Status
-/// "primary" is typically the strong color (filled button bg, solid
-/// icon); "secondary" the soft tint (banner background).
-public struct StatusTokens: Sendable, Copyable {
-    public var success: PriorityTokens
-    public var warning: PriorityTokens
-    public var error: PriorityTokens
-    public var info: PriorityTokens
-
-    public init(
-        success: PriorityTokens,
-        warning: PriorityTokens,
-        error: PriorityTokens,
-        info: PriorityTokens
-    ) {
-        self.success = success
-        self.warning = warning
-        self.error = error
-        self.info = info
-    }
+public extension ColorRole {
+    static let surface = ColorRole("surface")
+    static let fill    = ColorRole("fill")
+    static let label   = ColorRole("label")
+    static let brand   = ColorRole("brand")
 }
 
 // MARK: - ColorTheme
@@ -988,35 +1145,39 @@ public struct StatusTokens: Sendable, Copyable {
 ///
 ///     let theme = ColorTheme.light(brand: .hex(0x4A90E2))
 ///     let customized = theme.copy {
-///         $0.surface.primary = .white
-///         $0.brand.primary = .hex(0xFF6B6B).withInverse(.white)
+///         $0.roles[.surface] = PriorityTokens(primary: .white)
+///         $0.roles[.brand]   = PriorityTokens(primary: .hex(0xFF6B6B).withInverse(.white))
 ///     }
 ///
 /// Inject into the view tree via `Provided(theme) { ... }` and read
-/// with `ctx.read(ColorTheme.self).label.primary`.
+/// with `ctx.theme(.color).label.primary`.
 public struct ColorTheme: Sendable, Copyable {
-    public var surface: PriorityTokens
-    public var fill: PriorityTokens
-    public var label: PriorityTokens
-    public var status: StatusTokens
-    public var brand: PriorityTokens
+    /// Role-keyed priority stacks. Custom roles live here too.
+    public var roles: [ColorRole: PriorityTokens<Color>]
+    public var status: StatusTokens<PriorityTokens<Color>>
     public var palette: ColorPalette
 
     public init(
-        surface: PriorityTokens,
-        fill: PriorityTokens,
-        label: PriorityTokens,
-        status: StatusTokens,
-        brand: PriorityTokens,
+        roles: [ColorRole: PriorityTokens<Color>],
+        status: StatusTokens<PriorityTokens<Color>>,
         palette: ColorPalette
     ) {
-        self.surface = surface
-        self.fill = fill
-        self.label = label
+        self.roles = roles
         self.status = status
-        self.brand = brand
         self.palette = palette
     }
+
+    /// Lookup with a safe fallback — unknown roles resolve to a single
+    /// neutral primary (palette's mid-gray). Keeps call sites crash-
+    /// free for user-added roles that might not be populated yet.
+    public subscript(_ role: ColorRole) -> PriorityTokens<Color> {
+        roles[role] ?? PriorityTokens(primary: palette.blue.grayscale.s5)
+    }
+
+    public var surface: PriorityTokens<Color> { self[.surface] }
+    public var fill:    PriorityTokens<Color> { self[.fill] }
+    public var label:   PriorityTokens<Color> { self[.label] }
+    public var brand:   PriorityTokens<Color> { self[.brand] }
 }
 
 // MARK: - ColorTheme factories
@@ -1033,22 +1194,17 @@ public extension ColorTheme {
         let brandColor = (brand ?? palette.blue.standard).withInverse(.white)
 
         return ColorTheme(
-            surface: PriorityTokens(
-                primary:    neutral.s0,
-                secondary:  neutral.s1,
-                tertiary:   neutral.s2
-            ),
-            fill: PriorityTokens(
-                primary:    neutral.s1,
-                secondary:  neutral.s2,
-                tertiary:   neutral.s3
-            ),
-            label: PriorityTokens(
-                primary:    neutral.s10,
-                secondary:  neutral.s8,
-                tertiary:   neutral.s6,
-                quaternary: neutral.s5
-            ),
+            roles: [
+                .surface: PriorityTokens(primary: neutral.s0, secondary: neutral.s1, tertiary: neutral.s2),
+                .fill:    PriorityTokens(primary: neutral.s1, secondary: neutral.s2, tertiary: neutral.s3),
+                .label:   PriorityTokens(
+                    primary:    neutral.s10,
+                    secondary:  neutral.s8,
+                    tertiary:   neutral.s6,
+                    quaternary: neutral.s5
+                ),
+                .brand:   PriorityTokens(primary: brandColor),
+            ],
             status: StatusTokens(
                 success: PriorityTokens(
                     primary:   palette.green.primary.s6.withInverse(.white),
@@ -1067,7 +1223,6 @@ public extension ColorTheme {
                     secondary: palette.blue.muted.s1
                 )
             ),
-            brand: PriorityTokens(primary: brandColor),
             palette: palette
         )
     }
@@ -1082,22 +1237,17 @@ public extension ColorTheme {
         let brandColor = (brand ?? palette.blue.standard).withInverse(.white)
 
         return ColorTheme(
-            surface: PriorityTokens(
-                primary:    neutral.s10,
-                secondary:  neutral.s9,
-                tertiary:   neutral.s8
-            ),
-            fill: PriorityTokens(
-                primary:    neutral.s9,
-                secondary:  neutral.s8,
-                tertiary:   neutral.s7
-            ),
-            label: PriorityTokens(
-                primary:    neutral.s0,
-                secondary:  neutral.s2,
-                tertiary:   neutral.s4,
-                quaternary: neutral.s5
-            ),
+            roles: [
+                .surface: PriorityTokens(primary: neutral.s10, secondary: neutral.s9, tertiary: neutral.s8),
+                .fill:    PriorityTokens(primary: neutral.s9,  secondary: neutral.s8, tertiary: neutral.s7),
+                .label:   PriorityTokens(
+                    primary:    neutral.s0,
+                    secondary:  neutral.s2,
+                    tertiary:   neutral.s4,
+                    quaternary: neutral.s5
+                ),
+                .brand:   PriorityTokens(primary: brandColor),
+            ],
             status: StatusTokens(
                 success: PriorityTokens(
                     primary:   palette.green.primary.s5.withInverse(.black),
@@ -1116,7 +1266,6 @@ public extension ColorTheme {
                     secondary: palette.blue.muted.s8
                 )
             ),
-            brand: PriorityTokens(primary: brandColor),
             palette: palette
         )
     }

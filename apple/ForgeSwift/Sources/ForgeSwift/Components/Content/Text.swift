@@ -501,3 +501,189 @@ final class AppKitTextRenderer: Renderer {
 }
 
 #endif
+
+// MARK: - TextSize
+
+public struct TextSize: TokenKey {
+    public let name: String
+    public let defaultValue: Double
+
+    public init(_ name: String, _ defaultValue: Double) {
+        self.name = name
+        self.defaultValue = defaultValue
+    }
+}
+
+public extension TextSize {
+    static let xxs = TextSize("xxs", 10)
+    static let xs  = TextSize("xs",  12)
+    static let sm  = TextSize("sm",  14)
+    static let rg  = TextSize("rg",  16)
+    static let md  = TextSize("md",  18)
+    static let lg  = TextSize("lg",  20)
+    static let xl  = TextSize("xl",  24)
+    static let xl2 = TextSize("xl2", 32)
+    static let xl3 = TextSize("xl3", 40)
+    static let xl4 = TextSize("xl4", 64)
+    static let xl5 = TextSize("xl5", 96)
+}
+
+// MARK: - TextWeight
+
+/// Weight ramp — values map to variable-font `wght` axis numbers
+/// (100..900) and pass through to `Font.weight`.
+public struct TextWeight: TokenKey {
+    public let name: String
+    public let defaultValue: Double
+
+    public init(_ name: String, _ defaultValue: Double) {
+        self.name = name
+        self.defaultValue = defaultValue
+    }
+}
+
+public extension TextWeight {
+    static let hair     = TextWeight("hair",     100)
+    static let thin     = TextWeight("thin",     200)
+    static let light    = TextWeight("light",    300)
+    static let regular  = TextWeight("regular",  400)
+    static let medium   = TextWeight("medium",   500)
+    static let semibold = TextWeight("semibold", 600)
+    static let bold     = TextWeight("bold",     700)
+    static let heavy    = TextWeight("heavy",    800)
+    static let black    = TextWeight("black",    900)
+}
+
+// MARK: - TextLineHeight
+
+/// Named multipliers applied to the resolved font size.
+public struct TextLineHeight: TokenKey {
+    public let name: String
+    public let defaultValue: Double
+
+    public init(_ name: String, _ defaultValue: Double) {
+        self.name = name
+        self.defaultValue = defaultValue
+    }
+}
+
+public extension TextLineHeight {
+    static let word      = TextLineHeight("word",      1.0)
+    static let sentence  = TextLineHeight("sentence",  1.2)
+    static let paragraph = TextLineHeight("paragraph", 1.5)
+    static let heading   = TextLineHeight("heading",   1.8)
+}
+
+// MARK: - TextRole
+
+/// Semantic text role. Pure NamedKey — the theme decides what a role
+/// resolves to when unpopulated (falls back to TextTheme.primary),
+/// so there's no intrinsic default on the key itself.
+public struct TextRole: NamedKey {
+    public let name: String
+    public init(_ name: String) { self.name = name }
+}
+
+public extension TextRole {
+    static let display = TextRole("display")
+    static let value   = TextRole("value")
+    static let title   = TextRole("title")
+    static let body    = TextRole("body")
+    static let label   = TextRole("label")
+}
+
+// MARK: - RoleTheme
+
+public struct RoleTheme: Sendable, Copyable {
+    /// Base Font for this role. Covers any unpopulated TextSize by
+    /// scaling to that size's default points.
+    public var primary: Font
+    public var sizes: [TextSize: Font]
+
+    public init(primary: Font, sizes: [TextSize: Font] = [:]) {
+        self.primary = primary
+        self.sizes = sizes
+    }
+
+    public subscript(_ size: TextSize) -> Font {
+        if let explicit = sizes[size] { return explicit }
+        var font = primary
+        font.size = CGFloat(size.defaultValue)
+        return font
+    }
+
+    public var xxs: Font { self[.xxs] }
+    public var xs:  Font { self[.xs] }
+    public var sm:  Font { self[.sm] }
+    public var rg:  Font { self[.rg] }
+    public var md:  Font { self[.md] }
+    public var lg:  Font { self[.lg] }
+    public var xl:  Font { self[.xl] }
+    public var xl2: Font { self[.xl2] }
+    public var xl3: Font { self[.xl3] }
+    public var xl4: Font { self[.xl4] }
+    public var xl5: Font { self[.xl5] }
+}
+
+// MARK: - TextTheme
+
+public struct TextTheme: Sendable, Copyable {
+    public var primary: Font
+    public var roles: [TextRole: RoleTheme]
+
+    public init(primary: Font, roles: [TextRole: RoleTheme] = [:]) {
+        self.primary = primary
+        self.roles = roles
+    }
+
+    public subscript(_ role: TextRole) -> RoleTheme {
+        roles[role] ?? RoleTheme(primary: primary)
+    }
+
+    public var display: RoleTheme { self[.display] }
+    public var value:   RoleTheme { self[.value] }
+    public var title:   RoleTheme { self[.title] }
+    public var body:    RoleTheme { self[.body] }
+    public var label:   RoleTheme { self[.label] }
+
+    public static func standard(primary: Font = Font()) -> TextTheme {
+        TextTheme(
+            primary: primary,
+            roles: [
+                .display: RoleTheme(primary: primary.withWeight(.bold).withTracking(-0.5)),
+                .value:   RoleTheme(primary: primary.withWeight(.semibold).withTracking(-0.2)),
+                .title:   RoleTheme(primary: primary.withWeight(.semibold)),
+                .body:    RoleTheme(primary: primary.withWeight(.regular)),
+                .label:   RoleTheme(primary: primary.withWeight(.medium).withTracking(0.3)),
+            ]
+        )
+    }
+}
+
+// MARK: - Font conveniences
+
+public extension Font {
+    func withWeight(_ weight: TextWeight) -> Font {
+        var copy = self
+        copy.weight = CGFloat(weight.defaultValue)
+        return copy
+    }
+
+    func withTracking(_ tracking: Double) -> Font {
+        var copy = self
+        copy.tracking = CGFloat(tracking)
+        return copy
+    }
+
+    func withSize(_ size: TextSize) -> Font {
+        var copy = self
+        copy.size = CGFloat(size.defaultValue)
+        return copy
+    }
+
+    func withLineHeight(_ lh: TextLineHeight) -> Font {
+        var copy = self
+        copy.height = CGFloat(lh.defaultValue)
+        return copy
+    }
+}

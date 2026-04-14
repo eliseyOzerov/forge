@@ -294,4 +294,74 @@ final class TappableBoxView: BoxView {
     }
 }
 
+// MARK: - ButtonRole
+
+public struct ButtonRole: NamedKey {
+    public let name: String
+    public init(_ name: String) { self.name = name }
+}
+
+public extension ButtonRole {
+    static let primary    = ButtonRole("primary")
+    static let secondary  = ButtonRole("secondary")
+    static let tertiary   = ButtonRole("tertiary")
+    static let quaternary = ButtonRole("quaternary")
+
+    static let defaultChain: [ButtonRole] = [.primary, .secondary, .tertiary, .quaternary]
+}
+
+// MARK: - ButtonTheme
+
+/// Role-keyed ButtonStyles with cascade. Read at use sites via
+/// `ctx.theme(.button).primary` (or `theme[.customRole]` for app-
+/// specific roles declared as `extension ButtonRole { static let ... }`).
+public struct ButtonTheme: Copyable {
+    public var styles: [ButtonRole: ButtonStyle]
+    public var chain: [ButtonRole]
+
+    public init(_ styles: [ButtonRole: ButtonStyle], chain: [ButtonRole] = ButtonRole.defaultChain) {
+        self.styles = styles
+        self.chain = chain
+    }
+
+    /// Convenience init from a PriorityTokens bundle — translates
+    /// the 4 built-in priority levels to matching ButtonRoles.
+    public init(_ priority: PriorityTokens<ButtonStyle>) {
+        var map: [ButtonRole: ButtonStyle] = [:]
+        for (level, style) in priority.values {
+            map[ButtonRole(level.name)] = style
+        }
+        self.init(map)
+    }
+
+    public init(
+        primary: ButtonStyle,
+        secondary: ButtonStyle? = nil,
+        tertiary: ButtonStyle? = nil,
+        quaternary: ButtonStyle? = nil
+    ) {
+        self.init(PriorityTokens(
+            primary: primary, secondary: secondary,
+            tertiary: tertiary, quaternary: quaternary
+        ))
+    }
+
+    public subscript(_ role: ButtonRole) -> ButtonStyle {
+        styles.cascade(role, chain: chain) ?? ButtonStyle()
+    }
+
+    public var primary:    ButtonStyle { self[.primary] }
+    public var secondary:  ButtonStyle { self[.secondary] }
+    public var tertiary:   ButtonStyle { self[.tertiary] }
+    public var quaternary: ButtonStyle { self[.quaternary] }
+
+    public static func standard() -> ButtonTheme {
+        ButtonTheme(primary: ButtonStyle())
+    }
+}
+
+public extension ThemeSlot where T == ButtonTheme {
+    static var button: ThemeSlot<ButtonTheme> { .init(ButtonTheme.self) }
+}
+
 #endif

@@ -102,3 +102,68 @@ public struct Icon: ComposedView {
 }
 
 #endif
+
+// MARK: - IconRole
+
+public struct IconRole: NamedKey {
+    public let name: String
+    public init(_ name: String) { self.name = name }
+}
+
+public extension IconRole {
+    static let primary    = IconRole("primary")
+    static let secondary  = IconRole("secondary")
+    static let tertiary   = IconRole("tertiary")
+    static let quaternary = IconRole("quaternary")
+
+    static let defaultChain: [IconRole] = [.primary, .secondary, .tertiary, .quaternary]
+}
+
+// MARK: - IconTheme
+
+public struct IconTheme: Copyable {
+    public var styles: [IconRole: IconStyle]
+    public var chain: [IconRole]
+
+    public init(_ styles: [IconRole: IconStyle], chain: [IconRole] = IconRole.defaultChain) {
+        self.styles = styles
+        self.chain = chain
+    }
+
+    public init(_ priority: PriorityTokens<IconStyle>) {
+        var map: [IconRole: IconStyle] = [:]
+        for (level, style) in priority.values {
+            map[IconRole(level.name)] = style
+        }
+        self.init(map)
+    }
+
+    public init(
+        primary: IconStyle,
+        secondary: IconStyle? = nil,
+        tertiary: IconStyle? = nil,
+        quaternary: IconStyle? = nil
+    ) {
+        self.init(PriorityTokens(
+            primary: primary, secondary: secondary,
+            tertiary: tertiary, quaternary: quaternary
+        ))
+    }
+
+    public subscript(_ role: IconRole) -> IconStyle {
+        styles.cascade(role, chain: chain) ?? IconStyle()
+    }
+
+    public var primary:    IconStyle { self[.primary] }
+    public var secondary:  IconStyle { self[.secondary] }
+    public var tertiary:   IconStyle { self[.tertiary] }
+    public var quaternary: IconStyle { self[.quaternary] }
+
+    public static func standard() -> IconTheme {
+        IconTheme(primary: IconStyle())
+    }
+}
+
+public extension ThemeSlot where T == IconTheme {
+    static var icon: ThemeSlot<IconTheme> { .init(IconTheme.self) }
+}
