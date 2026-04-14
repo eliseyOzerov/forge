@@ -9,7 +9,7 @@ final class SliderTests: XCTestCase {
     private func makeModel(
         value: Double = 0.5,
         range: ClosedRange<Double> = 0...1,
-        states: UIState = .idle
+        states: State = .idle
     ) -> SliderModel {
         let binding = Binding(value)
         let slider = Slider(value: binding, range: range, states: states)

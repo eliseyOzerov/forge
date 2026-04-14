@@ -27,7 +27,7 @@ public struct Plane: ModelView {
     public let animation: Animation
     public let anchor: Bool
     public let relative: Bool
-    public let states: UIState
+    public let states: State
     public let onStart: ValueHandler<Vec2>?
     public let onChanged: ValueHandler<Vec2>?
     public let onEnd: ValueHandler<Vec2>?
@@ -40,7 +40,7 @@ public struct Plane: ModelView {
         animation: Animation = Animation(duration: 0.3, curve: .easeOut),
         anchor: Bool = true,
         relative: Bool = false,
-        states: UIState = .idle,
+        states: State = .idle,
         onStart: ValueHandler<Vec2>? = nil,
         onChanged: ValueHandler<Vec2>? = nil,
         onEnd: ValueHandler<Vec2>? = nil,
@@ -76,7 +76,7 @@ public final class PlaneModel: ViewModel<Plane> {
 
     var isDisabled: Bool { view.states.contains(.disabled) }
 
-    var currentState: UIState {
+    var currentState: State {
         var state = view.states
         if isPressed { state.insert(.pressed) }
         return state

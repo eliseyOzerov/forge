@@ -97,7 +97,7 @@ public struct Stepper<T: Numeric & Comparable & LosslessStringConvertible>: Mode
     public let value: Binding<T>
     public let range: ClosedRange<T>
     public let step: T
-    public let states: UIState
+    public let states: State
     public let label: String?
     public let style: StateProperty<StepperStyle<T>>
 
@@ -105,7 +105,7 @@ public struct Stepper<T: Numeric & Comparable & LosslessStringConvertible>: Mode
         value: Binding<T>,
         range: ClosedRange<T>,
         step: T,
-        states: UIState = .idle,
+        states: State = .idle,
         label: String? = nil,
         style: StateProperty<StepperStyle<T>> = .constant(StepperStyle())
     ) {
@@ -138,7 +138,7 @@ public final class StepperModel<T: Numeric & Comparable & LosslessStringConverti
     var atMin: Bool { currentValue <= view.range.lowerBound }
     var atMax: Bool { currentValue >= view.range.upperBound }
 
-    var currentState: UIState {
+    var currentState: State {
         var state = view.states
         if isEditing { state.insert(.focused) }
         return state

@@ -53,7 +53,7 @@ public struct ButtonStyle {
 public struct Button: ModelView {
     public let body: any View
     public let style: StateProperty<ButtonStyle>
-    public let states: UIState
+    public let states: State
     public let onTap: @MainActor () -> Void
     public let debounce: Double?
     public let label: String?
@@ -61,7 +61,7 @@ public struct Button: ModelView {
     /// Single-child button with custom content.
     public init(
         style: StateProperty<ButtonStyle> = .constant(ButtonStyle()),
-        states: UIState = .idle,
+        states: State = .idle,
         debounce: Double? = nil,
         label: String? = nil,
         onTap: @escaping @MainActor () -> Void,
@@ -79,7 +79,7 @@ public struct Button: ModelView {
     public init(
         _ title: String,
         style: StateProperty<ButtonStyle> = .constant(ButtonStyle()),
-        states: UIState = .idle,
+        states: State = .idle,
         debounce: Double? = nil,
         onTap: @escaping @MainActor () -> Void
     ) {
@@ -113,7 +113,7 @@ public final class ButtonModel: ViewModel<Button> {
     var isDisabled: Bool { view.states.contains(.disabled) }
     var isLoading: Bool { view.states.contains(.loading) }
 
-    var currentState: UIState {
+    var currentState: State {
         var state = view.states
         if isPressed {
             state.insert(.pressed)

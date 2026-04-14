@@ -14,7 +14,7 @@ final class PlaneTests: XCTestCase {
         target: DragTransform? = nil,
         anchor: Bool = true,
         relative: Bool = false,
-        states: UIState = .idle
+        states: State = .idle
     ) -> PlaneModel {
         let binding = Binding(offset)
         let draggable = Plane(

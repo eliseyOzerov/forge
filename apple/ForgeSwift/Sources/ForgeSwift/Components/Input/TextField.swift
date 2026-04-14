@@ -8,7 +8,7 @@ public typealias TextFormatter<T> = Mapper<T, String>
 public typealias TextTransformer = Mapper<String, String>
 public typealias InputFilter = Mapper<String, Bool>
 public typealias InputValidator<T> = Mapper<T, String?>
-// Handler and ValueHandler are defined in UIState.swift
+// Handler and ValueHandler are defined in State.swift
 
 // MARK: - TextField<T>
 
@@ -284,8 +284,8 @@ public final class TextFieldModel<T>: ViewModel<TextField<T>> {
         return text as? T
     }
 
-    var currentState: UIState {
-        var state: UIState = .idle
+    var currentState: State {
+        var state: State = .idle
         if isFocused { state.insert(.focused) }
         if !displayText.isEmpty { state.insert(.selected) }
         return state

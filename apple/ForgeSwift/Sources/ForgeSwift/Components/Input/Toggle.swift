@@ -5,10 +5,10 @@ import Foundation
 // MARK: - TogglePainter
 
 /// Draws a toggle's visual state onto a Canvas.
-/// Receives UIState (.selected = on, .pressed = finger down) and the
+/// Receives State (.selected = on, .pressed = finger down) and the
 /// curved animation progress (0 = off, 1 = on).
 public protocol TogglePainter {
-    func paint(on canvas: Canvas, bounds: Rect, state: UIState, progress: Double)
+    func paint(on canvas: Canvas, bounds: Rect, state: State, progress: Double)
 }
 
 // MARK: - ToggleStyle
@@ -37,13 +37,13 @@ public struct ToggleStyle {
 public struct Toggle: ModelView {
     public let value: Binding<Bool>
     public let style: StateProperty<ToggleStyle>
-    public let states: UIState
+    public let states: State
     public let label: String?
 
     public init(
         value: Binding<Bool>,
         style: StateProperty<ToggleStyle> = .constant(ToggleStyle()),
-        states: UIState = .idle,
+        states: State = .idle,
         label: String? = nil
     ) {
         self.value = value
@@ -80,7 +80,7 @@ public final class ToggleModel: ViewModel<Toggle> {
     var animationProgress: Double { motion.values[0] }
     var isAnimating: Bool { motion.isRunning }
 
-    var currentState: UIState {
+    var currentState: State {
         var state = view.states
         if isOn || animationProgress > 0.5 { state.insert(.selected) }
         if isPressed { state.insert(.pressed) }
@@ -239,7 +239,7 @@ public struct CheckboxPainter: TogglePainter {
         self.onColor = onColor; self.offColor = offColor
     }
 
-    public func paint(on canvas: Canvas, bounds: Rect, state: UIState, progress: Double) {
+    public func paint(on canvas: Canvas, bounds: Rect, state: State, progress: Double) {
         let inset = bounds.width * 0.1
         let r = Rect(x: bounds.x + inset, y: bounds.y + inset, width: bounds.width - inset * 2, height: bounds.height - inset * 2)
         let cornerRadius = r.width * 0.2
@@ -282,7 +282,7 @@ public struct RadioPainter: TogglePainter {
         self.onColor = onColor; self.offColor = offColor
     }
 
-    public func paint(on canvas: Canvas, bounds: Rect, state: UIState, progress: Double) {
+    public func paint(on canvas: Canvas, bounds: Rect, state: State, progress: Double) {
         let center = Vec2(bounds.midX, bounds.midY)
         let outerRadius = min(bounds.width, bounds.height) / 2 * 0.8
         let innerRadius = outerRadius * 0.5
@@ -315,7 +315,7 @@ public struct SwitchPainter: TogglePainter {
         self.onColor = onColor; self.offColor = offColor
     }
 
-    public func paint(on canvas: Canvas, bounds: Rect, state: UIState, progress: Double) {
+    public func paint(on canvas: Canvas, bounds: Rect, state: State, progress: Double) {
         let h = bounds.height * 0.6
         let w = h * 1.8
         let x = bounds.midX - w / 2
@@ -345,7 +345,7 @@ public struct HeartPainter: TogglePainter {
         self.onColor = onColor; self.offColor = offColor
     }
 
-    public func paint(on canvas: Canvas, bounds: Rect, state: UIState, progress: Double) {
+    public func paint(on canvas: Canvas, bounds: Rect, state: State, progress: Double) {
         let scale = state.contains(.pressed) ? 0.85 : 1.0
         let s = min(bounds.width, bounds.height) * 0.8
 
@@ -389,7 +389,7 @@ public extension Toggle {
         size: Double = 24,
         onColor: Color = Color(0.2, 0.5, 1.0),
         offColor: Color = Color(0.7, 0.7, 0.7),
-        states: UIState = .idle,
+        states: State = .idle,
         label: String? = nil
     ) -> Toggle {
         Toggle(value: value, style: StateProperty { state in
@@ -407,7 +407,7 @@ public extension Toggle {
         size: Double = 24,
         onColor: Color = Color(0.2, 0.5, 1.0),
         offColor: Color = Color(0.7, 0.7, 0.7),
-        states: UIState = .idle,
+        states: State = .idle,
         label: String? = nil
     ) -> Toggle {
         Toggle(value: value, style: StateProperty { state in
@@ -425,7 +425,7 @@ public extension Toggle {
         height: Double = 32,
         onColor: Color = Color(0.2, 0.8, 0.4),
         offColor: Color = Color(0.8, 0.8, 0.8),
-        states: UIState = .idle,
+        states: State = .idle,
         label: String? = nil
     ) -> Toggle {
         Toggle(value: value, style: StateProperty { state in
@@ -443,7 +443,7 @@ public extension Toggle {
         size: Double = 28,
         onColor: Color = Color(1, 0.2, 0.3),
         offColor: Color = Color(0.7, 0.7, 0.7),
-        states: UIState = .idle,
+        states: State = .idle,
         label: String? = nil
     ) -> Toggle {
         Toggle(value: value, style: StateProperty { state in

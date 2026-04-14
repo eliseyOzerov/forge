@@ -111,14 +111,14 @@ import UIKit
 public struct Slider: ModelView {
     public let value: Binding<Double>
     public let range: ClosedRange<Double>
-    public let states: UIState
+    public let states: State
     public let label: String?
     public let style: StateProperty<SliderStyle>
 
     public init(
         value: Binding<Double>,
         range: ClosedRange<Double> = 0...1,
-        states: UIState = .idle,
+        states: State = .idle,
         label: String? = nil,
         style: StateProperty<SliderStyle> = .constant(SliderStyle())
     ) {
@@ -142,7 +142,7 @@ public final class SliderModel: ViewModel<Slider> {
 
     var isDisabled: Bool { view.states.contains(.disabled) }
 
-    var currentState: UIState {
+    var currentState: State {
         var state = view.states
         if isPressed { state.insert(.pressed) }
         return state

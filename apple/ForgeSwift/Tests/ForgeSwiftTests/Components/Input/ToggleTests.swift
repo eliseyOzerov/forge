@@ -314,7 +314,7 @@ final class ToggleTests: XCTestCase {
 
     // MARK: - Painters output
 
-    private func painterProducesOutput(_ painter: any TogglePainter, state: UIState, progress: Double) -> Bool {
+    private func painterProducesOutput(_ painter: any TogglePainter, state: State, progress: Double) -> Bool {
         let size = 48
         let renderer = UIGraphicsImageRenderer(size: CGSize(width: size, height: size))
         let image = renderer.image { ctx in

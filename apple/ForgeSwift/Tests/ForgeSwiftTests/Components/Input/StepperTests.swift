@@ -12,7 +12,7 @@ final class StepperTests: XCTestCase {
         value: Int = 5,
         range: ClosedRange<Int> = 0...10,
         step: Int = 1,
-        states: UIState = .idle
+        states: State = .idle
     ) -> StepperModel<Int> {
         let binding = Binding(value)
         let stepper = Stepper(value: binding, range: range, step: step, states: states)

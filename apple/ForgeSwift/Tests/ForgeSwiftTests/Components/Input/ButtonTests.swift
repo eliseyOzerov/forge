@@ -10,7 +10,7 @@ final class ButtonTests: XCTestCase {
 
     /// Create a ButtonModel wired to a Button view via the framework lifecycle.
     private func makeModel(
-        states: UIState = .idle,
+        states: State = .idle,
         debounce: Double? = nil,
         onTap: @escaping @MainActor () -> Void = {}
     ) -> ButtonModel {

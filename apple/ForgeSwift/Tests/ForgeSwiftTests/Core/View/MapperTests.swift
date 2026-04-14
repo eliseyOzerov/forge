@@ -22,8 +22,8 @@ final class MapperTests: XCTestCase {
         XCTAssertEqual(prop(.pressed), "pressed")
     }
 
-    func testUIStateOptionSet() {
-        var state: UIState = .idle
+    func testStateOptionSet() {
+        var state: State = .idle
         state.insert(.pressed)
         state.insert(.focused)
         XCTAssertTrue(state.contains(.idle))
@@ -32,41 +32,41 @@ final class MapperTests: XCTestCase {
         XCTAssertFalse(state.contains(.disabled))
     }
 
-    // MARK: - UIState Raw Values
+    // MARK: - State Raw Values
 
-    func testUIStateRawValues() {
-        XCTAssertEqual(UIState.idle.rawValue, 1 << 0)
-        XCTAssertEqual(UIState.pressed.rawValue, 1 << 1)
-        XCTAssertEqual(UIState.disabled.rawValue, 1 << 2)
-        XCTAssertEqual(UIState.focused.rawValue, 1 << 3)
-        XCTAssertEqual(UIState.hovered.rawValue, 1 << 4)
-        XCTAssertEqual(UIState.selected.rawValue, 1 << 5)
+    func testStateRawValues() {
+        XCTAssertEqual(State.idle.rawValue, 1 << 0)
+        XCTAssertEqual(State.pressed.rawValue, 1 << 1)
+        XCTAssertEqual(State.disabled.rawValue, 1 << 2)
+        XCTAssertEqual(State.focused.rawValue, 1 << 3)
+        XCTAssertEqual(State.hovered.rawValue, 1 << 4)
+        XCTAssertEqual(State.selected.rawValue, 1 << 5)
     }
 
-    func testUIStateCombining() {
-        let state: UIState = [.pressed, .focused]
+    func testStateCombining() {
+        let state: State = [.pressed, .focused]
         XCTAssertTrue(state.contains(.pressed))
         XCTAssertTrue(state.contains(.focused))
         XCTAssertFalse(state.contains(.idle))
         XCTAssertFalse(state.contains(.disabled))
     }
 
-    func testUIStateEmpty() {
-        let state = UIState()
+    func testStateEmpty() {
+        let state = State()
         XCTAssertFalse(state.contains(.idle))
         XCTAssertFalse(state.contains(.pressed))
         XCTAssertEqual(state.rawValue, 0)
     }
 
-    func testUIStateEquality() {
-        let a: UIState = [.idle, .pressed]
-        let b: UIState = [.pressed, .idle]
+    func testStateEquality() {
+        let a: State = [.idle, .pressed]
+        let b: State = [.pressed, .idle]
         XCTAssertEqual(a, b)
     }
 
-    func testUIStateHashing() {
-        let a: UIState = [.idle, .pressed]
-        let b: UIState = [.idle, .pressed]
+    func testStateHashing() {
+        let a: State = [.idle, .pressed]
+        let b: State = [.idle, .pressed]
         XCTAssertEqual(a.hashValue, b.hashValue)
     }
 
