@@ -256,7 +256,7 @@ final class RouterTests: XCTestCase {
         let name: String
         func body() -> any View { EmptyView() }
         var presentation: RoutePresentation {
-            .sheet(detents: [.medium, .large])
+            .sheet(SheetStyle(detents: [.medium, .large]))
         }
     }
 
@@ -270,10 +270,10 @@ final class RouterTests: XCTestCase {
     func testSheetPresentationPreserved() {
         let h = RouterHandle()
         h.setDeclarative([AnyRoute(SheetTestRoute(name: "s"))])
-        guard case .sheet(let detents, _, _, _) = h.resolvedStack[0].presentation else {
+        guard case .sheet(let style) = h.resolvedStack[0].presentation else {
             return XCTFail("Expected .sheet")
         }
-        XCTAssertEqual(detents.count, 2)
+        XCTAssertEqual(style.detents.count, 2)
     }
 
     func testMixedPushSheetOverScreen() {

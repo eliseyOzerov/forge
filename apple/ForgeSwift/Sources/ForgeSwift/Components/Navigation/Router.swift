@@ -160,24 +160,23 @@ final class RouterHostView: UIView {
         guard let handle else { return }
         let target = handle.resolvedStack
 
-        // Partition: leading screens go to nav stack; the first sheet
-        // we encounter ends the screen run and becomes the presented
-        // sheet. Any routes after that first sheet are ignored in v1
-        // (nested presentation is not yet supported).
+        // Partition: leading screens go to the nav stack; the first
+        // non-screen route ends the screen run and becomes the
+        // presented overlay. Routes after that are ignored in v1
+        // (nested / stacked overlays are future work).
         var screens: [AnyRoute] = []
-        var sheet: AnyRoute? = nil
+        var overlay: AnyRoute? = nil
         for route in target {
             switch route.presentation {
             case .screen:
-                if sheet == nil { screens.append(route) }
-                // screens after a sheet are unsupported for now
-            case .sheet:
-                if sheet == nil { sheet = route }
+                if overlay == nil { screens.append(route) }
+            default:
+                if overlay == nil { overlay = route }
             }
         }
 
         reconcileScreens(screens, handle: handle)
-        reconcileSheet(sheet, handle: handle)
+        reconcileOverlay(overlay, handle: handle)
     }
 
     private func reconcileScreens(_ routes: [AnyRoute], handle: RouterHandle) {
@@ -201,44 +200,111 @@ final class RouterHostView: UIView {
         hostedScreenIds = targetIds
     }
 
-    private func reconcileSheet(_ route: AnyRoute?, handle: RouterHandle) {
-        // Same sheet as before — nothing to do.
+    private func reconcileOverlay(_ route: AnyRoute?, handle: RouterHandle) {
+        // Same overlay as before — nothing to do.
         if route?.id == hostedSheetId { return }
 
-        // Need to dismiss current if different or gone.
+        // Dismiss current if different or gone, then optionally show
+        // the new one in the completion.
         if hostedSheetId != nil, let presented = nav.presentedViewController,
            presented === hostedSheetVC {
             presented.dismiss(animated: true) { [weak self] in
-                self?.presentSheetIfNeeded(route, handle: handle)
+                self?.presentOverlayIfNeeded(route, handle: handle)
             }
             hostedSheetId = nil
             hostedSheetVC = nil
+            // Toasts auto-dismiss, so nothing to do if target is also a toast.
             return
         }
 
-        presentSheetIfNeeded(route, handle: handle)
+        presentOverlayIfNeeded(route, handle: handle)
     }
 
-    private func presentSheetIfNeeded(_ route: AnyRoute?, handle: RouterHandle) {
+    private func presentOverlayIfNeeded(_ route: AnyRoute?, handle: RouterHandle) {
         guard let route else { return }
-        guard case .sheet(let detents, let grabber, let cornerRadius, let dismissable) = route.presentation else {
-            return
-        }
 
+        switch route.presentation {
+        case .screen:
+            return  // not our concern
+        case .sheet(let style):
+            presentSheet(route, style: style, handle: handle)
+        case .cover(let style):
+            presentOpaque(route, handle: handle, style: .fullScreen, duration: style.transitionDuration)
+        case .lightbox(let style):
+            presentLightbox(route, style: style, handle: handle)
+        case .toast(let style):
+            presentToast(route, style: style, handle: handle)
+        case .modal, .alert, .drawer, .popover, .coachMark, .contextMenu:
+            // v2 — bridge stub.
+            #if DEBUG
+            print("[Forge] Router: presentation \(route.presentation) not yet bridged; skipping.")
+            #endif
+        }
+    }
+
+    private func presentSheet(_ route: AnyRoute, style: SheetStyle, handle: RouterHandle) {
         let vc = ForgeHostingController(route: route, handle: handle)
         if let sheet = vc.sheetPresentationController {
-            sheet.detents = detents.map { Self.uiDetent(from: $0) }
-            sheet.prefersGrabberVisible = grabber
-            if let cornerRadius { sheet.preferredCornerRadius = cornerRadius }
+            sheet.detents = style.detents.map { Self.uiDetent(from: $0) }
+            sheet.prefersGrabberVisible = style.grabberVisible
+            if let cornerRadius = style.cornerRadius {
+                sheet.preferredCornerRadius = cornerRadius
+            }
         }
-        vc.isModalInPresentation = !dismissable
+        vc.isModalInPresentation = !style.isDismissable
 
         hostedSheetId = route.id
         hostedSheetVC = vc
 
-        // Present on the topmost screen VC.
         let presenter: UIViewController = nav.topViewController ?? nav
         presenter.present(vc, animated: window != nil)
+    }
+
+    private func presentOpaque(
+        _ route: AnyRoute,
+        handle: RouterHandle,
+        style: UIModalPresentationStyle,
+        duration: TimeInterval
+    ) {
+        let vc = ForgeHostingController(route: route, handle: handle)
+        vc.modalPresentationStyle = style
+        vc.modalTransitionStyle = .coverVertical
+
+        hostedSheetId = route.id
+        hostedSheetVC = vc
+
+        let presenter: UIViewController = nav.topViewController ?? nav
+        presenter.present(vc, animated: window != nil)
+    }
+
+    private func presentLightbox(_ route: AnyRoute, style: LightboxStyle, handle: RouterHandle) {
+        let vc = ForgeHostingController(route: route, handle: handle)
+        vc.modalPresentationStyle = .fullScreen
+        vc.modalTransitionStyle = .crossDissolve
+        vc.view.backgroundColor = style.background.platformColor
+
+        hostedSheetId = route.id
+        hostedSheetVC = vc
+
+        let presenter: UIViewController = nav.topViewController ?? nav
+        presenter.present(vc, animated: window != nil)
+    }
+
+    private func presentToast(_ route: AnyRoute, style: ToastStyle, handle: RouterHandle) {
+        guard let window = self.window else { return }
+
+        // Toast is a floating UIView on the key window. It does not
+        // occupy the overlay slot in the nav presentation chain; it
+        // lives alongside whatever else is on screen.
+        let toastView = ToastHostView(route: route, style: style, handle: handle) { [weak self] in
+            // Auto-dismiss: remove from window and from the router.
+            self?.handle?.remove(id: route.id)
+        }
+        window.addSubview(toastView)
+        toastView.present(in: window)
+
+        hostedSheetId = route.id
+        // Note: we don't store hostedSheetVC here — toast isn't a VC.
     }
 
     private static func uiDetent(from detent: SheetDetent) -> UISheetPresentationController.Detent {
@@ -267,6 +333,93 @@ final class RouterHostView: UIView {
             responder = r.next
         }
         return nil
+    }
+}
+
+// MARK: - ToastHostView
+
+/// Floating, self-dismissing notification view mounted on the key
+/// window. Slides in from the configured edge, waits for the display
+/// duration, then slides out and calls `onDismiss`.
+final class ToastHostView: UIView {
+    private let route: AnyRoute
+    private let style: ToastStyle
+    private weak var handle: RouterHandle?
+    private let onDismiss: () -> Void
+    private let contentResolver = Resolver()
+    private var dismissTimer: Timer?
+
+    init(
+        route: AnyRoute,
+        style: ToastStyle,
+        handle: RouterHandle,
+        onDismiss: @escaping () -> Void
+    ) {
+        self.route = route
+        self.style = style
+        self.handle = handle
+        self.onDismiss = onDismiss
+        super.init(frame: .zero)
+        backgroundColor = .clear
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    func present(in window: UIWindow) {
+        let wrapped: any View
+        if let handle {
+            wrapped = Provided(handle) { [route] in route.body() }
+        } else {
+            wrapped = route.body()
+        }
+        let content = contentResolver.mount(wrapped)
+        addSubview(content)
+
+        // Size content to its intrinsic width, sit at the configured edge.
+        let maxSize = CGSize(
+            width: window.bounds.width - (style.padding.leading + style.padding.trailing),
+            height: window.bounds.height
+        )
+        let fit = content.sizeThatFits(maxSize)
+        let height = max(fit.height, 1)
+        let width = min(fit.width, maxSize.width)
+
+        content.frame = CGRect(x: 0, y: 0, width: width, height: height)
+        self.frame = CGRect(x: 0, y: 0, width: width, height: height)
+
+        // Positioning
+        let safe = window.safeAreaInsets
+        let x = (window.bounds.width - width) / 2
+        let finalY: CGFloat
+        let startY: CGFloat
+        switch style.position {
+        case .top:
+            finalY = safe.top + style.padding.top
+            startY = -(height + safe.top)
+        case .bottom, .leading, .trailing:
+            finalY = window.bounds.height - safe.bottom - height - style.padding.bottom
+            startY = window.bounds.height
+        }
+
+        self.frame.origin = CGPoint(x: x, y: startY)
+        UIView.animate(withDuration: style.transitionDuration) { [self] in
+            self.frame.origin.y = finalY
+        }
+
+        dismissTimer = Timer.scheduledTimer(withTimeInterval: style.displayDuration, repeats: false) { [weak self] _ in
+            Task { @MainActor in self?.dismiss() }
+        }
+    }
+
+    private func dismiss() {
+        dismissTimer?.invalidate()
+        dismissTimer = nil
+        UIView.animate(withDuration: style.transitionDuration, animations: { [self] in
+            alpha = 0
+        }, completion: { [weak self] _ in
+            self?.removeFromSuperview()
+            self?.onDismiss()
+        })
     }
 }
 

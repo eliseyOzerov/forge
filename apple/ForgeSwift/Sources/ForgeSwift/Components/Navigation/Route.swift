@@ -100,19 +100,23 @@ public enum HorizontalAlignment: Sendable {
 // MARK: - RoutePresentation
 
 /// How a route is presented on screen. Screen routes go into the
-/// UINavigationController stack. Sheet routes are presented via
-/// UISheetPresentationController atop the current stack.
+/// UINavigationController stack; all others are overlays presented
+/// atop the current stack via UIKit's presentation APIs.
 ///
-/// v1 constraint: only the last route in the resolved stack may be
-/// a sheet; interleaving sheets and screens is not yet supported.
-public enum RoutePresentation: Sendable {
+/// v1 constraint: at most one non-screen route may follow the nav
+/// stack; nested / stacked overlays are future work.
+public enum RoutePresentation: @unchecked Sendable {
     case screen
-    case sheet(
-        detents: [SheetDetent] = [.large],
-        grabberVisible: Bool = true,
-        cornerRadius: Double? = nil,
-        isDismissable: Bool = true
-    )
+    case sheet(SheetStyle = SheetStyle())
+    case cover(CoverStyle = CoverStyle())
+    case modal(ModalStyle = ModalStyle())
+    case alert(AlertStyle = AlertStyle())
+    case drawer(DrawerStyle = DrawerStyle())
+    case popover(PopoverStyle)
+    case toast(ToastStyle = ToastStyle())
+    case lightbox(LightboxStyle = LightboxStyle())
+    case coachMark(CoachMarkStyle)
+    case contextMenu(ContextMenuStyle)
 }
 
 public enum SheetDetent: Sendable, Hashable {
