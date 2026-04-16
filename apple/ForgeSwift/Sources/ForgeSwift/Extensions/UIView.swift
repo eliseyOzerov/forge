@@ -31,6 +31,20 @@ extension UIView {
         }
     }
 
+    /// Pin this view to a UILayoutGuide — typically `view.safeAreaLayoutGuide`.
+    /// Used by App.scene to inset the resolved root into the safe area so
+    /// content doesn't render under the dynamic island / home indicator by
+    /// default (SwiftUI-style safe-area honoring).
+    @discardableResult
+    func pin(_ edges: Edge.Set = .all, to guide: UILayoutGuide, offset: CGFloat = 0) -> UIView {
+        return constrain {
+            if edges.contains(.top) { topAnchor.equal(guide.topAnchor, offset: offset) }
+            if edges.contains(.leading) { leadingAnchor.equal(guide.leadingAnchor, offset: offset) }
+            if edges.contains(.trailing) { trailingAnchor.equal(guide.trailingAnchor, offset: -offset) }
+            if edges.contains(.bottom) { bottomAnchor.equal(guide.bottomAnchor, offset: -offset) }
+        }
+    }
+
     @discardableResult
     func center(x: Bool = true, y: Bool = true, in view: UIView) -> UIView {
         return constrain {
