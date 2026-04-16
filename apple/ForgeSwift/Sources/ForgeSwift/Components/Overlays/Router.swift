@@ -24,20 +24,92 @@
 //  handles screen-style push/pop only for now.
 //
 
-#if canImport(UIKit)
-import UIKit
+import Foundation
 
 // MARK: - NavigationItem
 
-/// The per-screen nav bar configuration a view declares via
-/// `.navigation(_:)`. The hosting `RouteHostingController` reads it
-/// from an `Observable<NavigationItem>` installed into the route's
-/// subtree and applies it to the UIKit `UINavigationItem` it owns.
-public struct NavigationItem: Equatable {
+/// Per-screen navigation-bar configuration, declared by the hosted
+/// view via `.navigation(_:)` and applied to the UIKit `UINavigationItem`
+/// by the owning `RouteHostingController`.
+///
+/// Mirrors the shape of Wave's AppBar widget (title / main / leading /
+/// trailing / bottom / background / etc.) so Wave screens port over
+/// with minimal adaptation — but backed by UINavigationItem on iOS
+/// instead of a custom-rendered bar view. Fields beyond `title` and
+/// `hidden` are reserved in the struct but not yet wired through to
+/// the native bar; the rendering path will fill in as components
+/// need them.
+public struct NavigationItem {
+    /// Title string. If `main` is also set, `main` wins.
     public var title: String?
 
-    public init(title: String? = nil) {
+    /// Custom title view. Mounted via a sub-Resolver and installed as
+    /// `navigationItem.titleView`.
+    public var main: (any View)?
+
+    /// Leading bar item. If nil and `hideImplicitBackButton` is false,
+    /// the system back button is shown.
+    public var leading: (any View)?
+
+    /// Trailing bar item.
+    public var trailing: (any View)?
+
+    /// View rendered below the main bar content (search, tabs,
+    /// segmented controls). On iOS maps to the scroll-edge accessory
+    /// area when available; on older iOS, rendered as a secondary
+    /// row within the hosted view.
+    public var bottom: (any View)?
+
+    /// Bar background. State-aware (`.scrolledUnder` / `.idle`) —
+    /// `.scrolledUnder` maps to `standardAppearance`, `.idle` maps
+    /// to `scrollEdgeAppearance`. The Surface can be a solid color,
+    /// a Liquid-Glass material (`.glass(...)`), or both composed.
+    public var background: StateProperty<Surface>?
+
+    /// Whether the navigation bar is hidden for this route. Applied
+    /// via `UINavigationController.setNavigationBarHidden(_:animated:)`.
+    public var hidden: Bool
+
+    /// Suppresses the system back button when `leading` is nil.
+    public var hideImplicitBackButton: Bool
+
+    /// Override the back action. If set, replaces the system back
+    /// button with a custom one that calls this closure on tap.
+    /// Typical use: guard against data loss before popping.
+    public var onBack: (@MainActor () -> Void)?
+
+    /// Alignment for the main/title slot across the full bar width.
+    /// Mirrors `AppBar.mainAlignment`. Only the horizontal component
+    /// is consulted — UIKit's title slot is already vertically centered.
+    public var alignment: Alignment
+
+    /// Padding around the bar's content.
+    public var padding: Padding?
+
+    public init(
+        title: String? = nil,
+        main: (any View)? = nil,
+        leading: (any View)? = nil,
+        trailing: (any View)? = nil,
+        bottom: (any View)? = nil,
+        background: StateProperty<Surface>? = nil,
+        hidden: Bool = false,
+        hideImplicitBackButton: Bool = false,
+        onBack: (@MainActor () -> Void)? = nil,
+        alignment: Alignment = .center,
+        padding: Padding? = nil
+    ) {
         self.title = title
+        self.main = main
+        self.leading = leading
+        self.trailing = trailing
+        self.bottom = bottom
+        self.background = background
+        self.hidden = hidden
+        self.hideImplicitBackButton = hideImplicitBackButton
+        self.onBack = onBack
+        self.alignment = alignment
+        self.padding = padding
     }
 }
 
@@ -45,7 +117,8 @@ public extension View {
     /// Declare the navigation bar configuration for this view's hosted
     /// screen. Applied to the enclosing `RouteHostingController`'s
     /// `UINavigationItem`. Safe to re-declare on every rebuild — the
-    /// channel dedups by equality so no-op updates don't bounce UIKit.
+    /// hosting controller writes through UIKit property setters, which
+    /// are cheap no-ops when values are unchanged.
     func navigation(_ item: NavigationItem) -> some View {
         NavigationApplier(item: item, child: self)
     }
@@ -59,8 +132,7 @@ struct NavigationApplier: BuiltView {
     let child: any View
 
     func build(context: BuildContext) -> any View {
-        if let channel = context.maybeWatch(Observable<NavigationItem>.self),
-           channel.value != item {
+        if let channel = context.maybeWatch(Observable<NavigationItem>.self) {
             channel.value = item
         }
         return child
@@ -448,6 +520,18 @@ public struct RouteContext {
     public let canPop: Bool
 }
 
+// MARK: - UIKit-backed implementation
+//
+// Everything above this line is platform-neutral — Route, RouterHandle,
+// NavigationItem, DeepLinks, RouteContext, and the BuildContext sugar
+// can compile on any Forge platform. Below is the iOS/UIKit-specific
+// rendering: the Router view itself, its Model/Builder, and the
+// UINavigationController-backed host. Porting to AppKit / Android
+// would add parallel sections here.
+
+#if canImport(UIKit)
+import UIKit
+
 // MARK: - Router view
 
 /// A navigation host backed by a `UINavigationController`. The
@@ -658,14 +742,38 @@ final class RouterHostView: UIView {
 
 // MARK: - RouteHostingController
 
-/// UIViewController that hosts a single Route's body view in its own
-/// sub-Resolver and mirrors its `.navigation(_:)`-declared NavigationItem
-/// onto the native UINavigationItem. One controller per Route identity —
-/// reused across RouterHost syncs so the hosted view preserves its state.
+/// UIViewController that hosts a single Route's body view and mirrors
+/// its `.navigation(_:)`-declared NavigationItem onto the native
+/// `UINavigationItem`. One controller per Route identity — reused
+/// across RouterHost syncs so the hosted view preserves its state.
+///
+/// View hierarchy owned by this controller:
+///
+///     self.view (container UIView)
+///       stack (UIStackView, vertical)
+///         bottomSlotHost      — shows navItem.bottom if any
+///         bodyHost            — the route body subtree
+///
+/// Sub-Resolvers:
+///   - bodyResolver     → body (route.body() wrapped with Provideds)
+///   - mainResolver     → navItem.main (titleView)
+///   - leadingResolver  → navItem.leading  (leftBarButtonItem customView)
+///   - trailingResolver → navItem.trailing (rightBarButtonItem customView)
+///   - bottomResolver   → navItem.bottom (inside bottomSlotHost)
 final class RouteHostingController: UIViewController {
     private(set) var route: Route
     private var routeContext: RouteContext = RouteContext(canPop: false)
-    private let resolver = Resolver()
+
+    private let bodyResolver = Resolver()
+    private let mainResolver = Resolver()
+    private let leadingResolver = Resolver()
+    private let trailingResolver = Resolver()
+    private let bottomResolver = Resolver()
+
+    private var stack: UIStackView!
+    private var bottomSlotHost: UIView!
+    private var bodyHost: UIView!
+
     private let navItemObservable = Observable<NavigationItem>(NavigationItem())
     private var navItemSubscription: Subscription?
     private var routerHandle: RouterHandle?
@@ -678,7 +786,34 @@ final class RouteHostingController: UIViewController {
     required init?(coder: NSCoder) { fatalError() }
 
     override func loadView() {
-        view = resolver.mount(wrappedBody())
+        let container = UIView()
+        container.backgroundColor = .systemBackground
+
+        stack = UIStackView()
+        stack.axis = .vertical
+        stack.alignment = .fill
+        stack.distribution = .fill
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(stack)
+
+        bottomSlotHost = UIView()
+        bottomSlotHost.isHidden = true
+        stack.addArrangedSubview(bottomSlotHost)
+
+        bodyHost = UIView()
+        stack.addArrangedSubview(bodyHost)
+
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            stack.topAnchor.constraint(equalTo: container.topAnchor),
+            stack.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+        ])
+
+        view = container
+
+        mountBody()
+
         apply(navItem: navItemObservable.value)
         navItemSubscription = navItemObservable.observe { [weak self] item in
             self?.apply(navItem: item)
@@ -687,13 +822,13 @@ final class RouteHostingController: UIViewController {
 
     /// Called by RouterHostView on every sync. Updates the hosted
     /// Route (body closure may have captured new props) AND its
-    /// RouteContext (stack position may have changed). Re-runs the
-    /// subtree through the resolver to pick both up.
+    /// RouteContext (stack position may have changed). Re-syncs the
+    /// body subtree in place, preserving Node state where possible.
     func update(route: Route, context: RouteContext) {
         self.route = route
         self.routeContext = context
         if isViewLoaded {
-            _ = resolver.mount(wrappedBody())
+            mountBody()
         }
     }
 
@@ -701,6 +836,14 @@ final class RouteHostingController: UIViewController {
     /// Provide it inside this controller's own Resolver tree.
     func attach(routerHandle: RouterHandle) {
         self.routerHandle = routerHandle
+    }
+
+    /// Build the body subtree and mount/update it in place inside
+    /// `bodyHost`. Uses `canUpdate` + `update(from:)` where possible
+    /// so Model state survives re-syncs; otherwise re-inflates.
+    private func mountBody() {
+        let wrapped = wrappedBody()
+        syncSlot(bodyResolver, host: bodyHost, view: wrapped, fill: true)
     }
 
     /// Build the view subtree this controller mounts — wraps the
@@ -726,8 +869,183 @@ final class RouteHostingController: UIViewController {
 
     private func apply(navItem: NavigationItem) {
         self.title = navItem.title
-        // Future: bar button items, large title style, back button
-        // customization, etc.
+        self.navigationItem.hidesBackButton = navItem.hideImplicitBackButton
+
+        // Hide/show the nav bar for this route.
+        if let nav = self.navigationController {
+            nav.setNavigationBarHidden(navItem.hidden, animated: true)
+        }
+
+        // Title view — `main` overrides `title` when set.
+        self.navigationItem.titleView = syncTitleView(navItem: navItem)
+
+        // Bar button items. BarButton gets a native UIBarButtonItem
+        // so it participates in the bar's glass container and morph;
+        // any other View is wrapped as customView.
+        self.navigationItem.leftBarButtonItem = makeLeftBarItem(navItem: navItem)
+        self.navigationItem.rightBarButtonItem = makeTrailingBarItem(view: navItem.trailing)
+
+        // Bottom accessory (rendered below the nav bar, above the body).
+        syncBottom(view: navItem.bottom)
+
+        // Per-route nav bar background Surface → UINavigationBarAppearance.
+        // `.idle` maps to scrollEdgeAppearance (no content behind),
+        // `.scrolledUnder` maps to standardAppearance (content under glass).
+        applyBackground(navItem.background)
+    }
+
+    /// Mount the `main` view as `navigationItem.titleView`, wrapped
+    /// in a Forge `Box` that applies `alignment` and `padding`. We
+    /// use Forge's own layout so the bar chrome composes from the
+    /// same primitives screens use — UIKit just gives us the slot;
+    /// Forge handles the placement inside it.
+    private func syncTitleView(navItem: NavigationItem) -> UIView? {
+        guard let main = navItem.main else { return nil }
+        let wrapped: any View = Box(
+            BoxStyle(
+                .fillWidth,
+                padding: navItem.padding ?? .zero,
+                // Only the horizontal component matters inside the
+                // title slot — UIKit already vertically centers it.
+                alignment: Alignment(navItem.alignment.x, 0)
+            )
+        ) { main }
+        return syncSlot(mainResolver, host: nil, view: wrapped, fill: false)
+    }
+
+    /// Build the leading bar-button item. Priority:
+    ///   1. `navItem.leading`, if it's a `BarButton` → native item
+    ///      (participates in the bar's glass container).
+    ///   2. `navItem.leading`, any other View → wrapped as customView.
+    ///   3. `navItem.onBack` → synthesize a native BarButton with a
+    ///      back-chevron icon.
+    ///   4. Otherwise nil (system back button unless suppressed).
+    private func makeLeftBarItem(navItem: NavigationItem) -> UIBarButtonItem? {
+        if let leadingView = navItem.leading {
+            return makeBarItem(resolver: leadingResolver, view: leadingView)
+        }
+        if let onBack = navItem.onBack {
+            let backButton = BarButton(icon: "chevron.backward", onTap: onBack)
+            return backButton.makeBarButtonItem()
+        }
+        return nil
+    }
+
+    /// Build the trailing bar-button item from a user-supplied view.
+    /// Same priority as leading minus the onBack synthesis.
+    private func makeTrailingBarItem(view: (any View)?) -> UIBarButtonItem? {
+        guard let view else { return nil }
+        return makeBarItem(resolver: trailingResolver, view: view)
+    }
+
+    /// Produce a `UIBarButtonItem` from an arbitrary Forge view.
+    /// BarButton gets the native path; anything else is mounted via
+    /// the given resolver and wrapped as `customView`.
+    private func makeBarItem(resolver: Resolver, view: any View) -> UIBarButtonItem? {
+        if let native = view as? BarButton {
+            return native.makeBarButtonItem()
+        }
+        guard let mounted = syncSlot(resolver, host: nil, view: view, fill: false) else {
+            return nil
+        }
+        return UIBarButtonItem(customView: mounted)
+    }
+
+    /// Apply `navItem.background` to the hosted route's
+    /// `UINavigationItem` appearances. Liquid-Glass Surfaces map to
+    /// `backgroundEffect`; solid-color Surfaces map to
+    /// `backgroundColor`. State split:
+    ///   - `.idle` → `scrollEdgeAppearance` (nothing behind the bar)
+    ///   - `.scrolledUnder` → `standardAppearance` (content underneath)
+    ///
+    /// Non-trivial Surfaces (gradients, composed layers) aren't yet
+    /// pulled through — they'd need a snapshot-to-UIImage step for
+    /// `backgroundImage`. Tracked for a follow-up.
+    private func applyBackground(_ property: StateProperty<Surface>?) {
+        guard let property else {
+            self.navigationItem.standardAppearance = nil
+            self.navigationItem.scrollEdgeAppearance = nil
+            return
+        }
+        self.navigationItem.standardAppearance = appearance(from: property(.scrolledUnder))
+        self.navigationItem.scrollEdgeAppearance = appearance(from: property(.idle))
+    }
+
+    private func appearance(from surface: Surface) -> UINavigationBarAppearance {
+        let appearance = UINavigationBarAppearance()
+        appearance.configureWithTransparentBackground()
+        if let glass = surface.glassStyle {
+            // `UINavigationBarAppearance.backgroundEffect` is typed as
+            // `UIBlurEffect?`. When the app is built against the iOS
+            // 26 SDK, UIKit automatically promotes these system
+            // materials to Liquid Glass; on older runtimes, they
+            // render as the traditional blur. We map our GlassStyle
+            // variants to the closest system material and let the OS
+            // do the upgrade.
+            appearance.backgroundEffect = blurEffect(for: glass)
+        }
+        if let color = surface.primaryColor {
+            appearance.backgroundColor = color.platformColor
+        }
+        return appearance
+    }
+
+    private func blurEffect(for style: GlassStyle) -> UIBlurEffect {
+        switch style {
+        case .regular:   return UIBlurEffect(style: .systemMaterial)
+        case .prominent: return UIBlurEffect(style: .systemThickMaterial)
+        case .clear:     return UIBlurEffect(style: .systemUltraThinMaterial)
+        }
+    }
+
+    /// Install `view` into `bottomSlotHost` (sized by its own intrinsic
+    /// size / layout), or hide the slot when nil.
+    private func syncBottom(view: (any View)?) {
+        guard let v = view else {
+            bottomSlotHost.isHidden = true
+            bottomSlotHost.subviews.forEach { $0.removeFromSuperview() }
+            return
+        }
+        _ = syncSlot(bottomResolver, host: bottomSlotHost, view: v, fill: true)
+        bottomSlotHost.isHidden = false
+    }
+
+    /// Mount-or-update helper that reuses the resolver's existing
+    /// root node when possible (preserving Model state across applies)
+    /// and falls back to re-inflating on type change. When `host` is
+    /// provided and `fill` is true, pins the mounted platform view to
+    /// the host's edges.
+    @discardableResult
+    private func syncSlot(_ resolver: Resolver, host: UIView?, view: any View, fill: Bool) -> UIView? {
+        let platform: UIView?
+        if let existing = resolver.rootNode, existing.canUpdate(to: view) {
+            existing.update(from: view)
+            platform = existing.platformView
+        } else {
+            platform = resolver.mount(view)
+        }
+        guard let platform, let host else { return platform }
+
+        // (Re)attach to host if needed.
+        if platform.superview !== host {
+            host.subviews.forEach { $0.removeFromSuperview() }
+            host.addSubview(platform)
+        }
+        if fill {
+            platform.translatesAutoresizingMaskIntoConstraints = false
+            // Avoid duplicating constraints on subsequent calls — if
+            // the view was already pinned, its existing constraints
+            // remain valid.
+            if platform.constraints.isEmpty || platform.superview !== host {
+                NSLayoutConstraint.activate([
+                    platform.leadingAnchor.constraint(equalTo: host.leadingAnchor),
+                    platform.trailingAnchor.constraint(equalTo: host.trailingAnchor),
+                    platform.topAnchor.constraint(equalTo: host.topAnchor),
+                    platform.bottomAnchor.constraint(equalTo: host.bottomAnchor),
+                ])
+            }
+        }
+        return platform
     }
 
     // Subscription is released alongside `self` when the hosting

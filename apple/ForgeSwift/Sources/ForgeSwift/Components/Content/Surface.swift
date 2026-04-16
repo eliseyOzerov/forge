@@ -12,6 +12,18 @@ public enum Fill {
     case shader(Shader)
 }
 
+/// Liquid-Glass material variant. Maps to `UIGlassEffect` on iOS 26+.
+///
+/// - `regular`: the standard translucent glass, used for most chrome
+///   (nav bars, tab bars, sheets).
+/// - `prominent`: higher-opacity, more saturated — for floating
+///   controls that need to pop.
+/// - `clear`: most translucent, used at scroll-edges where the glass
+///   should nearly disappear against the content underneath.
+public enum GlassStyle: Sendable, Equatable {
+    case regular, prominent, clear
+}
+
 // Color is defined in Core/View/Color.swift
 
 // MARK: - Gradient
@@ -419,6 +431,22 @@ public struct SurfaceRenderer {
 public final class Surface {
     private var operations: [(Shape) -> [any Layer]] = []
 
+    /// First solid fill color this Surface was configured with, if any.
+    /// Recorded alongside the layer operation for consumers that need
+    /// a plain `UIColor` at the UIKit boundary (nav bars, tab bars,
+    /// `backgroundColor` settings) without re-deriving it from the
+    /// operation closures. First-wins — subsequent `.color(...)` calls
+    /// layer on top but don't overwrite this.
+    public private(set) var primaryColor: Color?
+
+    /// Liquid-Glass style, if this Surface expresses one. Set via
+    /// `Surface.glass(...)` / `.glass(...)`. Consumers with UIKit
+    /// integration (nav bar appearance, sheets, custom controls)
+    /// can read this to configure their native glass effect; pure
+    /// Canvas consumers ignore it — the effect is view-composited,
+    /// not drawn.
+    public private(set) var glassStyle: GlassStyle?
+
     public init() {}
 
     public init(_ build: (Surface) -> Surface) {
@@ -433,6 +461,7 @@ public final class Surface {
     public static func gradient(_ gradient: Gradient) -> Surface { Surface().gradient(gradient) }
     public static func border(_ color: Color, width: Double = 1) -> Surface { Surface().border(color, width: width) }
     public static func shadow(color: Color = Color(0, 0, 0, 0.3), offset: Vec2 = Vec2(0, 4), blur: Double = 8) -> Surface { Surface().shadow(color: color, offset: offset, blur: blur) }
+    public static func glass(_ style: GlassStyle = .regular) -> Surface { Surface().glass(style) }
 
     /// Materialize layers for a given shape.
     public func build(shape: Shape) -> [any Layer] {
@@ -447,7 +476,20 @@ public final class Surface {
 
     @discardableResult
     public func color(_ color: Color) -> Surface {
+        if primaryColor == nil { primaryColor = color }
         operations.append { shape in [ShapeLayer(shape, .color(color))] }; return self
+    }
+
+    /// Declare this Surface as a Liquid-Glass material. Does not add
+    /// a drawable layer — glass is rendered by the OS via a view-level
+    /// effect, not by painting to a Canvas. Consumers that render
+    /// Surfaces through a UIView hierarchy pick this up via
+    /// `glassStyle` and install a `UIVisualEffectView(UIGlassEffect())`
+    /// as a backing layer; Canvas-only renderers ignore it.
+    @discardableResult
+    public func glass(_ style: GlassStyle = .regular) -> Surface {
+        self.glassStyle = style
+        return self
     }
 
     @discardableResult
