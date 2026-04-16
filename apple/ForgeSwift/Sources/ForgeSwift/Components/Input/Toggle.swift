@@ -52,8 +52,8 @@ public struct Toggle: ModelView {
         self.label = label
     }
 
-    public func makeModel(context: BuildContext) -> ToggleModel { ToggleModel() }
-    public func makeBuilder() -> ToggleBuilder { ToggleBuilder() }
+    public func model(context: BuildContext) -> ToggleModel { ToggleModel(context: context) }
+    public func builder(model: ToggleModel) -> ToggleBuilder { ToggleBuilder(model: model) }
 }
 
 // MARK: - Model
@@ -62,7 +62,8 @@ public final class ToggleModel: ViewModel<Toggle> {
     var isPressed = false
     lazy var motion: Motion = Motion(duration: 0.2, tracks: [Track(from: 0, to: 1)])
 
-    public override func didInit() {
+    public override func didInit(view: Toggle) {
+        super.didInit(view: view)
         let style = resolveStyle()
         motion = Motion(duration: style.animation.duration, curve: style.animation.curve, tracks: [Track(from: 0, to: 1)])
         if view.value.value {
@@ -71,8 +72,6 @@ public final class ToggleModel: ViewModel<Toggle> {
             while motion.isRunning { motion.tick() }
         }
     }
-
-    public override func didUpdate(from oldView: Toggle) {}
 
     var isOn: Bool { view.value.value }
     var isDisabled: Bool { view.states.contains(.disabled) }
@@ -111,12 +110,13 @@ public final class ToggleModel: ViewModel<Toggle> {
     }
 
     func toggle() {
-        view.value.value.toggle()
-        let style = resolveStyle()
-        motion.duration = style.animation.duration
-        motion.curve = style.animation.curve
-        motion.target([view.value.value ? 1 : 0])
-        node?.markDirty()
+        rebuild {
+            view.value.value.toggle()
+            let style = resolveStyle()
+            motion.duration = style.animation.duration
+            motion.curve = style.animation.curve
+            motion.target([view.value.value ? 1 : 0])
+        }
     }
 
     private func fireHaptic(_ haptic: HapticStyle) {

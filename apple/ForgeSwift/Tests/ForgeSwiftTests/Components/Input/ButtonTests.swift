@@ -21,8 +21,9 @@ final class ButtonTests: XCTestCase {
         ) {
             Text("Test")
         }
-        let model = ButtonModel()
-        model.handleDidInit(button)
+        let context = BuildContext(node: BuiltNode())
+        let model = ButtonModel(context: context)
+        model.didInit(view: button)
         return model
     }
 

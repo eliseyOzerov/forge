@@ -50,7 +50,7 @@
 /// On first build the slot for each value is created; on subsequent
 /// rebuilds each slot's value is updated (which fires consumer
 /// rebuilds for that type).
-public struct Provided<each T>: ComposedView {
+public struct Provided<each T>: BuiltView {
     public let values: (repeat each T)
     public let child: any View
 

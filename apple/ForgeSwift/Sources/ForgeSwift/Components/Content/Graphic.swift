@@ -735,7 +735,7 @@ final class GraphicView: UIView {
 
 #else
 
-public struct Graphic: ComposedView {
+public struct Graphic: BuiltView {
     public init() {}
     public func build(context: BuildContext) -> any View { Text("TODO: Graphic") }
 }

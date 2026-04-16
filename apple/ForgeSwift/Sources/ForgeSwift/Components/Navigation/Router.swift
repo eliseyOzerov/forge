@@ -33,8 +33,8 @@ public struct Router: ModelView {
         self.routes = routes
     }
 
-    public func makeModel(context: BuildContext) -> RouterModel { RouterModel() }
-    public func makeBuilder() -> RouterBuilder { RouterBuilder() }
+    public func model(context: BuildContext) -> RouterModel { RouterModel(context: context) }
+    public func builder(model: RouterModel) -> RouterBuilder { RouterBuilder(model: model) }
 }
 
 // MARK: - Model
@@ -42,12 +42,14 @@ public struct Router: ModelView {
 public final class RouterModel: ViewModel<Router> {
     public let handle = RouterHandle()
 
-    public override func didInit() {
+    public override func didInit(view: Router) {
+        super.didInit(view: view)
         handle.setDeclarative(view.routes())
     }
 
-    public override func didUpdate(from oldView: Router) {
-        handle.setDeclarative(view.routes())
+    public override func didUpdate(newView: Router) {
+        super.didUpdate(newView: newView)
+        handle.setDeclarative(newView.routes())
     }
 }
 

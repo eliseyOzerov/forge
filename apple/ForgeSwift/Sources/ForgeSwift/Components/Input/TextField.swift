@@ -30,8 +30,8 @@ public struct TextField<T>: ModelView {
         self.decoration = decoration; self.keyboard = keyboard; self.style = style
     }
 
-    public func makeModel(context: BuildContext) -> TextFieldModel<T> { TextFieldModel() }
-    public func makeBuilder() -> TextFieldBuilder<T> { TextFieldBuilder() }
+    public func model(context: BuildContext) -> TextFieldModel<T> { TextFieldModel(context: context) }
+    public func builder(model: TextFieldModel<T>) -> TextFieldBuilder<T> { TextFieldBuilder(model: model) }
 }
 
 // MARK: - Logic
@@ -265,13 +265,15 @@ public final class TextFieldModel<T>: ViewModel<TextField<T>> {
     var error: String?
     var displayText: String = ""
 
-    public override func didInit() {
+    public override func didInit(view: TextField<T>) {
+        super.didInit(view: view)
         displayText = format(view.value.value)
         validate()
     }
 
-    public override func didUpdate(from oldView: TextField<T>) {
-        displayText = format(view.value.value)
+    public override func didUpdate(newView: TextField<T>) {
+        super.didUpdate(newView: newView)
+        displayText = format(newView.value.value)
         validate()
     }
 
@@ -294,11 +296,12 @@ public final class TextFieldModel<T>: ViewModel<TextField<T>> {
     func textChanged(_ newText: String) {
         if let filter = view.logic.filter, !filter(newText) { return }
         guard let parsed = parse(newText) else { return }
-        view.value.value = parsed
-        displayText = format(parsed)
-        validate()
+        rebuild {
+            view.value.value = parsed
+            displayText = format(parsed)
+            validate()
+        }
         view.logic.onChanged?(parsed)
-        node?.markDirty()
     }
 
     func validate() {

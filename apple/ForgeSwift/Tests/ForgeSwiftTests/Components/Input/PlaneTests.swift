@@ -25,8 +25,9 @@ final class PlaneTests: XCTestCase {
             relative: relative,
             states: states
         ) { EmptyView() }
-        let model = PlaneModel()
-        model.handleDidInit(draggable)
+        let context = BuildContext(node: BuiltNode())
+        let model = PlaneModel(context: context)
+        model.didInit(view: draggable)
         model.containerSize = Size(200, 200)
         return model
     }
@@ -140,8 +141,9 @@ final class PlaneTests: XCTestCase {
             offset: binding,
             onStart: { _ in started = true }
         ) { EmptyView() }
-        let model = PlaneModel()
-        model.handleDidInit(draggable)
+        let context = BuildContext(node: BuiltNode())
+        let model = PlaneModel(context: context)
+        model.didInit(view: draggable)
         model.handleDragStart(at: Vec2(10, 10))
         XCTAssertTrue(started)
     }
@@ -154,8 +156,9 @@ final class PlaneTests: XCTestCase {
             anchor: false,
             onChanged: { changed = $0 }
         ) { EmptyView() }
-        let model = PlaneModel()
-        model.handleDidInit(draggable)
+        let context = BuildContext(node: BuiltNode())
+        let model = PlaneModel(context: context)
+        model.didInit(view: draggable)
         model.handleDragStart(at: Vec2(0, 0))
         model.handleDragUpdate(at: Vec2(25, 35))
         XCTAssertEqual(changed!.x, 25, accuracy: 0.1)
@@ -169,8 +172,9 @@ final class PlaneTests: XCTestCase {
             offset: binding,
             onEnd: { _ in ended = true }
         ) { EmptyView() }
-        let model = PlaneModel()
-        model.handleDidInit(draggable)
+        let context = BuildContext(node: BuiltNode())
+        let model = PlaneModel(context: context)
+        model.didInit(view: draggable)
         model.handleDragStart(at: Vec2(0, 0))
         model.handleDragEnd()
         XCTAssertTrue(ended)

@@ -88,12 +88,12 @@ public struct AsyncImage: ModelView {
         self.error = error
     }
 
-    public func makeModel(context: BuildContext) -> AsyncImageModel {
-        AsyncImageModel()
+    public func model(context: BuildContext) -> AsyncImageModel {
+        AsyncImageModel(context: context)
     }
 
-    public func makeBuilder() -> AsyncImageBuilder {
-        AsyncImageBuilder()
+    public func builder(model: AsyncImageModel) -> AsyncImageBuilder {
+        AsyncImageBuilder(model: model)
     }
 }
 
@@ -134,7 +134,8 @@ public final class AsyncImageModel: ViewModel<AsyncImage> {
     var loadError: Error?
     var isLoading = false
 
-    public override func didInit() {
+    public override func didInit(view: AsyncImage) {
+        super.didInit(view: view)
         startLoading()
     }
 
@@ -216,7 +217,7 @@ final class UIKitImageRenderer: Renderer {
 
 #else
 
-public struct Image: ComposedView {
+public struct Image: BuiltView {
     public init() {}
     public func build(context: BuildContext) -> any View { Text("TODO: Image") }
 }

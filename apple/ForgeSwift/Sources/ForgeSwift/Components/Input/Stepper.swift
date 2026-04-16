@@ -113,8 +113,8 @@ public struct Stepper<T: Numeric & Comparable & LosslessStringConvertible>: Mode
         self.states = states; self.label = label; self.style = style
     }
 
-    public func makeModel(context: BuildContext) -> StepperModel<T> { StepperModel() }
-    public func makeBuilder() -> StepperBuilder<T> { StepperBuilder() }
+    public func model(context: BuildContext) -> StepperModel<T> { StepperModel(context: context) }
+    public func builder(model: StepperModel<T>) -> StepperBuilder<T> { StepperBuilder(model: model) }
 }
 
 // MARK: - Model
@@ -124,8 +124,6 @@ public final class StepperModel<T: Numeric & Comparable & LosslessStringConverti
     var dragAccumulator: Double = 0
     private var repeatTimer: Timer?
     private var currentRepeatInterval: Double = 0
-
-    public override func didInit() {}
 
     var isDisabled: Bool { view.states.contains(.disabled) }
     var isLoading: Bool { view.states.contains(.loading) }
@@ -154,16 +152,14 @@ public final class StepperModel<T: Numeric & Comparable & LosslessStringConverti
 
     func increment() {
         guard !isDisabled, !isLoading, !atMax else { return }
-        currentValue = currentValue + view.step
+        rebuild { currentValue = currentValue + view.step }
         fireHaptic()
-        node?.markDirty()
     }
 
     func decrement() {
         guard !isDisabled, !isLoading, !atMin else { return }
-        currentValue = currentValue - view.step
+        rebuild { currentValue = currentValue - view.step }
         fireHaptic()
-        node?.markDirty()
     }
 
     // MARK: Long Press Repeat
@@ -208,13 +204,14 @@ public final class StepperModel<T: Numeric & Comparable & LosslessStringConverti
             dragAccumulator -= Double(steps) * style.drag.sensitivity
             if let stepValue = T(exactly: abs(steps)) {
                 let change = stepValue * view.step
-                if steps < 0 { // drag up = increment (negative delta)
-                    currentValue = currentValue + change
-                } else {
-                    currentValue = currentValue - change
+                rebuild {
+                    if steps < 0 { // drag up = increment (negative delta)
+                        currentValue = currentValue + change
+                    } else {
+                        currentValue = currentValue - change
+                    }
                 }
                 fireHaptic()
-                node?.markDirty()
             }
         }
     }
@@ -226,9 +223,10 @@ public final class StepperModel<T: Numeric & Comparable & LosslessStringConverti
     // MARK: Text Edit
 
     func textChanged(_ text: String) {
-        guard let parsed = T(text) else { return }
-        currentValue = parsed
-        node?.markDirty()
+        rebuild {
+            guard let parsed = T(text) else { return }
+            currentValue = parsed
+        }
     }
 
     func setEditing(_ editing: Bool) {

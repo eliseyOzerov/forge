@@ -10,8 +10,9 @@ final class SegmentedTests: XCTestCase {
     private func makeModel(initial: Option = .apple) -> SegmentedModel<Option> {
         let binding = Binding(initial)
         let view = Segmented<Option>(value: binding, items: [.apple, .banana, .cherry])
-        let model = SegmentedModel<Option>()
-        model.handleDidInit(view)
+        let context = BuildContext(node: BuiltNode())
+        let model = SegmentedModel<Option>(context: context)
+        model.didInit(view: view)
         return model
     }
 
@@ -35,8 +36,9 @@ final class SegmentedTests: XCTestCase {
             items: [.apple, .banana, .cherry],
             states: .disabled
         )
-        let model = SegmentedModel<Option>()
-        model.handleDidInit(view)
+        let context = BuildContext(node: BuiltNode())
+        let model = SegmentedModel<Option>(context: context)
+        model.didInit(view: view)
         model.tapSegment(at: 2)
         XCTAssertEqual(model.view.value.value, .apple)
     }

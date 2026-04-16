@@ -69,8 +69,8 @@ public struct Segmented<T: Hashable>: ModelView {
         self.style = style
     }
 
-    public func makeModel(context: BuildContext) -> SegmentedModel<T> { SegmentedModel() }
-    public func makeBuilder() -> SegmentedBuilder<T> { SegmentedBuilder() }
+    public func model(context: BuildContext) -> SegmentedModel<T> { SegmentedModel(context: context) }
+    public func builder(model: SegmentedModel<T>) -> SegmentedBuilder<T> { SegmentedBuilder(model: model) }
 }
 
 // MARK: - Model
@@ -79,7 +79,8 @@ public final class SegmentedModel<T: Hashable>: ViewModel<Segmented<T>> {
     var isPressed = false
     var motion: Motion = Motion(duration: 0.25, tracks: [Track()])
 
-    public override func didInit() {
+    public override func didInit(view: Segmented<T>) {
+        super.didInit(view: view)
         let idx = Double(selectedIndex)
         let style = view.style(.idle)
         motion = Motion(
@@ -125,25 +126,25 @@ public final class SegmentedModel<T: Hashable>: ViewModel<Segmented<T>> {
 
     func scrubStart() {
         guard !isDisabled, !isLoading else { return }
-        isPressed = true
-        node?.markDirty()
+        rebuild { isPressed = true }
     }
 
     func scrubTo(normalized: Double) {
         guard isPressed else { return }
-        let clamped = min(max(normalized, 0), 1)
-        let idx = clamped * Double(itemCount - 1)
-        motion = Motion(duration: 0, tracks: [Track(from: idx, to: idx)])
-        // Update value when crossing midpoint
-        let nearest = Int(idx.rounded())
-        if (0..<itemCount).contains(nearest) {
-            let newItem = view.items[nearest]
-            if newItem != view.value.value {
-                view.value.value = newItem
-                fireHaptic()
+        rebuild {
+            let clamped = min(max(normalized, 0), 1)
+            let idx = clamped * Double(itemCount - 1)
+            motion = Motion(duration: 0, tracks: [Track(from: idx, to: idx)])
+            // Update value when crossing midpoint
+            let nearest = Int(idx.rounded())
+            if (0..<itemCount).contains(nearest) {
+                let newItem = view.items[nearest]
+                if newItem != view.value.value {
+                    view.value.value = newItem
+                    fireHaptic()
+                }
             }
         }
-        node?.markDirty()
     }
 
     func scrubEnd() {
@@ -152,19 +153,20 @@ public final class SegmentedModel<T: Hashable>: ViewModel<Segmented<T>> {
     }
 
     private func animateToIndex(_ index: Int) {
-        let newItem = view.items[index]
-        if newItem != view.value.value {
-            view.value.value = newItem
-            fireHaptic()
+        rebuild {
+            let newItem = view.items[index]
+            if newItem != view.value.value {
+                view.value.value = newItem
+                fireHaptic()
+            }
+            let style = view.style(currentState)
+            motion = Motion(
+                duration: style.animation.duration,
+                curve: style.animation.curve,
+                tracks: [Track(from: displayIndex, to: Double(index))]
+            )
+            motion.forward()
         }
-        let style = view.style(currentState)
-        motion = Motion(
-            duration: style.animation.duration,
-            curve: style.animation.curve,
-            tracks: [Track(from: displayIndex, to: Double(index))]
-        )
-        motion.forward()
-        node?.markDirty()
     }
 
     private func fireHaptic() {
@@ -182,7 +184,7 @@ public final class SegmentedModel<T: Hashable>: ViewModel<Segmented<T>> {
 
 public final class SegmentedBuilder<T: Hashable>: ViewBuilder<SegmentedModel<T>> {
     public override func build(context: BuildContext) -> any View {
-        let model = self.model!
+        let model = self.model
         return LayoutReader { [weak model] size in
             guard let model else { return EmptyView() }
             return SegmentedBuilder<T>.buildLayers(size: size, model: model)

@@ -53,8 +53,8 @@ public struct Plane: ModelView {
         self.body = body()
     }
 
-    public func makeModel(context: BuildContext) -> PlaneModel { PlaneModel() }
-    public func makeBuilder() -> PlaneBuilder { PlaneBuilder() }
+    public func model(context: BuildContext) -> PlaneModel { PlaneModel(context: context) }
+    public func builder(model: PlaneModel) -> PlaneBuilder { PlaneBuilder(model: model) }
 }
 
 // MARK: - Model
@@ -65,7 +65,8 @@ public final class PlaneModel: ViewModel<Plane> {
     var containerSize: Size = .zero
     var motion: Motion = Motion(duration: 0.3, tracks: [Track(), Track()])
 
-    public override func didInit() {
+    public override func didInit(view: Plane) {
+        super.didInit(view: view)
         motion = Motion(
             duration: view.animation.duration,
             curve: view.animation.curve,
@@ -93,16 +94,15 @@ public final class PlaneModel: ViewModel<Plane> {
 
     func handleDragStart(at position: Vec2) {
         guard !isDisabled else { return }
-        isPressed = true
-
-        if view.anchor {
-            anchorOffset = position - toAbsolute(view.offset.value)
-        } else {
-            anchorOffset = .zero
+        rebuild {
+            isPressed = true
+            if view.anchor {
+                anchorOffset = position - toAbsolute(view.offset.value)
+            } else {
+                anchorOffset = .zero
+            }
         }
-
         view.onStart?(view.offset.value)
-        node?.markDirty()
     }
 
     func handleDragUpdate(at position: Vec2) {
@@ -112,49 +112,46 @@ public final class PlaneModel: ViewModel<Plane> {
         if view.relative { raw = toRelative(raw) }
         if let active = view.active { raw = active(raw) }
 
-        view.offset.value = raw
+        rebuild { view.offset.value = raw }
         view.onChanged?(raw)
-        node?.markDirty()
     }
 
     func handleDragEnd() {
         guard isPressed else { return }
-        isPressed = false
 
         var final = view.offset.value
         if let target = view.target {
             final = target(final)
         }
 
-        if final != view.offset.value {
-            // Animate to snap target
-            motion.duration = view.animation.duration
-            motion.curve = view.animation.curve
-            motion = Motion(
-                duration: view.animation.duration,
-                curve: view.animation.curve,
-                tracks: [Track(from: view.offset.value.x, to: final.x),
-                         Track(from: view.offset.value.y, to: final.y)]
-            )
-            motion.onTick = { [weak self] in
-                guard let self else { return }
-                view.offset.value = Vec2(motion.values[0], motion.values[1])
-                node?.markDirty()
+        rebuild {
+            isPressed = false
+            if final != view.offset.value {
+                // Animate to snap target
+                motion.duration = view.animation.duration
+                motion.curve = view.animation.curve
+                motion = Motion(
+                    duration: view.animation.duration,
+                    curve: view.animation.curve,
+                    tracks: [Track(from: view.offset.value.x, to: final.x),
+                             Track(from: view.offset.value.y, to: final.y)]
+                )
+                motion.onTick = { [weak self] in
+                    guard let self else { return }
+                    rebuild { view.offset.value = Vec2(motion.values[0], motion.values[1]) }
+                }
+                motion.onComplete = { [weak self] in
+                    guard let self else { return }
+                    view.offset.value = final
+                }
+                motion.forward()
             }
-            motion.onComplete = { [weak self] in
-                guard let self else { return }
-                view.offset.value = final
-            }
-            motion.forward()
         }
-
         view.onEnd?(final)
-        node?.markDirty()
     }
 
     func handleDragCancel() {
-        isPressed = false
-        node?.markDirty()
+        rebuild { isPressed = false }
     }
 
     // MARK: Coordinate conversion

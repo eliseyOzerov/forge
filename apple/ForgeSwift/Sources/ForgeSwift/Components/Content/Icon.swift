@@ -96,7 +96,7 @@ final class UIKitIconRenderer: Renderer {
 
 #else
 
-public struct Icon: ComposedView {
+public struct Icon: BuiltView {
     public init() {}
     public func build(context: BuildContext) -> any View { Text("TODO: Icon") }
 }

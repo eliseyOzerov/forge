@@ -17,10 +17,15 @@
 //    Builder    — composite views. Dumb build function over a
 //                 ViewModel. ViewBuilder<T> is the convenience base.
 //
-//  A View is either Leaf or Composed. A ComposedView without state
-//  implements build(context:) directly. A ComposedView with state
-//  conforms to ModelView — the framework routes its build through
-//  a Builder created via makeBuilder(model:).
+//  A View is either Leaf or composite. Stateless composites conform
+//  to BuiltView and implement build(context:) directly. Stateful
+//  composites conform to ModelView — the framework routes their build
+//  through a Builder created via makeBuilder(), with a Model created
+//  via makeModel(context:) holding the persistent state. BuiltView
+//  and ModelView are siblings under View; neither inherits from the
+//  other. Their backing Nodes are split accordingly: BuiltNode for
+//  BuiltView (no Model slot, no user-triggered rebuild path) and
+//  ModelNode for ModelView (owns Model/Builder and dispatches lifecycle).
 //
 
 @MainActor public protocol View {
@@ -37,140 +42,162 @@ public extension LeafView {
     func makeNode() -> Node { LeafNode() }
 }
 
-// MARK: - Composed
+// MARK: - Built
 
-/// A View composed of other views via a build function. Stateless
-/// composites implement `build(context:)` directly. Stateful
-/// composites conform to `ModelView` instead.
-@MainActor public protocol ComposedView: View {
+/// A stateless composite: a View whose body is built from a single
+/// `build(context:)` function. Backed by `BuiltNode`, which holds no
+/// per-instance data and has no user-triggered rebuild path. It can
+/// still be dirtied by upstream observable emissions (Provided
+/// changes, `context.watch`), which re-runs its build.
+@MainActor public protocol BuiltView: View {
     func build(context: BuildContext) -> any View
 }
 
-public extension ComposedView {
-    func makeNode() -> Node { ComposedNode() }
+public extension BuiltView {
+    func makeNode() -> Node { BuiltNode() }
 }
 
-/// A ComposedView with a persistent ViewModel and Builder. The
-/// framework routes build requests through the Builder returned by
-/// `makeBuilder()` — implementers should not override
-/// `build(context:)` themselves (its default is a fatalError stub).
+/// A stateful composite: a View backed by a persistent `Model` and
+/// a per-render `Builder`. The framework creates the Model once at
+/// mount via `model(context:)`, creates a fresh Builder each render
+/// via `builder(model:)`, and calls the Builder's `build(context:)`
+/// to produce the subtree. Backed by `ModelNode`, which owns the
+/// Model slot, the dirty flag, and dispatches lifecycle (`didInit`,
+/// `didUpdate`, `didRebuild`, `didDispose`).
 ///
-/// The framework creates the model via `makeModel`, calls its
-/// lifecycle hooks (`didInit` / `didUpdate`), creates the builder
-/// via `makeBuilder()`, and wires the model onto the builder. The
-/// builder reads all data from the model — no extra constructor
-/// arguments needed.
-@MainActor public protocol ModelView: ComposedView {
-    associatedtype ModelType: ViewModelBase
-    associatedtype BuilderType: ViewBuilder<ModelType>
-    func makeModel(context: BuildContext) -> ModelType
-    func makeBuilder() -> BuilderType
+/// The associated type constraints refer to the lifecycle *protocols*
+/// (`ViewLifecycle`, `ViewBuilding`). In practice most conformers
+/// inherit from the default base classes (`ViewModel<Self>`,
+/// `ViewBuilder<Model>`) which provide context capture, view stashing,
+/// and a rebuild helper — but a user can also conform to the
+/// protocols directly for testability or special cases.
+@MainActor public protocol ModelView: View {
+    associatedtype Model: ViewLifecycle<Self>
+    associatedtype Builder: ViewBuilding<Model>
+    func model(context: BuildContext) -> Model
+    func builder(model: Model) -> Builder
 }
 
 public extension ModelView {
-    /// Stub. The framework calls the Builder's build directly; this
-    /// default exists only to satisfy the ComposedView requirement
-    /// and should never be invoked at runtime. ModelView implementers
-    /// should not override it.
-    func build(context: BuildContext) -> any View {
-        fatalError(
-            "ModelView.build(context:) should never be called directly. " +
-            "The framework routes builds through the Builder returned " +
-            "by makeBuilder(model:)."
-        )
-    }
+    func makeNode() -> Node { ModelNode() }
 }
 
-// MARK: - ViewModel
+// MARK: - ViewLifecycle (protocol) + ViewModel (default class)
 
-/// Non-generic base class for the framework's internal bookkeeping.
-/// Users should subclass `ViewModel<V>` instead.
-@MainActor open class ViewModelBase {
-    public weak var node: Node?
+/// Lifecycle contract for a ModelView's persistent state container.
+/// All requirements are default-empty — conformers override only the
+/// hooks they need. This protocol declares the dispatch surface the
+/// framework uses on the owning `ModelNode`.
+///
+/// Most users don't conform to this protocol directly — they subclass
+/// the `ViewModel<View>` default class, which handles context
+/// capture, view stashing, and the `rebuild { }` helper. Conform
+/// directly when you need full control (e.g. a model backed by a
+/// non-class type, or a test double with custom lifecycle behavior).
+@MainActor public protocol ViewLifecycle<View>: AnyObject {
+    associatedtype View
 
-    public init() {}
+    /// Called once after the Model is created, before the first build.
+    func didInit(view: View)
 
-    /// Flutter-style setState. Runs the mutation closure synchronously,
-    /// then marks the owning node dirty — which schedules a rebuild
-    /// on the next main-actor tick.
-    public func rebuild(_ mutation: () -> Void) {
-        mutation()
-        node?.markDirty()
-    }
+    /// Called when the parent rebuilds with a new `View` value for
+    /// this model's slot. Fired before the Builder runs for that
+    /// render pass. Conformers that need the previous view can access
+    /// it via their own stashed property (or via `self.view` on the
+    /// `ViewModel` default class, which still holds the previous
+    /// value until `super.didUpdate(newView:)` assigns the new one).
+    func didUpdate(newView: View)
 
-    // Framework-internal lifecycle dispatch. Overridden by ViewModel<V>.
-    func handleDidInit(_ view: any View) {}
-    func handleDidUpdate(_ view: any View, oldView: any View) {}
-    open func willUnmount() {}
+    /// Called after each render of the owning ModelNode completes.
+    func didRebuild()
+
+    /// Called once at unmount, before the Model is discarded. Cleanup
+    /// hook for subscriptions, timers, and anything else the Model
+    /// owns that outlives a single render.
+    func didDispose()
 }
 
-/// Typed ViewModel base class. Subclass this with your ModelView's
-/// type as the generic parameter to get typed access to the view's
-/// props via `self.view`.
+public extension ViewLifecycle {
+    func didInit(view: View) {}
+    func didUpdate(newView: View) {}
+    func didRebuild() {}
+    func didDispose() {}
+}
+
+/// Default base class for a ModelView's Model. Captures the
+/// BuildContext at construction, auto-stashes the view in
+/// `didInit` / `didUpdate`, and exposes a `rebuild { }` helper that
+/// forwards to the context. Subclass this to get the convenience
+/// path; conform to `ViewLifecycle` directly if you need full
+/// control.
 ///
 ///     final class CounterModel: ViewModel<Counter> {
 ///         var count = 0
-///         override func didInit() { /* self.view.initialCount */ }
+///         func increment() { rebuild { count += 1 } }
 ///     }
-@MainActor open class ViewModel<V: ModelView>: ViewModelBase {
-    public private(set) var view: V!
+///
+/// Subclasses that override `didInit` / `didUpdate` should call
+/// `super` to preserve the view-stash behavior (unless they stash
+/// it themselves).
+@MainActor open class ViewModel<View>: ViewLifecycle {
+    public let context: BuildContext
+    public private(set) var view: View!
 
-    override func handleDidInit(_ view: any View) {
-        self.view = (view as! V)
-        didInit()
+    public init(context: BuildContext) {
+        self.context = context
     }
 
-    override func handleDidUpdate(_ view: any View, oldView: any View) {
-        let oldView = oldView as! V
-        self.view = (view as! V)
-        didUpdate(from: oldView)
+    open func didInit(view: View) {
+        self.view = view
     }
 
-    /// Called once after the model is created and wired to the node.
-    /// The view's props are available via `self.view`.
-    open func didInit() {}
+    open func didUpdate(newView: View) {
+        self.view = newView
+    }
 
-    /// Called when the parent rebuilds and passes new props to this
-    /// view. `self.view` is already the new view; `oldView` is the
-    /// previous instance for comparison.
-    open func didUpdate(from oldView: V) {}
+    open func didRebuild() {}
+    open func didDispose() {}
+
+    /// Sandwich-style rebuild. Equivalent to `context.rebuild { ... }`,
+    /// provided so subclass methods read naturally: `rebuild { count += 1 }`.
+    public func rebuild(_ mutation: () -> Void) {
+        context.rebuild(mutation)
+    }
 }
 
-// MARK: - Builder
+// MARK: - ViewBuilding (protocol) + ViewBuilder (default class)
 
-@MainActor public protocol Builder: AnyObject {
-    /// Produces the subtree View for this composite. The context is
-    /// a narrow window onto the owning node.
+/// Build contract for a ModelView's per-render builder. The only
+/// requirement is `build(context:) -> any View`; the Model is an
+/// associated type that identifies what the builder renders against.
+/// Most users subclass the `ViewBuilder<Model>` default class to get
+/// the stored-model init for free.
+@MainActor public protocol ViewBuilding<Model> {
+    associatedtype Model
     func build(context: BuildContext) -> any View
 }
 
-/// Convenience base class for builders that operate on a specific
-/// ViewModel subclass. The framework assigns `model` after
-/// construction — subclasses just override `build(context:)`.
-@MainActor open class ViewBuilder<T: ViewModelBase>: Builder {
-    public var model: T!
+/// Default base class for a ModelView's Builder. Holds the Model as
+/// a stored property and provides the `init(model:)` the framework
+/// uses. Subclass and override `build(context:)`.
+///
+///     final class CounterBuilder: ViewBuilder<CounterModel> {
+///         override func build(context: BuildContext) -> any View {
+///             Text("\(model.count)")
+///         }
+///     }
+///
+/// Conform to `ViewBuilding` directly if you need full control
+/// (e.g. a struct Builder, or one that takes additional init args).
+@MainActor open class ViewBuilder<Model>: ViewBuilding {
+    public let model: Model
 
-    public init() {}
+    public init(model: Model) {
+        self.model = model
+    }
 
     open func build(context: BuildContext) -> any View {
         fatalError("ViewBuilder subclass must override build(context:)")
-    }
-
-    /// Create a two-way Binding from a keypath on this builder's
-    /// model. Writes through the binding call rebuild { ... } on the
-    /// model, which marks the owning composite node dirty and
-    /// schedules a rebuild of its subtree on the next main-actor
-    /// tick. Lives on ViewBuilder (not ViewModel) because the
-    /// generic parameter T gives Swift the concrete model type it
-    /// needs for keypath inference.
-    public func bind<Value>(_ keyPath: ReferenceWritableKeyPath<T, Value>) -> Binding<Value> {
-        let model = self.model!
-        return Binding(
-            get: { model[keyPath: keyPath] },
-            set: { newValue in
-                model.rebuild { model[keyPath: keyPath] = newValue }
-            }
-        )
     }
 }
 
@@ -195,11 +222,21 @@ public extension ModelView {
     public func watch<T>(_ observable: Observable<T>) -> T {
         node.watch(observable)
     }
+
+    /// Flutter-style setState. Runs the mutation closure synchronously,
+    /// then marks the owning node dirty — which schedules a rebuild
+    /// on the next main-actor tick. Used by Models to trigger rebuilds
+    /// after mutating their own state; the Model captures the context
+    /// at construction (`model(context:)`) and calls this when needed.
+    public func rebuild(_ mutation: () -> Void) {
+        mutation()
+        node.markDirty()
+    }
 }
 
 // MARK: - Buildable
 
-/// A ComposedView whose entire body is a single closure. Use for
+/// A BuiltView whose entire body is a single closure. Use for
 /// inline subtrees that need a BuildContext — typically to read a
 /// Provided value — without defining a dedicated type.
 ///
@@ -207,7 +244,7 @@ public extension ModelView {
 ///         let theme = ctx.watch(ColorTheme.self)
 ///         return Text("hi", color: theme.label)
 ///     }
-public struct Buildable: ComposedView {
+public struct Buildable: BuiltView {
     private let body: @MainActor (BuildContext) -> any View
 
     public init(_ body: @escaping @MainActor (BuildContext) -> any View) {

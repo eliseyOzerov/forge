@@ -13,8 +13,9 @@ final class SliderTests: XCTestCase {
     ) -> SliderModel {
         let binding = Binding(value)
         let slider = Slider(value: binding, range: range, states: states)
-        let model = SliderModel()
-        model.handleDidInit(slider)
+        let context = BuildContext(node: BuiltNode())
+        let model = SliderModel(context: context)
+        model.didInit(view: slider)
         return model
     }
 
@@ -108,8 +109,9 @@ final class SliderTests: XCTestCase {
         let style = SliderStyle(track: .constant(trackStyle))
         let binding = Binding(0.0)
         let slider = Slider(value: binding, range: 0...1, style: .constant(style))
-        let model = SliderModel()
-        model.handleDidInit(slider)
+        let context = BuildContext(node: BuiltNode())
+        let model = SliderModel(context: context)
+        model.didInit(view: slider)
         // Set to 0.26 — with 4 divisions (0, 0.25, 0.5, 0.75, 1.0), snaps to 0.25
         model.setNormalized(0.26)
         XCTAssertEqual(model.view.value.value, 0.25, accuracy: 0.01)
@@ -120,8 +122,9 @@ final class SliderTests: XCTestCase {
         let style = SliderStyle(track: .constant(trackStyle))
         let binding = Binding(0.0)
         let slider = Slider(value: binding, range: 0...1, style: .constant(style))
-        let model = SliderModel()
-        model.handleDidInit(slider)
+        let context = BuildContext(node: BuiltNode())
+        let model = SliderModel(context: context)
+        model.didInit(view: slider)
         model.setNormalized(0.26)
         XCTAssertEqual(model.view.value.value, 0.26, accuracy: 0.01)
     }

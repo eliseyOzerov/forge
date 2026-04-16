@@ -126,8 +126,8 @@ public struct Slider: ModelView {
         self.states = states; self.label = label; self.style = style
     }
 
-    public func makeModel(context: BuildContext) -> SliderModel { SliderModel() }
-    public func makeBuilder() -> SliderBuilder { SliderBuilder() }
+    public func model(context: BuildContext) -> SliderModel { SliderModel(context: context) }
+    public func builder(model: SliderModel) -> SliderBuilder { SliderBuilder(model: model) }
 }
 
 // MARK: - Model
@@ -136,7 +136,8 @@ public final class SliderModel: ViewModel<Slider> {
     var isPressed = false
     var motion: Motion = Motion(duration: 0.2, tracks: [Track()])
 
-    public override func didInit() {
+    public override func didInit(view: Slider) {
+        super.didInit(view: view)
         motion = Motion(duration: 0.2, curve: .easeOut, tracks: [Track(from: normalized, to: normalized)])
     }
 
@@ -161,38 +162,38 @@ public final class SliderModel: ViewModel<Slider> {
     }
 
     func setNormalized(_ n: Double, animated: Bool = false) {
-        let clamped = min(max(n, 0), 1)
-        let range = view.range
-        let newValue = range.lowerBound + clamped * (range.upperBound - range.lowerBound)
+        rebuild {
+            let clamped = min(max(n, 0), 1)
+            let range = view.range
+            let newValue = range.lowerBound + clamped * (range.upperBound - range.lowerBound)
 
-        // Snap to divisions if needed
-        let style = resolveStyle()
-        let trackStyle = style.track(currentState)
-        if let div = trackStyle.divisions, div.magnetStrength > 0, div.count > 0 {
-            let step = 1.0 / Double(div.count)
-            let snapped = (clamped / step).rounded() * step
-            let pulled = clamped + (snapped - clamped) * div.magnetStrength
-            let snappedValue = range.lowerBound + pulled * (range.upperBound - range.lowerBound)
-            view.value.value = snappedValue
-        } else {
-            view.value.value = newValue
-        }
-
-        if animated {
+            // Snap to divisions if needed
             let style = resolveStyle()
-            motion = Motion(duration: style.animation.duration, curve: style.animation.curve, tracks: [Track(from: displayNormalized, to: self.normalized)])
-            motion.forward()
-        }
+            let trackStyle = style.track(currentState)
+            if let div = trackStyle.divisions, div.magnetStrength > 0, div.count > 0 {
+                let step = 1.0 / Double(div.count)
+                let snapped = (clamped / step).rounded() * step
+                let pulled = clamped + (snapped - clamped) * div.magnetStrength
+                let snappedValue = range.lowerBound + pulled * (range.upperBound - range.lowerBound)
+                view.value.value = snappedValue
+            } else {
+                view.value.value = newValue
+            }
 
-        fireHaptic()
-        node?.markDirty()
+            if animated {
+                let style = resolveStyle()
+                motion = Motion(duration: style.animation.duration, curve: style.animation.curve, tracks: [Track(from: displayNormalized, to: self.normalized)])
+                motion.forward()
+            }
+
+            fireHaptic()
+        }
     }
 
     func handlePress(at normalizedPosition: Double) {
         guard !isDisabled else { return }
-        isPressed = true
+        rebuild { isPressed = true }
         setNormalized(normalizedPosition, animated: true)
-        node?.markDirty()
     }
 
     func handleDrag(at normalizedPosition: Double) {
@@ -201,8 +202,7 @@ public final class SliderModel: ViewModel<Slider> {
     }
 
     func handleRelease() {
-        isPressed = false
-        node?.markDirty()
+        rebuild { isPressed = false }
     }
 
     func resolveStyle() -> SliderStyle {

@@ -20,15 +20,15 @@ final class TestLeafRenderer: Renderer {
     }
 }
 
-struct TestComposed: ComposedView {
+struct TestComposed: BuiltView {
     let child: any View
     func build(context: BuildContext) -> any View { child }
 }
 
 struct TestModel: ModelView {
     let value: String
-    func makeModel(context: BuildContext) -> TestViewModel { TestViewModel() }
-    func makeBuilder() -> TestBuilder { TestBuilder() }
+    func model(context: BuildContext) -> TestViewModel { TestViewModel(context: context) }
+    func builder(model: TestViewModel) -> TestBuilder { TestBuilder(model: model) }
 }
 
 final class TestViewModel: ViewModel<TestModel> {
@@ -37,12 +37,18 @@ final class TestViewModel: ViewModel<TestModel> {
     var unmountCalled = false
     var lastOldValue: String?
 
-    override func didInit() { initCalled = true }
-    override func didUpdate(from oldView: TestModel) {
-        updateCalled = true
-        lastOldValue = oldView.value
+    override func didInit(view: TestModel) {
+        super.didInit(view: view)
+        initCalled = true
     }
-    override func willUnmount() { unmountCalled = true }
+    override func didUpdate(newView: TestModel) {
+        // self.view is still the previous value at this point;
+        // super.didUpdate assigns newView to self.view.
+        updateCalled = true
+        lastOldValue = view.value
+        super.didUpdate(newView: newView)
+    }
+    override func didDispose() { unmountCalled = true }
 }
 
 final class TestBuilder: ViewBuilder<TestViewModel> {
@@ -90,20 +96,19 @@ final class NodeTests: XCTestCase {
 
     func testInflateComposed() {
         let node = Node.inflate(TestComposed(child: TestLeaf(label: "inner")))
-        XCTAssertTrue(node is ComposedNode)
+        XCTAssertTrue(node is BuiltNode)
         XCTAssertNotNil(node.platformView)
-        let composed = node as! ComposedNode
-        XCTAssertNotNil(composed.child)
-        XCTAssertTrue(composed.child is LeafNode)
+        let built = node as! BuiltNode
+        XCTAssertNotNil(built.child)
+        XCTAssertTrue(built.child is LeafNode)
     }
 
     func testInflateModelView() {
         let node = Node.inflate(TestModel(value: "test"))
-        XCTAssertTrue(node is ComposedNode)
-        let composed = node as! ComposedNode
-        XCTAssertNotNil(composed.model)
-        XCTAssertNotNil(composed.builder)
-        let model = composed.model as! TestViewModel
+        XCTAssertTrue(node is ModelNode)
+        let modelNode = node as! ModelNode
+        XCTAssertNotNil(modelNode.model)
+        let model = modelNode.model as! TestViewModel
         XCTAssertTrue(model.initCalled)
     }
 
@@ -131,39 +136,39 @@ final class NodeTests: XCTestCase {
 
     func testComposedUpdateRebuilds() {
         let node = Node.inflate(TestComposed(child: TestLeaf(label: "v1")))
-        let composed = node as! ComposedNode
-        let childBefore = composed.child
+        let built = node as! BuiltNode
+        let childBefore = built.child
 
         node.update(from: TestComposed(child: TestLeaf(label: "v2")))
 
         // Same type child — updated in place
-        XCTAssertTrue(composed.child === childBefore)
-        XCTAssertEqual((composed.child?.platformView as? UILabel)?.text, "v2")
+        XCTAssertTrue(built.child === childBefore)
+        XCTAssertEqual((built.child?.platformView as? UILabel)?.text, "v2")
     }
 
     func testComposedUpdateReplacesChildOnTypeChange() {
         let node = Node.inflate(TestComposed(child: TestLeaf(label: "leaf")))
-        let composed = node as! ComposedNode
-        let childBefore = composed.child
+        let built = node as! BuiltNode
+        let childBefore = built.child
 
         node.update(from: TestComposed(child: TestComposed(child: TestLeaf(label: "nested"))))
 
         // Different type child — replaced
-        XCTAssertFalse(composed.child === childBefore)
+        XCTAssertFalse(built.child === childBefore)
     }
 
     // MARK: - ModelView Lifecycle
 
     func testModelViewDidInit() {
         let node = Node.inflate(TestModel(value: "init"))
-        let model = (node as! ComposedNode).model as! TestViewModel
+        let model = (node as! ModelNode).model as! TestViewModel
         XCTAssertTrue(model.initCalled)
         XCTAssertEqual(model.view.value, "init")
     }
 
     func testModelViewDidUpdate() {
         let node = Node.inflate(TestModel(value: "v1"))
-        let model = (node as! ComposedNode).model as! TestViewModel
+        let model = (node as! ModelNode).model as! TestViewModel
 
         node.update(from: TestModel(value: "v2"))
 
@@ -174,18 +179,18 @@ final class NodeTests: XCTestCase {
 
     func testModelViewModelPreservedOnUpdate() {
         let node = Node.inflate(TestModel(value: "v1"))
-        let modelBefore = (node as! ComposedNode).model
+        let modelBefore = (node as! ModelNode).model
 
         node.update(from: TestModel(value: "v2"))
 
-        let modelAfter = (node as! ComposedNode).model
+        let modelAfter = (node as! ModelNode).model
         XCTAssertTrue(modelBefore === modelAfter)
     }
 
     func testModelViewWillUnmount() {
         let node = Node.inflate(TestModel(value: "test"))
-        let model = (node as! ComposedNode).model as! TestViewModel
-        (node as! ComposedNode).unmount()
+        let model = (node as! ModelNode).model as! TestViewModel
+        (node as! ModelNode).unmount()
         XCTAssertTrue(model.unmountCalled)
     }
 

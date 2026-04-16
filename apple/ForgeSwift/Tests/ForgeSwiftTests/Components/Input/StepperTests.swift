@@ -16,8 +16,9 @@ final class StepperTests: XCTestCase {
     ) -> StepperModel<Int> {
         let binding = Binding(value)
         let stepper = Stepper(value: binding, range: range, step: step, states: states)
-        let model = StepperModel<Int>()
-        model.handleDidInit(stepper)
+        let context = BuildContext(node: BuiltNode())
+        let model = StepperModel<Int>(context: context)
+        model.didInit(view: stepper)
         return model
     }
 
@@ -163,8 +164,9 @@ final class StepperTests: XCTestCase {
         let binding = Binding(5)
         let style = StepperStyle<Int>(formatter: TextFormatter { "Value: \($0)" })
         let stepper = Stepper(value: binding, range: 0...10, step: 1, style: .constant(style))
-        let model = StepperModel<Int>()
-        model.handleDidInit(stepper)
+        let context = BuildContext(node: BuiltNode())
+        let model = StepperModel<Int>(context: context)
+        model.didInit(view: stepper)
         XCTAssertEqual(model.displayText(), "Value: 5")
     }
 

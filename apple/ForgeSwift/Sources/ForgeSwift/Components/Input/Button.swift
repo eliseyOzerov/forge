@@ -91,8 +91,8 @@ public struct Button: ModelView {
         self.label = title
     }
 
-    public func makeModel(context: BuildContext) -> ButtonModel { ButtonModel() }
-    public func makeBuilder() -> ButtonBuilder { ButtonBuilder() }
+    public func model(context: BuildContext) -> ButtonModel { ButtonModel(context: context) }
+    public func builder(model: ButtonModel) -> ButtonBuilder { ButtonBuilder(model: model) }
 }
 
 // MARK: - Model
@@ -102,12 +102,14 @@ public final class ButtonModel: ViewModel<Button> {
     var onTap: (@MainActor () -> Void)?
     var lastTapTime: CFTimeInterval = 0
 
-    public override func didInit() {
+    public override func didInit(view: Button) {
+        super.didInit(view: view)
         onTap = view.onTap
     }
 
-    public override func didUpdate(from oldView: Button) {
-        onTap = view.onTap
+    public override func didUpdate(newView: Button) {
+        super.didUpdate(newView: newView)
+        onTap = newView.onTap
     }
 
     var isDisabled: Bool { view.states.contains(.disabled) }

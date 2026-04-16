@@ -6,9 +6,17 @@
 //  Builder/Renderer, the PlatformView, and subscriptions.
 //
 //  Lifecycle methods live here and are overridden by subclasses —
-//  LeafNode, ComposedNode, and ContainerNode each know how to set
-//  themselves up, update in place, reconcile children, and tear down.
-//  The Resolver is just an entry point + retention root.
+//  LeafNode, BuiltNode, ModelNode, and ContainerNode each know how
+//  to set themselves up, update in place, reconcile children, and
+//  tear down. The Resolver is just an entry point + retention root.
+//
+//  BuiltNode vs ModelNode split: BuiltNode backs stateless composites
+//  (BuiltView) and has no Model/Builder slot. ModelNode backs
+//  stateful composites (ModelView) and owns the Model/Builder plus
+//  the lifecycle dispatch. Both wire `onDirty` so upstream observable
+//  emissions (Provided, context.watch) still drive rebuilds; the
+//  only difference is ModelNode additionally exposes user-triggered
+//  rebuild paths through its Model.
 //
 //  Identity: nodes carry an optional `id: AnyHashable?` extracted
 //  from an IdentifiedView wrapper at inflation / update time. The
@@ -25,8 +33,8 @@ import UIKit
 import AppKit
 #endif
 
-/// Transparent wrapper view used by ComposedNode. Delegates sizing
-/// to its single child and pins that child to fill.
+/// Transparent wrapper view used by BuiltNode and ModelNode.
+/// Delegates sizing to its single child and pins that child to fill.
 #if canImport(UIKit)
 class ProxyView: UIView {
     override func sizeThatFits(_ size: CGSize) -> CGSize {
@@ -226,11 +234,12 @@ public final class LeafNode: Node {
     }
 }
 
-// MARK: - ComposedNode
+// MARK: - BuiltNode
 
-public final class ComposedNode: Node {
-    public var model: ViewModelBase?
-    public var builder: Builder?
+/// Backs stateless composites (BuiltView). No Model slot, no user-
+/// triggered rebuild path. `onDirty` is wired so upstream observable
+/// emissions (Provided changes, `context.watch`) still re-run build.
+public final class BuiltNode: Node {
     public var child: Node?
 
     public override init() {
@@ -240,24 +249,17 @@ public final class ComposedNode: Node {
 
     override func setup(from view: any View) {
         super.setup(from: view)
-        guard self.view is any ComposedView else {
-            fatalError("ComposedNode.setup called with non-ComposedView: \(type(of: self.view!))")
-        }
-        if let modelView = self.view as? any ModelView {
-            makeModelAndBuilder(modelView)
+        guard self.view is any BuiltView else {
+            fatalError("BuiltNode.setup called with non-BuiltView: \(type(of: self.view!))")
         }
         wireOnDirty()
         performBuild()
     }
 
     override func update(from view: any View) {
-        let oldView = self.view
         super.update(from: view)
-        guard self.view is any ComposedView else {
-            fatalError("ComposedNode.update called with non-ComposedView: \(type(of: self.view!))")
-        }
-        if self.view is any ModelView, let oldView {
-            model?.handleDidUpdate(self.view!, oldView: oldView)
+        guard self.view is any BuiltView else {
+            fatalError("BuiltNode.update called with non-BuiltView: \(type(of: self.view!))")
         }
         performBuild()
     }
@@ -265,22 +267,6 @@ public final class ComposedNode: Node {
     override func unmountChildren() {
         child?.unmount()
         child = nil
-    }
-
-    override func unmount() {
-        model?.willUnmount()
-        super.unmount()
-    }
-
-    private func makeModelAndBuilder<V: ModelView>(_ view: V) {
-        let context = BuildContext(node: self)
-        let model = view.makeModel(context: context)
-        model.node = self
-        model.handleDidInit(view)
-        let builder = view.makeBuilder()
-        builder.model = model
-        self.model = model
-        self.builder = builder
     }
 
     private func wireOnDirty() {
@@ -297,15 +283,15 @@ public final class ComposedNode: Node {
         beginBuild()
         let context = BuildContext(node: self)
 
-        let newChildView: any View
-        if let builder = self.builder {
-            newChildView = builder.build(context: context)
-        } else if let composed = self.view as? any ComposedView {
-            newChildView = composed.build(context: context)
-        } else {
-            fatalError("ComposedNode has no build path")
+        guard let built = self.view as? any BuiltView else {
+            fatalError("BuiltNode has no build path")
         }
+        let newChildView = built.build(context: context)
 
+        reconcileChild(newChildView, into: wrapper)
+    }
+
+    private func reconcileChild(_ newChildView: any View, into wrapper: PlatformView) {
         if let existingChild = self.child, existingChild.canUpdate(to: newChildView) {
             existingChild.update(from: newChildView)
         } else {
@@ -314,14 +300,135 @@ public final class ComposedNode: Node {
             let newChild = Node.inflate(newChildView, parent: self)
             self.child = newChild
             if let childPlatform = newChild.platformView {
-                attach(childPlatform, inside: wrapper)
+                wrapper.addSubview(childPlatform)
+            }
+        }
+    }
+}
+
+// MARK: - ModelNode
+
+/// Backs stateful composites (ModelView). Owns the Model (created
+/// once at mount via `model(context:)`) and produces a fresh Builder
+/// each render via `builder(model:)`. Dispatches lifecycle hooks
+/// (`didInit`, `didUpdate`, `didRebuild`, `didDispose`) through
+/// `ModelLifecycle` — closure handles captured at mount that open
+/// the Model's associated View type so the node can call the typed
+/// `didUpdate(oldView:newView:)` without carrying the generic around.
+public final class ModelNode: Node {
+    public var model: AnyObject?
+    public var child: Node?
+    private var lifecycle: ModelLifecycle?
+
+    public override init() {
+        super.init()
+        self.platformView = ProxyView()
+    }
+
+    override func setup(from view: any View) {
+        super.setup(from: view)
+        guard let modelView = self.view as? any ModelView else {
+            fatalError("ModelNode.setup called with non-ModelView: \(type(of: self.view!))")
+        }
+        makeModel(for: modelView)
+        wireOnDirty()
+        performBuild()
+    }
+
+    override func update(from view: any View) {
+        super.update(from: view)
+        guard self.view is any ModelView, let newView = self.view else {
+            fatalError("ModelNode.update called with non-ModelView: \(type(of: self.view!))")
+        }
+        lifecycle?.didUpdate(newView)
+        performBuild()
+    }
+
+    override func unmountChildren() {
+        child?.unmount()
+        child = nil
+    }
+
+    override func unmount() {
+        lifecycle?.didDispose()
+        super.unmount()
+    }
+
+    /// Create the Model and capture typed lifecycle handles. Generic
+    /// bounce — opens the existential `any ModelView` to recover V,
+    /// which in turn gives us V.Model for subsequent typed dispatch.
+    private func makeModel<V: ModelView>(for view: V) {
+        let context = BuildContext(node: self)
+        let model = view.model(context: context)
+        model.didInit(view: view)
+        self.model = model
+        self.lifecycle = ModelLifecycle(
+            didUpdate: { [weak model] newAny in
+                guard let model, let newView = newAny as? V else { return }
+                model.didUpdate(newView: newView)
+            },
+            didRebuild: { [weak model] in model?.didRebuild() },
+            didDispose: { [weak model] in model?.didDispose() }
+        )
+    }
+
+    private func wireOnDirty() {
+        self.onDirty = { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.performBuild()
             }
         }
     }
 
-    private func attach(_ child: PlatformView, inside parent: PlatformView) {
-        parent.addSubview(child)
+    private func performBuild() {
+        guard let wrapper = self.platformView else { return }
+        guard let modelView = self.view as? any ModelView else {
+            fatalError("ModelNode has no ModelView in self.view")
+        }
+        beginBuild()
+        let context = BuildContext(node: self)
+        let newChildView = buildChildView(for: modelView, context: context)
+        reconcileChild(newChildView, into: wrapper)
+        lifecycle?.didRebuild()
     }
+
+    /// Produce the child view by constructing a fresh Builder from
+    /// the current Model and calling its `build(context:)`. Generic
+    /// bounce mirrors `makeModel` — opening V gives us V.Model so we
+    /// can downcast `self.model` and typecheck `builder(model:)`.
+    private func buildChildView<V: ModelView>(for view: V, context: BuildContext) -> any View {
+        guard let model = self.model as? V.Model else {
+            fatalError("ModelNode has no Model of the expected type")
+        }
+        let builder = view.builder(model: model)
+        return builder.build(context: context)
+    }
+
+    private func reconcileChild(_ newChildView: any View, into wrapper: PlatformView) {
+        if let existingChild = self.child, existingChild.canUpdate(to: newChildView) {
+            existingChild.update(from: newChildView)
+        } else {
+            self.child?.unmount()
+            self.child = nil
+            let newChild = Node.inflate(newChildView, parent: self)
+            self.child = newChild
+            if let childPlatform = newChild.platformView {
+                wrapper.addSubview(childPlatform)
+            }
+        }
+    }
+}
+
+/// Closure-captured lifecycle dispatch for a ModelNode. The closures
+/// are constructed inside the generic bounce in `makeModel(for:)`,
+/// which means they can close over the typed `V` (and the typed
+/// Model conforming to `ViewModel<V>`) without the ModelNode itself
+/// carrying either as a stored generic parameter.
+private struct ModelLifecycle {
+    let didUpdate: (Any) -> Void
+    let didRebuild: () -> Void
+    let didDispose: () -> Void
 }
 
 // MARK: - ContainerNode
