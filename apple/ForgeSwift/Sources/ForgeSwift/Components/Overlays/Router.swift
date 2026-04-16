@@ -685,6 +685,14 @@ final class RouterHostRenderer: Renderer {
 /// viewControllers array from the RouterModel's stack. Creates one
 /// `RouteHostingController` per route, reusing across rebuilds keyed
 /// by Route.id so pushed screens preserve their state.
+///
+/// VC containment: when this view moves to a window, it walks the
+/// responder chain to find its containing view controller and
+/// installs the navigation controller as its child. That's what
+/// makes swipe-back, status-bar style inheritance, keyboard
+/// appearance notifications, and rotation callbacks work —
+/// UIKit routes those through the VC hierarchy, not the view
+/// hierarchy.
 final class RouterHostView: UIView {
     private var navController: UINavigationController?
     private weak var model: RouterModel?
@@ -695,6 +703,46 @@ final class RouterHostView: UIView {
         navController?.view.frame = bounds
     }
 
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        guard let nav = navController else { return }
+        if window != nil {
+            embedNavAsChildVC(nav)
+        } else {
+            detachNavFromParentVC(nav)
+        }
+    }
+
+    private func embedNavAsChildVC(_ nav: UINavigationController) {
+        guard nav.parent == nil else { return }
+        guard let parent = findParentViewController() else { return }
+        // addChild auto-fires willMove(toParent:) on the child.
+        parent.addChild(nav)
+        // The nav's view is already in our subview hierarchy from
+        // attach(model:); complete the containment handshake.
+        nav.didMove(toParent: parent)
+    }
+
+    private func detachNavFromParentVC(_ nav: UINavigationController) {
+        guard nav.parent != nil else { return }
+        nav.willMove(toParent: nil)
+        nav.removeFromParent()
+    }
+
+    /// Walk the responder chain to find the nearest enclosing
+    /// UIViewController. Start at `self.next` so the walk climbs
+    /// out of this view into whatever view controller owns it.
+    private func findParentViewController() -> UIViewController? {
+        var responder: UIResponder? = self.next
+        while let current = responder {
+            if let vc = current as? UIViewController {
+                return vc
+            }
+            responder = current.next
+        }
+        return nil
+    }
+
     func attach(model: RouterModel) {
         self.model = model
         guard navController == nil else { return }
@@ -703,6 +751,12 @@ final class RouterHostView: UIView {
         navController = nav
         addSubview(nav.view)
         sync()
+        // If we're already in a window at attach time (re-entrant
+        // cases), make sure the nav gets embedded. Otherwise
+        // didMoveToWindow will handle it on first layout.
+        if window != nil {
+            embedNavAsChildVC(nav)
+        }
     }
 
     func sync() {
