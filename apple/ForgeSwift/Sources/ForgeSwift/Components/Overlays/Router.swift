@@ -264,46 +264,70 @@ public struct DeepLinkMap {
     }
 }
 
+// MARK: - RouterHandleDelegate
+
+/// Handle-to-owner contract. The handle is a pure dispatch surface:
+/// it owns no state, every method forwards to its delegate. The
+/// owning `RouterModel` is the delegate, which holds the stack, the
+/// pending-result continuations, the deep-link table, and implements
+/// all of the navigation operations.
+///
+/// This separation means the handle stays cheap to construct, can be
+/// handed around freely (to code outside the view tree, to tests
+/// with a custom delegate, etc.) without dragging along any runtime
+/// state. Tests can drop in a mock delegate that records calls
+/// without booting the full view pipeline.
+@MainActor public protocol RouterHandleDelegate: AnyObject {
+    /// Current route stack. `stack[0]` is the first (bottom) route;
+    /// `stack.last` is the top. Read-only from the handle's side.
+    var stack: [Route] { get }
+
+    func push(_ route: Route)
+    func pushForResult<R: Sendable>(_ route: Route) async -> R?
+    func pop(result: Any?)
+    func pop(until predicate: (Route) -> Bool)
+    func popToFirst()
+    func insert(at index: Int, route: Route)
+    func insert(below predicate: (Route) -> Bool, route: Route)
+    func insert(above predicate: (Route) -> Bool, route: Route)
+    func remove(where predicate: (Route) -> Bool)
+    func remove(at index: Int)
+    func replace(routes: [Route])
+    func replaceTop(_ route: Route)
+    func resolve(url: URL) -> Bool
+}
+
 // MARK: - RouterHandle
 
 /// Imperative API for driving a Router. Can be created outside the
-/// view tree and injected into a Router's init so code that doesn't
-/// live in a BuildContext (app delegates, deep-link callbacks, debug
-/// tools) can still navigate.
+/// view tree and injected into a Router's init; descendants reach
+/// the same instance via `context.router`.
 ///
-/// Inside the view tree, descendants reach this same instance via
-/// `context.router`.
-///
-/// The handle owns the full stack — including the initial "first"
-/// route seeded by the Router. First is a regular entry: it can be
-/// replaced, routes can be inserted above or below it — the only
-/// constraint is that pop operations never drop the stack below one
-/// entry. There is always something visible.
+/// The handle itself is stateless — it forwards every call to its
+/// delegate (the owning `RouterModel`). Operations issued before a
+/// delegate is attached (e.g. against a handle that's been created
+/// but not yet mounted) are silent no-ops.
 @MainActor public final class RouterHandle {
-    /// The full route stack. `stack[0]` is the first (bottom) route;
-    /// `stack.last` is the currently visible top. Mutated by the API
-    /// methods below; framework should not write to it directly.
-    public private(set) var stack: [Route] = []
-
-    /// Framework-internal: called after any stack mutation. The
-    /// owning `RouterModel` wires this to a node rebuild.
-    var onChange: (() -> Void)?
-
-    /// Continuations awaiting a popped-with-result. Keyed by the
-    /// `resultKey` stamped onto a route at pushForResult time. Routes
-    /// removed without an explicit result resolve with nil.
-    private var pendingResults: [UUID: (Any?) -> Void] = [:]
+    /// The delegate that backs this handle's operations. Set by the
+    /// owning `RouterModel` in `didInit(view:)`; weak so the handle
+    /// doesn't keep the model alive. Calls on the handle before the
+    /// delegate is set are silent no-ops.
+    public weak var delegate: RouterHandleDelegate?
 
     public init() {}
 
     // MARK: Reads
 
+    /// The full route stack — forwarded from the delegate, or empty
+    /// if no delegate is attached yet.
+    public var stack: [Route] { delegate?.stack ?? [] }
+
     /// The current top of the stack — the route the user sees. Nil
-    /// only before the Router has seeded its first route.
+    /// before a delegate has seeded its first route.
     public var top: Route? { stack.last }
 
     /// The first (bottom) route — what's visible after `popToFirst`.
-    /// Nil only before the Router has seeded the stack.
+    /// Nil before a delegate has seeded the stack.
     public var first: Route? { stack.first }
 
     /// Whether a `pop()` would succeed. Equivalent to `stack.count > 1`.
@@ -314,177 +338,94 @@ public struct DeepLinkMap {
         stack.contains(where: predicate)
     }
 
-    // MARK: Push
+    // MARK: Writes
 
     /// Push a route onto the stack. Fire-and-forget — use
     /// `pushForResult` if you need a value back.
     public func push(_ route: Route) {
-        stack.append(route)
-        onChange?()
+        delegate?.push(route)
     }
 
-    /// Push a route and suspend until it's popped. Returns the
-    /// result value cast to the caller's expected type `R`, or nil if
-    /// the route was popped without a result (user swipe-back, programmatic
-    /// pop without arg, removal via `remove(where:)` etc.).
+    /// Push a route and suspend until it's popped. Returns the result
+    /// value cast to the caller's expected type `R`, or nil if the
+    /// route was popped without a result (user swipe-back, programmatic
+    /// pop without arg, removal via `remove(where:)` etc., or no
+    /// delegate attached).
     ///
     /// Caller is responsible for the result type matching the popper's
     /// argument — mismatches silently yield nil. A mis-cast is almost
     /// always a bug; consider a named wrapper struct for the result
     /// payload if the screen's callers vary in how they interpret it.
     public func pushForResult<R: Sendable>(_ route: Route) async -> R? {
-        await withCheckedContinuation { (continuation: CheckedContinuation<R?, Never>) in
-            let resultKey = UUID()
-            var tagged = route
-            tagged.resultKey = resultKey
-            pendingResults[resultKey] = { any in
-                continuation.resume(returning: any as? R)
-            }
-            stack.append(tagged)
-            onChange?()
-        }
+        guard let delegate else { return nil }
+        return await delegate.pushForResult(route)
     }
-
-    // MARK: Pop
 
     /// Pop the top route, optionally delivering a result to any
     /// `pushForResult` caller awaiting that route. No-op if the first
     /// route is the only one in the stack (see `canPop`).
     public func pop(result: Any? = nil) {
-        guard canPop else { return }
-        let popped = stack.removeLast()
-        resolveResult(for: popped, with: result)
-        onChange?()
+        delegate?.pop(result: result)
     }
 
     /// Pop until the predicate matches a route remaining at the top,
-    /// or until only the first route is left (equivalent to `popToFirst`
-    /// if no match exists above the first). Matching route stays on
-    /// the stack. The first route itself can never be popped — even
-    /// if it matches the predicate, it just stops there.
+    /// or until only the first route is left. Matching route stays on
+    /// the stack. The first route itself can never be popped.
     public func pop(until predicate: (Route) -> Bool) {
-        while stack.count > 1, let top = stack.last, !predicate(top) {
-            let popped = stack.removeLast()
-            resolveResult(for: popped, with: nil)
-        }
-        onChange?()
+        delegate?.pop(until: predicate)
     }
 
     /// Pop everything above the first route. First stays visible.
     public func popToFirst() {
-        while stack.count > 1 {
-            let popped = stack.removeLast()
-            resolveResult(for: popped, with: nil)
-        }
-        onChange?()
+        delegate?.popToFirst()
     }
 
-    // MARK: Insert / Remove / Replace
-
     public func insert(at index: Int, route: Route) {
-        let clamped = max(0, min(index, stack.count))
-        stack.insert(route, at: clamped)
-        onChange?()
+        delegate?.insert(at: index, route: route)
     }
 
     /// Insert a route just below the top-most stack entry matching
     /// the predicate (searched top-down). No-op if no match.
     public func insert(below predicate: (Route) -> Bool, route: Route) {
-        guard let idx = stack.lastIndex(where: predicate) else { return }
-        stack.insert(route, at: idx)
-        onChange?()
+        delegate?.insert(below: predicate, route: route)
     }
 
     /// Insert a route just above the top-most stack entry matching
     /// the predicate (searched top-down). No-op if no match.
     public func insert(above predicate: (Route) -> Bool, route: Route) {
-        guard let idx = stack.lastIndex(where: predicate) else { return }
-        stack.insert(route, at: idx + 1)
-        onChange?()
+        delegate?.insert(above: predicate, route: route)
     }
 
     /// Remove the first route matching the predicate. No-op if the
     /// removal would leave the stack empty.
     public func remove(where predicate: (Route) -> Bool) {
-        guard let idx = stack.firstIndex(where: predicate),
-              stack.count > 1 else { return }
-        let removed = stack.remove(at: idx)
-        resolveResult(for: removed, with: nil)
-        onChange?()
+        delegate?.remove(where: predicate)
     }
 
     /// Remove the route at `index`. No-op if out of bounds or if the
     /// removal would leave the stack empty.
     public func remove(at index: Int) {
-        guard stack.indices.contains(index), stack.count > 1 else { return }
-        let removed = stack.remove(at: index)
-        resolveResult(for: removed, with: nil)
-        onChange?()
+        delegate?.remove(at: index)
     }
 
     /// Replace the entire stack, including the first route. The new
     /// array must be non-empty — empty input is treated as no-op.
     public func replace(routes: [Route]) {
-        guard !routes.isEmpty else { return }
-        for route in stack { resolveResult(for: route, with: nil) }
-        stack = routes
-        onChange?()
+        delegate?.replace(routes: routes)
     }
 
     /// Replace only the top-most route. If the stack has only the
     /// first route, this replaces the first.
     public func replaceTop(_ route: Route) {
-        guard !stack.isEmpty else {
-            stack = [route]
-            onChange?()
-            return
-        }
-        let popped = stack.removeLast()
-        resolveResult(for: popped, with: nil)
-        stack.append(route)
-        onChange?()
+        delegate?.replaceTop(route)
     }
 
-    // MARK: Deep-link dispatch
-
-    /// Attempt to resolve the URL through the Router's `DeepLinkMap`
-    /// and push the resulting route. Returns whether a route matched.
-    /// The map is provided by the RouterModel via `attachDeepLinks`.
+    /// Attempt to resolve the URL through the delegate's registered
+    /// deep-link map and push the resulting route. Returns whether a
+    /// route matched.
     @discardableResult
     public func resolve(url: URL) -> Bool {
-        guard let route = deepLinks?.resolve(url) else { return false }
-        push(route)
-        return true
-    }
-
-    // MARK: Framework wiring (internal)
-
-    private var deepLinks: DeepLinkMap?
-
-    func attachDeepLinks(_ map: DeepLinkMap) {
-        self.deepLinks = map
-    }
-
-    /// Framework-internal: replace the full stack silently, without
-    /// firing `onChange`. Used by `RouterModel.didInit` to seed the
-    /// first route before the change callback is wired up.
-    func unsafeSetStack(_ routes: [Route]) {
-        stack = routes
-    }
-
-    /// Framework-internal: replace `stack[0]` silently. Used by
-    /// `RouterModel.didUpdate` to flow new parent props into the
-    /// first route's body closure while avoiding a re-render loop
-    /// (we're already mid-rebuild).
-    func unsafeReplaceFirst(_ route: Route) {
-        guard !stack.isEmpty else { return }
-        stack[0] = route
-    }
-
-    private func resolveResult(for route: Route, with value: Any?) {
-        guard let key = route.resultKey,
-              let resolver = pendingResults.removeValue(forKey: key) else { return }
-        resolver(value)
+        delegate?.resolve(url: url) ?? false
     }
 }
 
@@ -584,55 +525,210 @@ public struct Router: ModelView {
 
 // MARK: - RouterModel
 
-public final class RouterModel: ViewModel<Router> {
+/// Framework-internal receiver for navigation ops. Implemented by
+/// `RouterHostView` — the UIKit-side that owns the
+/// `UINavigationController`. The Model calls these directly on every
+/// mutation so pushes/pops hit the native API (pushViewController,
+/// popToViewController, setViewControllers) without going through a
+/// full Forge rebuild cycle.
+@MainActor protocol RouterNavigator: AnyObject {
+    /// Top of the stack added. Host should `pushViewController(_:animated:)`.
+    func routerDidPush(_ route: Route)
+    /// Top `count` routes removed. Host should `popToViewController(_:animated:)`
+    /// to the VC now at `nav.viewControllers.count - count - 1`.
+    func routerDidPop(count: Int)
+    /// Stack structure changed in a way push/pop can't express —
+    /// insert in middle, remove in middle, replace, replaceTop, or a
+    /// parent-driven root refresh. Host does a full
+    /// `setViewControllers(...)` diff from the new stack.
+    func routerDidReset(to stack: [Route])
+}
+
+public final class RouterModel: ViewModel<Router>, RouterHandleDelegate {
     public let handle: RouterHandle
+    public private(set) var stack: [Route] = []
 
     /// Stable id for the initial first-route so the Router can keep
     /// its view controller across rebuilds AND so `didUpdate` can
     /// recognize whether the user has since replaced the first.
     let firstRouteID = UUID()
 
+    /// Host-side receiver for navigation ops. Set by `RouterHostView`
+    /// in its `attach(model:)`. Weak so the view isn't kept alive by
+    /// the model. Ops go through this instead of `rebuild {}` so we
+    /// skip the tree-reconciliation cycle on every push/pop.
+    weak var navigator: RouterNavigator?
+
+    private var pendingResults: [UUID: (Any?) -> Void] = [:]
+    private let deepLinks: DeepLinkMap
+
     init(context: BuildContext, handle: RouterHandle, deeplinks: DeepLinkMap) {
         self.handle = handle
+        self.deepLinks = deeplinks
         super.init(context: context)
-        handle.attachDeepLinks(deeplinks)
     }
 
     public override func didInit(view: Router) {
         super.didInit(view: view)
-        // Seed the handle's stack with the initial first route IF it's
-        // empty. If the user reused a handle that already has routes,
-        // leave it alone — they've already set their own first.
-        if handle.stack.isEmpty {
+        if stack.isEmpty {
             let firstView = view.root
-            handle.unsafeSetStack([
-                Route(id: firstRouteID) { firstView }
-            ])
+            stack = [Route(id: firstRouteID) { firstView }]
         }
-        // Wire up the handle's change callback so any mutation from
-        // outside the view tree (or from descendant call sites) marks
-        // this node dirty and triggers a re-sync of the UINavigationController.
-        handle.onChange = { [weak self] in
-            self?.rebuild {}
-        }
+        handle.delegate = self
     }
 
     public override func didUpdate(newView: Router) {
         super.didUpdate(newView: newView)
-        // If the stack still has the original first route (same id),
-        // update its body closure so new props from the parent flow in.
-        // If the user has replaced the first (different id at position 0),
-        // don't stomp — their replacement wins.
-        if !handle.stack.isEmpty, handle.stack[0].id == firstRouteID {
+        // Parent rebuilt with a new Router value — stack[0]'s body
+        // closure may have captured new props. Refresh it in place
+        // (same id, new closure). If the user has since replaced the
+        // first with a different route, leave it alone.
+        if !stack.isEmpty, stack[0].id == firstRouteID {
             let firstView = newView.root
-            handle.unsafeReplaceFirst(
-                Route(id: firstRouteID) { firstView }
-            )
+            stack[0] = Route(id: firstRouteID) { firstView }
+            // Route kept its id → the cached VC at index 0 is reused,
+            // but its body capture changed. Ask the host to re-sync so
+            // the first VC picks up the new body.
+            navigator?.routerDidReset(to: stack)
         }
     }
 
     public override func didDispose() {
-        handle.onChange = nil
+        if handle.delegate === self { handle.delegate = nil }
+    }
+
+    // MARK: - RouterHandleDelegate — mutation ops dispatch direct
+
+    public func push(_ route: Route) {
+        stack.append(route)
+        navigator?.routerDidPush(route)
+    }
+
+    public func pushForResult<R: Sendable>(_ route: Route) async -> R? {
+        await withCheckedContinuation { (continuation: CheckedContinuation<R?, Never>) in
+            let resultKey = UUID()
+            var tagged = route
+            tagged.resultKey = resultKey
+            pendingResults[resultKey] = { any in
+                continuation.resume(returning: any as? R)
+            }
+            stack.append(tagged)
+            navigator?.routerDidPush(tagged)
+        }
+    }
+
+    public func pop(result: Any? = nil) {
+        guard stack.count > 1 else { return }
+        let popped = stack.removeLast()
+        resolveResult(for: popped, with: result)
+        navigator?.routerDidPop(count: 1)
+    }
+
+    public func pop(until predicate: (Route) -> Bool) {
+        var popped = 0
+        while stack.count > 1, let top = stack.last, !predicate(top) {
+            let r = stack.removeLast()
+            resolveResult(for: r, with: nil)
+            popped += 1
+        }
+        if popped > 0 {
+            navigator?.routerDidPop(count: popped)
+        }
+    }
+
+    public func popToFirst() {
+        let popCount = max(0, stack.count - 1)
+        guard popCount > 0 else { return }
+        while stack.count > 1 {
+            let r = stack.removeLast()
+            resolveResult(for: r, with: nil)
+        }
+        navigator?.routerDidPop(count: popCount)
+    }
+
+    public func insert(at index: Int, route: Route) {
+        let clamped = max(0, min(index, stack.count))
+        stack.insert(route, at: clamped)
+        navigator?.routerDidReset(to: stack)
+    }
+
+    public func insert(below predicate: (Route) -> Bool, route: Route) {
+        guard let idx = stack.lastIndex(where: predicate) else { return }
+        stack.insert(route, at: idx)
+        navigator?.routerDidReset(to: stack)
+    }
+
+    public func insert(above predicate: (Route) -> Bool, route: Route) {
+        guard let idx = stack.lastIndex(where: predicate) else { return }
+        stack.insert(route, at: idx + 1)
+        navigator?.routerDidReset(to: stack)
+    }
+
+    public func remove(where predicate: (Route) -> Bool) {
+        guard let idx = stack.firstIndex(where: predicate),
+              stack.count > 1 else { return }
+        let removed = stack.remove(at: idx)
+        resolveResult(for: removed, with: nil)
+        navigator?.routerDidReset(to: stack)
+    }
+
+    public func remove(at index: Int) {
+        guard stack.indices.contains(index), stack.count > 1 else { return }
+        let removed = stack.remove(at: index)
+        resolveResult(for: removed, with: nil)
+        navigator?.routerDidReset(to: stack)
+    }
+
+    public func replace(routes: [Route]) {
+        guard !routes.isEmpty else { return }
+        for route in stack { resolveResult(for: route, with: nil) }
+        stack = routes
+        navigator?.routerDidReset(to: stack)
+    }
+
+    public func replaceTop(_ route: Route) {
+        guard !stack.isEmpty else {
+            stack = [route]
+            navigator?.routerDidReset(to: stack)
+            return
+        }
+        let popped = stack.removeLast()
+        resolveResult(for: popped, with: nil)
+        stack.append(route)
+        navigator?.routerDidReset(to: stack)
+    }
+
+    @discardableResult
+    public func resolve(url: URL) -> Bool {
+        guard let route = deepLinks.resolve(url) else { return false }
+        push(route)
+        return true
+    }
+
+    // MARK: - UIKit-initiated sync
+
+    /// Rewrite the stack to match an ordered list of Route ids (as
+    /// seen in the `UINavigationController`'s current `viewControllers`).
+    /// Called by `RouterHostView` after UIKit-initiated navigation
+    /// (back chevron, interactive swipe-back) so our stack doesn't
+    /// drift behind UIKit's truth. Drops routes no longer in the ids
+    /// list, resolving their `pushForResult` continuations with nil.
+    /// Does NOT fire an op — UIKit already did the animation; we're
+    /// just bringing the model into line with the truth on screen.
+    func syncStack(toIDs ids: [UUID]) {
+        let byID = Dictionary(uniqueKeysWithValues: stack.map { ($0.id, $0) })
+        let kept: [Route] = ids.compactMap { byID[$0] }
+        let keptIDs = Set(ids)
+        for route in stack where !keptIDs.contains(route.id) {
+            resolveResult(for: route, with: nil)
+        }
+        stack = kept
+    }
+
+    private func resolveResult(for route: Route, with value: Any?) {
+        guard let key = route.resultKey,
+              let resolver = pendingResults.removeValue(forKey: key) else { return }
+        resolver(value)
     }
 }
 
@@ -676,8 +772,12 @@ final class RouterHostRenderer: Renderer {
 
     func update(_ platformView: PlatformView) {
         guard let view = platformView as? RouterHostView else { return }
+        // Re-attaching is a no-op after first mount; the navigator
+        // wiring and initial stack were set up then. Any stack
+        // changes since have flowed through op dispatch, and parent-
+        // driven refreshes of the first route (didUpdate on the model)
+        // emit routerDidReset on their own. Nothing to do here.
         view.attach(model: model)
-        view.sync()
     }
 }
 
@@ -693,7 +793,7 @@ final class RouterHostRenderer: Renderer {
 /// appearance notifications, and rotation callbacks work —
 /// UIKit routes those through the VC hierarchy, not the view
 /// hierarchy.
-final class RouterHostView: UIView {
+final class RouterHostView: UIView, UINavigationControllerDelegate, RouterNavigator {
     private var navController: UINavigationController?
     private weak var model: RouterModel?
     private var hostsByRouteID: [UUID: RouteHostingController] = [:]
@@ -746,45 +846,105 @@ final class RouterHostView: UIView {
     func attach(model: RouterModel) {
         self.model = model
         guard navController == nil else { return }
-        // First attach — create the nav controller and do an initial sync.
+        // First attach — create the nav controller, register as the
+        // model's op receiver, and seed the initial stack.
         let nav = UINavigationController()
+        nav.delegate = self
         navController = nav
         addSubview(nav.view)
-        sync()
-        // If we're already in a window at attach time (re-entrant
-        // cases), make sure the nav gets embedded. Otherwise
-        // didMoveToWindow will handle it on first layout.
+
+        model.navigator = self
+        initialSync()
+
         if window != nil {
             embedNavAsChildVC(nav)
         }
     }
 
-    func sync() {
+    /// One-time setViewControllers at mount, without animation. From
+    /// here on, mutations flow as ops (routerDidPush / routerDidPop /
+    /// routerDidReset) that hit UIKit's native push/pop APIs.
+    private func initialSync() {
         guard let nav = navController, let model else { return }
+        var vcs: [UIViewController] = []
+        for (index, route) in model.stack.enumerated() {
+            let vc = makeHost(for: route, handle: model.handle)
+            vc.update(route: route, context: RouteContext(canPop: index > 0))
+            hostsByRouteID[route.id] = vc
+            vcs.append(vc)
+        }
+        nav.setViewControllers(vcs, animated: false)
+    }
 
-        // Build the target VC list by walking handle.stack. The first
-        // route (stack[0]) is just another entry — it gets a VC like
-        // any pushed route, reused across syncs by Route.id. Its
-        // RouteContext reports `canPop: false`.
+    // MARK: - UINavigationControllerDelegate
+
+    /// Fires after any push or pop animation completes. If the user
+    /// popped via UIKit (system back chevron or interactive swipe)
+    /// without going through `handle.pop()`, the handle's stack is
+    /// now stale — longer than the nav's actual viewControllers.
+    /// We mirror the nav's current stack back into the handle so the
+    /// next programmatic push/pop operates on truth.
+    func navigationController(
+        _ navigationController: UINavigationController,
+        didShow viewController: UIViewController,
+        animated: Bool
+    ) {
+        syncHandleFromNav()
+    }
+
+    private func syncHandleFromNav() {
+        guard let nav = navController, let model else { return }
+        let currentIDs: [UUID] = nav.viewControllers.compactMap {
+            ($0 as? RouteHostingController)?.route.id
+        }
+        let modelIDs = model.stack.map { $0.id }
+        if currentIDs != modelIDs {
+            // Drop from our host cache any VCs that disappeared from the
+            // nav's live stack — their RouteHostingController's retained
+            // resolver + subscriptions release cleanly.
+            let currentSet = Set(currentIDs)
+            hostsByRouteID = hostsByRouteID.filter { currentSet.contains($0.key) }
+            model.syncStack(toIDs: currentIDs)
+        }
+    }
+
+    // MARK: - RouterNavigator
+
+    func routerDidPush(_ route: Route) {
+        guard let nav = navController, let model else { return }
+        let vc = makeHost(for: route, handle: model.handle)
+        vc.update(route: route, context: RouteContext(canPop: true))
+        hostsByRouteID[route.id] = vc
+        nav.pushViewController(vc, animated: true)
+    }
+
+    func routerDidPop(count: Int) {
+        guard let nav = navController, count > 0 else { return }
+        let newCount = nav.viewControllers.count - count
+        guard newCount > 0, newCount <= nav.viewControllers.count else { return }
+        let target = nav.viewControllers[newCount - 1]
+        nav.popToViewController(target, animated: true)
+        // The hosts cache is cleaned up by `didShow` reconciliation
+        // once UIKit's pop animation completes.
+    }
+
+    func routerDidReset(to stack: [Route]) {
+        guard let nav = navController, let model else { return }
+        // Diff-via-id: reuse cached VCs where route.id matches,
+        // create fresh ones for new routes, drop cache entries no
+        // longer referenced. setViewControllers lets UIKit figure out
+        // whatever transition fits the diff.
         var targetVCs: [UIViewController] = []
         var seenIDs: Set<UUID> = []
-        for (index, route) in model.handle.stack.enumerated() {
+        for (index, route) in stack.enumerated() {
             seenIDs.insert(route.id)
             let vc = hostsByRouteID[route.id] ?? makeHost(for: route, handle: model.handle)
-            let context = RouteContext(canPop: index > 0)
-            vc.update(route: route, context: context)
+            vc.update(route: route, context: RouteContext(canPop: index > 0))
             hostsByRouteID[route.id] = vc
             targetVCs.append(vc)
         }
-
-        // Drop hosting controllers for routes no longer in the stack —
-        // the VCs they held are about to be popped off the nav stack
-        // anyway; releasing the entry lets them deinit.
         hostsByRouteID = hostsByRouteID.filter { seenIDs.contains($0.key) }
-
-        // Animate only when we already have a stack (not on initial mount).
-        let animated = !nav.viewControllers.isEmpty
-        nav.setViewControllers(targetVCs, animated: animated)
+        nav.setViewControllers(targetVCs, animated: true)
     }
 
     private func makeHost(for route: Route, handle: RouterHandle) -> RouteHostingController {
