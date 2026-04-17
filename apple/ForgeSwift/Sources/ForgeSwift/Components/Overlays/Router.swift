@@ -26,6 +26,288 @@
 
 import Foundation
 
+// MARK: - NavBarContentRow
+
+/// Three-slot horizontal layout: leading, main, trailing.
+/// Main is sized to the remaining space after leading/trailing are
+/// measured. Horizontal positioning of main depends on `centerMode`:
+///
+/// - `.absolute`: center main in the bar's full width. If that would
+///   overlap leading or trailing, fall back to centering in the
+///   remaining space between them.
+/// - `.between`: always center main in the remaining space between
+///   leading and trailing.
+///
+/// `alignment` controls where main sits when not centering:
+/// `.leading` pushes it flush after leading, `.trailing` flush before
+/// trailing. Default `.center` uses the `centerMode` logic.
+public struct NavBarContentRow: ContainerView {
+    public let leading: (any View)?
+    public let main: (any View)?
+    public let trailing: (any View)?
+    public let alignment: Alignment
+    public let centerMode: NavBarCenterMode
+    public let children: [any View]
+
+    public init(
+        leading: (any View)? = nil,
+        main: (any View)? = nil,
+        trailing: (any View)? = nil,
+        alignment: Alignment = .center,
+        centerMode: NavBarCenterMode = .absolute
+    ) {
+        self.leading = leading
+        self.main = main
+        self.trailing = trailing
+        self.alignment = alignment
+        self.centerMode = centerMode
+        self.children = [
+            leading ?? EmptyView(),
+            main ?? EmptyView(),
+            trailing ?? EmptyView(),
+        ]
+    }
+
+    public func makeRenderer() -> ContainerRenderer {
+        NavBarContentRowRenderer(view: self)
+    }
+}
+
+public enum NavBarCenterMode: Equatable, Sendable {
+    /// Center main in the bar's full width. Falls back to `.between`
+    /// if main would overlap leading or trailing.
+    case absolute
+    /// Center main in the space between leading and trailing.
+    case between
+}
+
+// MARK: - NavBarContentRowRenderer
+
+final class NavBarContentRowRenderer: ContainerRenderer {
+    private weak var rowView: NavBarContentRowView?
+    private var view: NavBarContentRow
+
+    init(view: NavBarContentRow) {
+        self.view = view
+    }
+
+    func mount() -> PlatformView {
+        let rv = NavBarContentRowView()
+        self.rowView = rv
+        rv.mainAlignment = view.alignment
+        rv.centerMode = view.centerMode
+        return rv
+    }
+
+    func update(from newView: any View) {
+        guard let row = newView as? NavBarContentRow, let rv = rowView else { return }
+        let old = view
+        view = row
+
+        var needsLayout = false
+
+        if old.alignment != row.alignment {
+            rv.mainAlignment = row.alignment
+            needsLayout = true
+        }
+        if old.centerMode != row.centerMode {
+            rv.centerMode = row.centerMode
+            needsLayout = true
+        }
+
+        if needsLayout { rv.setNeedsLayout() }
+    }
+
+    func insert(_ platformView: PlatformView, at index: Int, into container: PlatformView) {
+        container.insertSubview(platformView, at: index)
+    }
+
+    func remove(_ platformView: PlatformView, from container: PlatformView) {
+        platformView.removeFromSuperview()
+    }
+
+    func move(_ platformView: PlatformView, to index: Int, in container: PlatformView) {
+        platformView.removeFromSuperview()
+        container.insertSubview(platformView, at: index)
+    }
+
+    func index(of platformView: PlatformView, in container: PlatformView) -> Int? {
+        container.subviews.firstIndex(of: platformView)
+    }
+}
+
+// MARK: - NavBarContentRowView
+
+#if canImport(UIKit)
+import UIKit
+
+final class NavBarContentRowView: UIView {
+    var mainAlignment: Alignment = .center
+    var centerMode: NavBarCenterMode = .absolute
+
+    override func sizeThatFits(_ size: CGSize) -> CGSize {
+        let children = subviews
+        guard children.count == 3 else { return .zero }
+        let h = children.map({ $0.sizeThatFits(size).height }).max() ?? 0
+        return CGSize(width: size.width, height: h)
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        let children = subviews
+        guard children.count == 3 else { return }
+
+        let leadingView = children[0]
+        let mainView = children[1]
+        let trailingView = children[2]
+
+        let w = bounds.width
+        let h = bounds.height
+
+        // 1. Measure leading and trailing with loose constraints.
+        let leadingSize = leadingView.sizeThatFits(bounds.size)
+        let trailingSize = trailingView.sizeThatFits(bounds.size)
+
+        // 2. Measure main within remaining space.
+        let remainingW = max(0, w - leadingSize.width - trailingSize.width)
+        let mainSize = mainView.sizeThatFits(CGSize(width: remainingW, height: h))
+
+        // 3. Position leading flush left, trailing flush right.
+        leadingView.frame = CGRect(
+            x: 0,
+            y: (h - leadingSize.height) / 2,
+            width: leadingSize.width,
+            height: leadingSize.height
+        )
+        trailingView.frame = CGRect(
+            x: w - trailingSize.width,
+            y: (h - trailingSize.height) / 2,
+            width: trailingSize.width,
+            height: trailingSize.height
+        )
+
+        // 4. Position main.
+        let mainX: CGFloat
+        let ax = mainAlignment.x
+
+        if ax < -0.5 {
+            mainX = leadingSize.width
+        } else if ax > 0.5 {
+            mainX = w - trailingSize.width - mainSize.width
+        } else {
+            switch centerMode {
+            case .absolute:
+                let centered = (w - mainSize.width) / 2
+                let overlapsLeading = centered < leadingSize.width
+                let overlapsTrailing = centered + mainSize.width > w - trailingSize.width
+                if overlapsLeading || overlapsTrailing {
+                    mainX = leadingSize.width + (remainingW - mainSize.width) / 2
+                } else {
+                    mainX = centered
+                }
+            case .between:
+                mainX = leadingSize.width + (remainingW - mainSize.width) / 2
+            }
+        }
+
+        mainView.frame = CGRect(
+            x: mainX,
+            y: (h - mainSize.height) / 2,
+            width: mainSize.width,
+            height: mainSize.height
+        )
+    }
+}
+#endif
+
+// MARK: - NavigationBar
+
+/// Full navigation bar component. Composes NavBarContentRow inside a
+/// styled Box with optional bottom accessory. The bar handles its own
+/// height, surface, padding, and safe area insets.
+///
+///     NavigationBar(
+///         main: Text("Home"),
+///         trailing: Button(onTap: { ... }) { Icon("plus") },
+///         surface: .color(.systemBackground)
+///     )
+///
+/// The `bottom` slot sits below the main content row (search bars,
+/// segmented controls, etc.). The surface can cover just the content
+/// row or extend to include the bottom via `includeBottomInSurface`.
+public struct NavigationBar: BuiltView {
+    public let leading: (any View)?
+    public let main: (any View)?
+    public let trailing: (any View)?
+    public let bottom: (any View)?
+    public let alignment: Alignment
+    public let centerMode: NavBarCenterMode
+    public let height: Double
+    public let padding: Padding
+    public let surface: Surface?
+    public let hidden: Bool
+    public let includeBottomInSurface: Bool
+
+    public init(
+        leading: (any View)? = nil,
+        main: (any View)? = nil,
+        trailing: (any View)? = nil,
+        bottom: (any View)? = nil,
+        alignment: Alignment = .center,
+        centerMode: NavBarCenterMode = .absolute,
+        height: Double = 44,
+        padding: Padding = .zero,
+        surface: Surface? = nil,
+        hidden: Bool = false,
+        includeBottomInSurface: Bool = false
+    ) {
+        self.leading = leading
+        self.main = main
+        self.trailing = trailing
+        self.bottom = bottom
+        self.alignment = alignment
+        self.centerMode = centerMode
+        self.height = height
+        self.padding = padding
+        self.surface = surface
+        self.hidden = hidden
+        self.includeBottomInSurface = includeBottomInSurface
+    }
+
+    public func build(context: ViewContext) -> any View {
+        if hidden { return EmptyView() }
+
+        let contentRow = Box(
+            BoxStyle(
+                .height(.fix(height)),
+                includeBottomInSurface ? nil : surface,
+                padding: padding
+            )
+        ) {
+            NavBarContentRow(
+                leading: leading,
+                main: main,
+                trailing: trailing,
+                alignment: alignment,
+                centerMode: centerMode
+            )
+        }
+
+        if let bottom {
+            let bar = Column {
+                contentRow
+                bottom
+            }
+            if includeBottomInSurface, let surface {
+                return Box(.hug, surface) { bar }
+            }
+            return bar
+        }
+
+        return contentRow
+    }
+}
+
 // MARK: - NavigationItem
 
 /// Per-screen navigation-bar configuration, declared by the hosted
