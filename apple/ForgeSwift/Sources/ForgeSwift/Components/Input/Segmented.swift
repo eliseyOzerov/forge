@@ -233,43 +233,34 @@ struct SegmentedGestures<T: Hashable>: LeafView {
     let dragEnabled: Bool
 
     func makeRenderer() -> Renderer {
-        SegmentedGestureRenderer(model: model, dragEnabled: dragEnabled)
+        SegmentedGestureRenderer(view: self)
     }
 }
 
 final class SegmentedGestureRenderer<T: Hashable>: Renderer {
     private weak var gestureView: SegmentedGestureView<T>?
+    private var view: SegmentedGestures<T>
 
-    var model: SegmentedModel<T> {
-        didSet {
-            guard let gestureView else { return }
-            gestureView.model = model
+    init(view: SegmentedGestures<T>) {
+        self.view = view
+    }
+
+    func update(from newView: any View) {
+        guard let gestures = newView as? SegmentedGestures<T>, let gestureView else { return }
+        let old = view
+        view = gestures
+
+        gestureView.model = gestures.model
+        if old.dragEnabled != gestures.dragEnabled {
+            gestureView.dragEnabled = gestures.dragEnabled
         }
-    }
-
-    var dragEnabled: Bool {
-        didSet {
-            guard dragEnabled != oldValue, let gestureView else { return }
-            gestureView.dragEnabled = dragEnabled
-        }
-    }
-
-    init(model: SegmentedModel<T>, dragEnabled: Bool) {
-        self.model = model
-        self.dragEnabled = dragEnabled
-    }
-
-    func update(from view: any View) {
-        guard let gestures = view as? SegmentedGestures<T> else { return }
-        model = gestures.model
-        dragEnabled = gestures.dragEnabled
     }
 
     func mount() -> PlatformView {
         let v = SegmentedGestureView<T>()
         self.gestureView = v
-        v.model = model
-        v.dragEnabled = dragEnabled
+        v.model = view.model
+        v.dragEnabled = view.dragEnabled
         v.installGestures()
         return v
     }

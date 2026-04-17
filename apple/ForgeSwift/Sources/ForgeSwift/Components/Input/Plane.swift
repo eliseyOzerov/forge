@@ -179,7 +179,7 @@ public final class PlaneBuilder: ViewBuilder<PlaneModel> {
 
 struct PlaneLeaf: LeafView {
     let model: PlaneModel
-    func makeRenderer() -> Renderer { PlaneRenderer(model: model) }
+    func makeRenderer() -> Renderer { PlaneRenderer(view: self) }
 }
 
 // MARK: - UIKit Renderer
@@ -189,27 +189,23 @@ import UIKit
 
 final class PlaneRenderer: Renderer {
     private weak var planeView: PlaneView?
+    private var view: PlaneLeaf
 
-    var model: PlaneModel {
-        didSet {
-            guard let planeView else { return }
-            planeView.model = model
-            if model.motion.isRunning { planeView.startAnimation() }
-        }
-    }
+    init(view: PlaneLeaf) { self.view = view }
 
-    init(model: PlaneModel) { self.model = model }
+    func update(from newView: any View) {
+        guard let leaf = newView as? PlaneLeaf, let planeView else { return }
+        view = leaf
 
-    func update(from view: any View) {
-        guard let leaf = view as? PlaneLeaf else { return }
-        model = leaf.model
+        planeView.model = leaf.model
+        if leaf.model.motion.isRunning { planeView.startAnimation() }
     }
 
     func mount() -> PlatformView {
-        let view = PlaneView()
-        self.planeView = view
-        view.model = model
-        return view
+        let v = PlaneView()
+        self.planeView = v
+        v.model = view.model
+        return v
     }
 }
 

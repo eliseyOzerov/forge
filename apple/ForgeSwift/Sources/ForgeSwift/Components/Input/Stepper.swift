@@ -295,7 +295,7 @@ struct StepperFieldLeaf<T: Numeric & Comparable & LosslessStringConvertible>: Le
     let style: StepperStyle<T>
 
     func makeRenderer() -> Renderer {
-        StepperFieldRenderer(model: model, style: style)
+        StepperFieldRenderer(view: self)
     }
 }
 
@@ -303,54 +303,56 @@ struct StepperFieldLeaf<T: Numeric & Comparable & LosslessStringConvertible>: Le
 
 final class StepperFieldRenderer<T: Numeric & Comparable & LosslessStringConvertible>: Renderer {
     private weak var fieldView: StepperFieldView<T>?
+    private var view: StepperFieldLeaf<T>
 
-    var model: StepperModel<T> {
-        didSet {
-            guard let fieldView else { return }
-            applyStepper(to: fieldView)
-        }
+    init(view: StepperFieldLeaf<T>) {
+        self.view = view
     }
 
-    var style: StepperStyle<T> {
-        didSet {
-            guard let fieldView else { return }
-            applyStepper(to: fieldView)
-        }
-    }
+    func update(from newView: any View) {
+        guard let leaf = newView as? StepperFieldLeaf<T>, let fieldView else { return }
+        view = leaf
 
-    init(model: StepperModel<T>, style: StepperStyle<T>) {
-        self.model = model; self.style = style
-    }
+        // Apply model props
+        fieldView.model = leaf.model
+        fieldView.textField.text = leaf.model.displayText()
 
-    func update(from view: any View) {
-        guard let leaf = view as? StepperFieldLeaf<T> else { return }
-        model = leaf.model
-        style = leaf.style
+        // Apply style props
+        let field = fieldView.textField
+        field.font = leaf.style.text.font.resolvedFont
+        field.textColor = leaf.style.text.color?.platformColor ?? .label
+        field.textAlignment = leaf.style.text.align.nsTextAlignment
+
+        fieldView.dragAxis = leaf.style.drag.axis
+        fieldView.dragEnabled = leaf.style.drag.enabled
+
+        fieldView.sizing = leaf.style.field.frame
+        fieldView.surface = leaf.style.field.surface
+        fieldView.shape = leaf.style.field.shape
+        fieldView.padding = leaf.style.field.padding
+        fieldView.invalidateIntrinsicContentSize()
+        fieldView.setNeedsDisplay()
+        fieldView.superview?.setNeedsLayout()
     }
 
     func mount() -> PlatformView {
-        let view = StepperFieldView<T>()
-        self.fieldView = view
-        applyStepper(to: view)
-        return view
-    }
-
-    private func applyStepper(to view: StepperFieldView<T>) {
-        let field = view.textField
-        field.text = model.displayText()
-        field.font = style.text.font.resolvedFont
-        field.textColor = style.text.color?.platformColor ?? .label
-        field.textAlignment = style.text.align.nsTextAlignment
+        let fv = StepperFieldView<T>()
+        self.fieldView = fv
+        let field = fv.textField
+        field.text = view.model.displayText()
+        field.font = view.style.text.font.resolvedFont
+        field.textColor = view.style.text.color?.platformColor ?? .label
+        field.textAlignment = view.style.text.align.nsTextAlignment
         field.keyboardType = .decimalPad
 
-        view.model = model
-        view.dragAxis = style.drag.axis
-        view.dragEnabled = style.drag.enabled
-        view.sizing = style.field.frame
-        view.surface = style.field.surface
-        view.shape = style.field.shape
-        view.padding = style.field.padding
-        view.setNeedsDisplay()
+        fv.model = view.model
+        fv.dragAxis = view.style.drag.axis
+        fv.dragEnabled = view.style.drag.enabled
+        fv.sizing = view.style.field.frame
+        fv.surface = view.style.field.surface
+        fv.shape = view.style.field.shape
+        fv.padding = view.style.field.padding
+        return fv
     }
 }
 

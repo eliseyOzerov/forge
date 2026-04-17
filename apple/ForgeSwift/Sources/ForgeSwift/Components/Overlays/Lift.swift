@@ -100,60 +100,30 @@ public struct Lift: LeafView {
     }
 
     public func makeRenderer() -> Renderer {
-        LiftRenderer(controller: controller, dismissDuration: dismissDuration, builder: builder)
+        LiftRenderer(view: self)
     }
 }
 
 final class LiftRenderer: Renderer {
     private weak var hostView: LiftHostView?
+    private var view: Lift
 
-    var controller: LiftController? {
-        didSet {
-            guard let hostView else { return }
-            applyLift(to: hostView)
-        }
+    init(view: Lift) {
+        self.view = view
     }
 
-    var dismissDuration: TimeInterval {
-        didSet {
-            guard dismissDuration != oldValue, let hostView else { return }
-            applyLift(to: hostView)
-        }
-    }
-
-    var builder: @MainActor (LiftView) -> any View {
-        didSet {
-            guard let hostView else { return }
-            applyLift(to: hostView)
-        }
-    }
-
-    init(
-        controller: LiftController?,
-        dismissDuration: TimeInterval,
-        builder: @escaping @MainActor (LiftView) -> any View
-    ) {
-        self.controller = controller
-        self.dismissDuration = dismissDuration
-        self.builder = builder
-    }
-
-    func update(from view: any View) {
-        guard let lift = view as? Lift else { return }
-        controller = lift.controller
-        dismissDuration = lift.dismissDuration
-        builder = lift.builder
+    func update(from newView: any View) {
+        guard let lift = newView as? Lift else { return }
+        view = lift
+        guard let hostView else { return }
+        hostView.configure(controller: lift.controller, dismissDuration: lift.dismissDuration, builder: lift.builder)
     }
 
     func mount() -> PlatformView {
         let v = LiftHostView()
         self.hostView = v
-        applyLift(to: v)
+        v.configure(controller: view.controller, dismissDuration: view.dismissDuration, builder: view.builder)
         return v
-    }
-
-    private func applyLift(to v: LiftHostView) {
-        v.configure(controller: controller, dismissDuration: dismissDuration, builder: builder)
     }
 }
 

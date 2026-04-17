@@ -145,45 +145,46 @@ public final class ToggleBuilder: ViewBuilder<ToggleModel> {
 
 struct ToggleLeaf: LeafView {
     let model: ToggleModel
-    func makeRenderer() -> Renderer { ToggleRenderer(model: model) }
+    func makeRenderer() -> Renderer { ToggleRenderer(view: self) }
 }
 
 // MARK: - Renderer
 
 final class ToggleRenderer: Renderer {
     private weak var toggleView: ToggleView?
+    private var view: ToggleLeaf
 
-    var model: ToggleModel {
-        didSet {
-            guard let toggleView else { return }
-            toggleView.model = model
-            applyToggle(to: toggleView)
+    init(view: ToggleLeaf) { self.view = view }
+
+    func update(from newView: any View) {
+        guard let leaf = newView as? ToggleLeaf, let toggleView else { return }
+        let old = view
+        view = leaf
+
+        toggleView.model = leaf.model
+        let style = leaf.model.resolveStyle()
+        let oldStyle = old.model.resolveStyle()
+        let sizeChanged = style.size != oldStyle.size
+        toggleView.toggleSize = style.size
+        if sizeChanged {
+            toggleView.invalidateIntrinsicContentSize()
+            toggleView.superview?.setNeedsLayout()
         }
-    }
-
-    init(model: ToggleModel) { self.model = model }
-
-    func update(from view: any View) {
-        guard let leaf = view as? ToggleLeaf else { return }
-        model = leaf.model
+        if leaf.model.isAnimating { toggleView.startAnimation() }
+        toggleView.setNeedsDisplay()
     }
 
     func mount() -> PlatformView {
-        let view = ToggleView()
-        self.toggleView = view
-        view.model = model
-        applyToggle(to: view)
-        return view
-    }
-
-    private func applyToggle(to view: ToggleView) {
-        let style = model.resolveStyle()
-        view.toggleSize = style.size
-        view.isOpaque = false
-        view.backgroundColor = .clear
-        view.invalidateIntrinsicContentSize()
-        if model.isAnimating { view.startAnimation() }
-        view.setNeedsDisplay()
+        let tv = ToggleView()
+        self.toggleView = tv
+        tv.model = view.model
+        let style = view.model.resolveStyle()
+        tv.toggleSize = style.size
+        tv.isOpaque = false
+        tv.backgroundColor = .clear
+        tv.invalidateIntrinsicContentSize()
+        if view.model.isAnimating { tv.startAnimation() }
+        return tv
     }
 }
 

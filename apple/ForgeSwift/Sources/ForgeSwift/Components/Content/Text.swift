@@ -424,7 +424,7 @@ final class UIKitTextRenderer: Renderer {
     func mount() -> PlatformView {
         let label = UILabel()
         self.label = label
-        apply()
+        applyAttributedString()
         return label
     }
 
@@ -433,7 +433,7 @@ final class UIKitTextRenderer: Renderer {
         let old = view
         view = text
 
-        apply()
+        applyAttributedString()
 
         let needsLayout = old.content != text.content
             || old.style.textCase != text.style.textCase
@@ -444,13 +444,10 @@ final class UIKitTextRenderer: Renderer {
             || old.style.font.italic != text.style.font.italic
             || old.style.font.tracking != text.style.font.tracking
             || old.style.font.height != text.style.font.height
-
-        if needsLayout {
-            label.superview?.setNeedsLayout()
-        }
+        if needsLayout { label.superview?.setNeedsLayout() }
     }
 
-    private func apply() {
+    private func applyAttributedString() {
         guard let label else { return }
         let displayText = view.style.textCase.apply(to: view.content)
         let font = view.style.font.resolvedFont

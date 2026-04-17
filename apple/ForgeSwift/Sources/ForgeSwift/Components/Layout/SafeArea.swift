@@ -45,7 +45,7 @@ public struct SafeArea: ContainerView {
     }
 
     public func makeRenderer() -> ContainerRenderer {
-        SafeAreaRenderer(edges: edges)
+        SafeAreaRenderer(view: self)
     }
 }
 
@@ -53,29 +53,28 @@ public struct SafeArea: ContainerView {
 
 final class SafeAreaRenderer: ContainerRenderer {
     private weak var safeAreaView: SafeAreaView?
+    private var view: SafeArea
 
-    var edges: Edge.Set {
-        didSet {
-            guard let safeAreaView else { return }
-            safeAreaView.edges = edges
+    init(view: SafeArea) {
+        self.view = view
+    }
+
+    func update(from newView: any View) {
+        guard let safeArea = newView as? SafeArea, let safeAreaView else { return }
+        let old = view
+        view = safeArea
+
+        if old.edges != safeArea.edges {
+            safeAreaView.edges = safeArea.edges
             safeAreaView.setNeedsLayout()
         }
     }
 
-    init(edges: Edge.Set) {
-        self.edges = edges
-    }
-
-    func update(from view: any View) {
-        guard let safeArea = view as? SafeArea else { return }
-        edges = safeArea.edges
-    }
-
     func mount() -> PlatformView {
-        let view = SafeAreaView()
-        self.safeAreaView = view
-        view.edges = edges
-        return view
+        let sv = SafeAreaView()
+        self.safeAreaView = sv
+        sv.edges = view.edges
+        return sv
     }
 
     func insert(_ platformView: PlatformView, at index: Int, into container: PlatformView) {

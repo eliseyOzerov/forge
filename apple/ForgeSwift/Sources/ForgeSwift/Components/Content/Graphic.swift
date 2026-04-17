@@ -618,7 +618,7 @@ public struct Graphic: LeafView {
     }
 
     public func makeRenderer() -> Renderer {
-        GraphicRenderer(source: source, color: color, size: size, overrides: overrides)
+        GraphicRenderer(view: self)
     }
 }
 
@@ -634,75 +634,93 @@ public enum GraphicSource {
 
 final class GraphicRenderer: Renderer {
     private weak var graphicView: GraphicView?
+    private var view: Graphic
 
-    var source: GraphicSource {
-        didSet {
-            guard let graphicView else { return }
-            applyGraphic(to: graphicView)
+    init(view: Graphic) {
+        self.view = view
+    }
+
+    func update(from newView: any View) {
+        guard let graphic = newView as? Graphic, let graphicView else { return }
+        let old = view
+        view = graphic
+
+        // Source changed → reload document + redraw + relayout
+        let sourceChanged = !sourceEqual(old.source, graphic.source)
+        if sourceChanged {
+            applyDocument(to: graphicView)
+            graphicView.setNeedsDisplay()
             graphicView.superview?.setNeedsLayout()
         }
-    }
-    var color: Color? {
-        didSet {
-            guard let graphicView else { return }
-            applyGraphic(to: graphicView)
-        }
-    }
-    var size: CGSize? {
-        didSet {
-            guard let graphicView else { return }
-            applyGraphic(to: graphicView)
+
+        // Size changed → relayout + redraw
+        if old.size != graphic.size {
+            graphicView.graphicSize = graphic.size
+            graphicView.invalidateIntrinsicContentSize()
+            graphicView.setNeedsDisplay()
             graphicView.superview?.setNeedsLayout()
         }
-    }
-    var overrides: [String: GraphicOverride] {
-        didSet {
-            guard let graphicView else { return }
-            applyGraphic(to: graphicView)
+
+        // Color/overrides changed → redraw only
+        let colorChanged = old.color != graphic.color
+        if colorChanged {
+            graphicView.graphicColor = graphic.color
+            graphicView.cachedImage = nil
+            graphicView.setNeedsDisplay()
         }
-    }
 
-    init(source: GraphicSource, color: Color?, size: CGSize?, overrides: [String: GraphicOverride]) {
-        self.source = source; self.color = color; self.size = size; self.overrides = overrides
-    }
-
-    func update(from view: any View) {
-        guard let graphic = view as? Graphic else { return }
-        source = graphic.source
-        color = graphic.color
-        size = graphic.size
-        overrides = graphic.overrides
+        // Overrides — always apply (no Equatable)
+        graphicView.graphicOverrides = graphic.overrides
+        if !sourceChanged && !colorChanged {
+            graphicView.cachedImage = nil
+            graphicView.setNeedsDisplay()
+        }
     }
 
     func mount() -> PlatformView {
-        let view = GraphicView()
-        self.graphicView = view
-        applyGraphic(to: view)
-        return view
+        let gv = GraphicView()
+        self.graphicView = gv
+        applyDocument(to: gv)
+        gv.graphicColor = view.color
+        gv.graphicSize = view.size
+        gv.graphicOverrides = view.overrides
+        return gv
     }
 
-    private func applyGraphic(to view: GraphicView) {
-        switch source {
+    private func applyDocument(to gv: GraphicView) {
+        let doc: SVGDocument?
+        switch view.source {
         case .string(let svg):
-            view.setDocument(SVGParser().parse(svg), color: color, size: size, overrides: overrides)
+            doc = SVGParser().parse(svg)
         case .data(let data):
-            view.setDocument(SVGParser().parse(data), color: color, size: size, overrides: overrides)
+            doc = SVGParser().parse(data)
         case .asset(let name):
             if let asset = NSDataAsset(name: name) {
-                view.setDocument(SVGParser().parse(asset.data), color: color, size: size, overrides: overrides)
+                doc = SVGParser().parse(asset.data)
             } else if let url = Bundle.main.url(forResource: name, withExtension: "svg"),
                       let data = try? Data(contentsOf: url) {
-                view.setDocument(SVGParser().parse(data), color: color, size: size, overrides: overrides)
+                doc = SVGParser().parse(data)
             } else {
-                view.setDocument(nil, color: color, size: size, overrides: overrides)
+                doc = nil
             }
         case .file(let url):
-            if let data = try? Data(contentsOf: url) {
-                view.setDocument(SVGParser().parse(data), color: color, size: size, overrides: overrides)
-            }
+            doc = (try? Data(contentsOf: url)).flatMap { SVGParser().parse($0) }
         case .url:
-            // TODO: async loading with loading/error state
-            break
+            doc = nil
+        }
+        gv.document = doc
+        gv.cachedImage = nil
+        gv.invalidateIntrinsicContentSize()
+    }
+
+    private func sourceEqual(_ a: GraphicSource, _ b: GraphicSource) -> Bool {
+        switch (a, b) {
+        case (.string(let l), .string(let r)): return l == r
+        case (.data(let l), .data(let r)): return l == r
+        case (.asset(let l), .asset(let r)): return l == r
+        case (.file(let l), .file(let r)): return l == r
+        case (.url(let l), .url(let r)): return l == r
+        default: return false
         }
     }
 }
@@ -710,11 +728,11 @@ final class GraphicRenderer: Renderer {
 // MARK: - GraphicView
 
 final class GraphicView: UIView {
-    private var document: SVGDocument?
-    private var graphicColor: Color?
-    private var graphicSize: CGSize?
-    private var graphicOverrides: [String: GraphicOverride] = [:]
-    private var cachedImage: UIImage?
+    var document: SVGDocument?
+    var graphicColor: Color?
+    var graphicSize: CGSize?
+    var graphicOverrides: [String: GraphicOverride] = [:]
+    var cachedImage: UIImage?
     private var cachedBoundsSize: CGSize = .zero
 
     override init(frame: CGRect) {

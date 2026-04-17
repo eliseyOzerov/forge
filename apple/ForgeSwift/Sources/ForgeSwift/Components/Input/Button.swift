@@ -187,78 +187,88 @@ struct TappableBox: ContainerView {
     }
 
     func makeRenderer() -> ContainerRenderer {
-        TappableBoxRenderer(style: boxStyle, model: model, animation: animation)
+        TappableBoxRenderer(view: self)
     }
 }
 
 final class TappableBoxRenderer: ContainerRenderer {
     private weak var tappableView: TappableBoxView?
+    private var view: TappableBox
 
-    var style: BoxStyle {
-        didSet {
-            guard let tappableView else { return }
-            applyTappable(to: tappableView, animated: true)
+    init(view: TappableBox) {
+        self.view = view
+    }
+
+    func update(from newView: any View) {
+        guard let tappable = newView as? TappableBox, let tv = tappableView else { return }
+        let old = view
+        view = tappable
+
+        let oldStyle = old.boxStyle
+        let newStyle = tappable.boxStyle
+
+        var needsSelfLayout = false
+        var needsParentLayout = false
+
+        if oldStyle.frame != newStyle.frame {
+            needsSelfLayout = true
+            needsParentLayout = true
         }
-    }
-
-    var model: ButtonModel {
-        didSet {
-            guard let tappableView else { return }
-            applyTappable(to: tappableView, animated: true)
+        if oldStyle.padding != newStyle.padding
+            || oldStyle.alignment != newStyle.alignment {
+            needsSelfLayout = true
         }
-    }
 
-    var animation: Animation? {
-        didSet {
-            // No immediate application needed; used by next style/model update
-        }
-    }
+        // Shape/surface/overflow/clip always applied (non-Equatable)
+        applyStyle(to: tv, animated: true)
 
-    init(style: BoxStyle, model: ButtonModel, animation: Animation?) {
-        self.style = style
-        self.model = model
-        self.animation = animation
-    }
+        if needsSelfLayout { tv.setNeedsLayout() }
+        if needsParentLayout { tv.superview?.setNeedsLayout() }
 
-    func update(from view: any View) {
-        guard let tappable = view as? TappableBox else { return }
-        style = tappable.boxStyle
-        model = tappable.model
-        animation = tappable.animation
+        // Model
+        tv.buttonModel = tappable.model
+        tv.accessibilityLabel = tappable.model.view.label
+        tv.updateAccessibility()
     }
 
     func mount() -> PlatformView {
-        let view = TappableBoxView()
-        self.tappableView = view
-        applyTappable(to: view, animated: false)
-        return view
+        let tv = TappableBoxView()
+        self.tappableView = tv
+        tv.sizing = view.boxStyle.frame
+        tv.shape = view.boxStyle.shape
+        tv.surface = view.boxStyle.surface
+        tv.clip = view.boxStyle.clip
+        tv.padding = view.boxStyle.padding
+        tv.alignment = view.boxStyle.alignment
+        tv.overflow = view.boxStyle.overflow
+        tv.buttonModel = view.model
+        tv.accessibilityLabel = view.model.view.label
+        tv.isUserInteractionEnabled = true
+        tv.updateAccessibility()
+        return tv
     }
 
-    private func applyTappable(to view: TappableBoxView, animated: Bool) {
+    private func applyStyle(to tv: TappableBoxView, animated: Bool) {
+        let style = view.boxStyle
         let applyBlock = {
-            view.sizing = self.style.frame
-            view.shape = self.style.shape
-            view.surface = self.style.surface
-            view.clip = self.style.clip
-            view.padding = self.style.padding
-            view.alignment = self.style.alignment
-            view.overflow = self.style.overflow
-            view.setNeedsDisplay()
+            tv.sizing = style.frame
+            tv.shape = style.shape
+            tv.surface = style.surface
+            tv.clip = style.clip
+            tv.padding = style.padding
+            tv.alignment = style.alignment
+            tv.overflow = style.overflow
+            tv.setNeedsDisplay()
         }
 
-        if animated, let anim = animation, anim.duration > 0 {
+        if animated, let anim = view.animation, anim.duration > 0 {
             UIView.animate(withDuration: anim.duration, delay: 0, options: .curveEaseInOut) {
                 applyBlock()
-                view.layoutIfNeeded()
+                tv.layoutIfNeeded()
             }
         } else {
             applyBlock()
         }
-
-        view.buttonModel = model
-        view.accessibilityLabel = model.view.label
-        view.isUserInteractionEnabled = true
-        view.updateAccessibility()
     }
 
     func insert(_ platformView: PlatformView, at index: Int, into container: PlatformView) {

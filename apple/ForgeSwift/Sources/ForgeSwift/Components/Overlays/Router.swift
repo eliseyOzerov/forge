@@ -866,39 +866,29 @@ struct RouterHost: LeafView {
     let model: RouterModel
 
     func makeRenderer() -> Renderer {
-        RouterHostRenderer(model: model)
+        RouterHostRenderer(view: self)
     }
 }
 
 final class RouterHostRenderer: Renderer {
     private weak var routerHostView: RouterHostView?
+    private var view: RouterHost
 
-    var model: RouterModel {
-        didSet {
-            guard let routerHostView else { return }
-            // Re-attaching is a no-op after first mount; the navigator
-            // wiring and initial stack were set up then. Any stack
-            // changes since have flowed through op dispatch, and parent-
-            // driven refreshes of the first route (didUpdate on the model)
-            // emit routerDidReset on their own.
-            routerHostView.attach(model: model)
-        }
+    init(view: RouterHost) {
+        self.view = view
     }
 
-    init(model: RouterModel) {
-        self.model = model
-    }
-
-    func update(from view: any View) {
-        guard let host = view as? RouterHost else { return }
-        model = host.model
+    func update(from newView: any View) {
+        guard let host = newView as? RouterHost, let routerHostView else { return }
+        view = host
+        routerHostView.attach(model: host.model)
     }
 
     func mount() -> PlatformView {
-        let view = RouterHostView()
-        self.routerHostView = view
-        view.attach(model: model)
-        return view
+        let v = RouterHostView()
+        self.routerHostView = v
+        v.attach(model: view.model)
+        return v
     }
 }
 

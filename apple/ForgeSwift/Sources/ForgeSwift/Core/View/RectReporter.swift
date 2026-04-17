@@ -33,7 +33,7 @@ public struct RectReporter: LeafView {
     }
 
     public func makeRenderer() -> Renderer {
-        RectReporterRenderer(onRect: onRect, content: content)
+        RectReporterRenderer(view: self)
     }
 }
 
@@ -47,39 +47,26 @@ public extension View {
 
 final class RectReporterRenderer: Renderer {
     private weak var reporterView: RectReporterView?
+    private var view: RectReporter
 
-    var onRect: @MainActor (Rect) -> Void {
-        didSet {
-            guard let reporterView else { return }
-            reporterView.onRect = onRect
-        }
+    init(view: RectReporter) {
+        self.view = view
     }
 
-    var content: any View {
-        didSet {
-            guard let reporterView else { return }
-            reporterView.onRect = onRect
-            reporterView.updateContent(content)
-        }
-    }
+    func update(from newView: any View) {
+        guard let reporter = newView as? RectReporter, let reporterView else { return }
+        view = reporter
 
-    init(onRect: @escaping @MainActor (Rect) -> Void, content: any View) {
-        self.onRect = onRect
-        self.content = content
-    }
-
-    func update(from view: any View) {
-        guard let reporter = view as? RectReporter else { return }
-        onRect = reporter.onRect
-        content = reporter.content
+        reporterView.onRect = reporter.onRect
+        reporterView.updateContent(reporter.content)
     }
 
     func mount() -> PlatformView {
-        let view = RectReporterView()
-        self.reporterView = view
-        view.onRect = onRect
-        view.installContent(content)
-        return view
+        let rv = RectReporterView()
+        self.reporterView = rv
+        rv.onRect = view.onRect
+        rv.installContent(view.content)
+        return rv
     }
 }
 

@@ -187,104 +187,44 @@ public struct Transition: LeafView {
     }
 
     public func makeRenderer() -> Renderer {
-        TransitionRenderer(
-            show: show.value,
-            effects: effects,
-            duration: duration,
-            curve: curve,
-            onStatus: onStatus,
-            child: child
-        )
+        TransitionRenderer(view: self)
     }
 }
 
 final class TransitionRenderer: Renderer {
     private weak var transitionView: TransitionView?
+    private var view: Transition
 
-    var show: Bool {
-        didSet {
-            guard show != oldValue, let transitionView else { return }
-            applyTransition(to: transitionView)
-        }
+    init(view: Transition) {
+        self.view = view
     }
 
-    var effects: [any TransitionEffect] {
-        didSet {
-            guard let transitionView else { return }
-            applyTransition(to: transitionView)
-        }
-    }
-
-    var duration: Double {
-        didSet {
-            guard duration != oldValue, let transitionView else { return }
-            applyTransition(to: transitionView)
-        }
-    }
-
-    var curve: Curve {
-        didSet {
-            guard let transitionView else { return }
-            applyTransition(to: transitionView)
-        }
-    }
-
-    var onStatus: ((TransitionStatus) -> Void)? {
-        didSet {
-            guard let transitionView else { return }
-            applyTransition(to: transitionView)
-        }
-    }
-
-    var child: any View {
-        didSet {
-            guard let transitionView else { return }
-            applyTransition(to: transitionView)
-        }
-    }
-
-    init(
-        show: Bool,
-        effects: [any TransitionEffect],
-        duration: Double,
-        curve: Curve,
-        onStatus: ((TransitionStatus) -> Void)?,
-        child: any View
-    ) {
-        self.show = show
-        self.effects = effects
-        self.duration = duration
-        self.curve = curve
-        self.onStatus = onStatus
-        self.child = child
-    }
-
-    func update(from view: any View) {
-        guard let transition = view as? Transition else { return }
-        show = transition.show.value
-        effects = transition.effects
-        duration = transition.duration
-        curve = transition.curve
-        onStatus = transition.onStatus
-        child = transition.child
+    func update(from newView: any View) {
+        guard let transition = newView as? Transition else { return }
+        view = transition
+        guard let transitionView else { return }
+        transitionView.configure(
+            child: transition.child,
+            effects: transition.effects,
+            duration: transition.duration,
+            curve: transition.curve,
+            show: transition.show.value,
+            onStatus: transition.onStatus
+        )
     }
 
     func mount() -> PlatformView {
         let v = TransitionView()
         self.transitionView = v
-        applyTransition(to: v)
-        return v
-    }
-
-    private func applyTransition(to v: TransitionView) {
         v.configure(
-            child: child,
-            effects: effects,
-            duration: duration,
-            curve: curve,
-            show: show,
-            onStatus: onStatus
+            child: view.child,
+            effects: view.effects,
+            duration: view.duration,
+            curve: view.curve,
+            show: view.show.value,
+            onStatus: view.onStatus
         )
+        return v
     }
 }
 

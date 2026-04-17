@@ -1,7 +1,7 @@
 import Foundation
 
 /// How a dimension should be sized.
-public enum Extent: Sendable {
+public enum Extent: Equatable, Sendable {
     /// Shrink to child's intrinsic size, optionally clamped.
     case hug(min: Double? = nil, max: Double? = nil)
     /// Expand to fill available space. Flex determines ratio when
@@ -12,7 +12,7 @@ public enum Extent: Sendable {
 }
 
 /// Sizing constraints for a view.
-public struct Frame: Sendable {
+public struct Frame: Equatable, Sendable {
     public var width: Extent
     public var height: Extent
 

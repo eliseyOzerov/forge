@@ -232,42 +232,34 @@ public final class SliderBuilder: ViewBuilder<SliderModel> {
 
 struct SliderLeaf: LeafView {
     let model: SliderModel
-    func makeRenderer() -> Renderer { SliderRenderer(model: model) }
+    func makeRenderer() -> Renderer { SliderRenderer(view: self) }
 }
 
 // MARK: - Renderer
 
 final class SliderRenderer: Renderer {
     private weak var sliderView: SliderView?
+    private var view: SliderLeaf
 
-    var model: SliderModel {
-        didSet {
-            guard let sliderView else { return }
-            sliderView.model = model
-            applySlider(to: sliderView)
-        }
-    }
+    init(view: SliderLeaf) { self.view = view }
 
-    init(model: SliderModel) { self.model = model }
+    func update(from newView: any View) {
+        guard let leaf = newView as? SliderLeaf, let sliderView else { return }
+        view = leaf
 
-    func update(from view: any View) {
-        guard let leaf = view as? SliderLeaf else { return }
-        model = leaf.model
+        sliderView.model = leaf.model
+        if leaf.model.motion.isRunning { sliderView.startAnimation() }
+        sliderView.setNeedsDisplay()
     }
 
     func mount() -> PlatformView {
-        let view = SliderView()
-        self.sliderView = view
-        view.model = model
-        applySlider(to: view)
-        return view
-    }
-
-    private func applySlider(to view: SliderView) {
-        view.isOpaque = false
-        view.backgroundColor = .clear
-        if model.motion.isRunning { view.startAnimation() }
-        view.setNeedsDisplay()
+        let sv = SliderView()
+        self.sliderView = sv
+        sv.model = view.model
+        sv.isOpaque = false
+        sv.backgroundColor = .clear
+        if view.model.motion.isRunning { sv.startAnimation() }
+        return sv
     }
 }
 

@@ -68,7 +68,7 @@ public struct Loader: LeafView {
 
     public func makeRenderer() -> Renderer {
         #if canImport(UIKit)
-        return LoaderRenderer(style: style, color: color, size: size)
+        return LoaderRenderer(view: self)
         #else
         fatalError("Loader not implemented on this platform")
         #endif
@@ -288,57 +288,46 @@ import UIKit
 
 final class LoaderRenderer: Renderer {
     private weak var loaderView: LoaderView?
+    private var view: Loader
 
-    var style: LoaderStyle {
-        didSet {
-            guard let loaderView else { return }
-            applyLoader(to: loaderView)
+    init(view: Loader) {
+        self.view = view
+    }
+
+    func update(from newView: any View) {
+        guard let loader = newView as? Loader, let loaderView else { return }
+        let old = view
+        view = loader
+
+        let sizeChanged = old.size != loader.size
+        if sizeChanged {
+            loaderView.loaderSize = loader.size
+            loaderView.invalidateIntrinsicContentSize()
+            loaderView.superview?.setNeedsLayout()
         }
-    }
 
-    var color: Color {
-        didSet {
-            guard color != oldValue, let loaderView else { return }
-            applyLoader(to: loaderView)
+        // LoaderStyle lacks Equatable — always apply painter + duration
+        loaderView.painter = loader.style.painter()
+        loaderView.duration = loader.style.duration
+
+        if old.color != loader.color {
+            loaderView.loaderColor = loader.color
         }
-    }
 
-    var size: Double {
-        didSet {
-            guard size != oldValue, let loaderView else { return }
-            applyLoader(to: loaderView)
-        }
-    }
-
-    init(style: LoaderStyle, color: Color, size: Double) {
-        self.style = style
-        self.color = color
-        self.size = size
-    }
-
-    func update(from view: any View) {
-        guard let loader = view as? Loader else { return }
-        style = loader.style
-        color = loader.color
-        size = loader.size
+        loaderView.setNeedsDisplay()
     }
 
     func mount() -> PlatformView {
-        let view = LoaderView()
-        self.loaderView = view
-        applyLoader(to: view)
-        return view
-    }
-
-    private func applyLoader(to view: LoaderView) {
-        view.painter = style.painter()
-        view.loaderColor = color
-        view.loaderSize = size
-        view.duration = style.duration
-        view.isOpaque = false
-        view.backgroundColor = .clear
-        view.invalidateIntrinsicContentSize()
-        view.setNeedsDisplay()
+        let lv = LoaderView()
+        self.loaderView = lv
+        lv.painter = view.style.painter()
+        lv.loaderColor = view.color
+        lv.loaderSize = view.size
+        lv.duration = view.style.duration
+        lv.isOpaque = false
+        lv.backgroundColor = .clear
+        lv.invalidateIntrinsicContentSize()
+        return lv
     }
 }
 

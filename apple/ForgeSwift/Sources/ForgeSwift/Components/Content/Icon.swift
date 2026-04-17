@@ -11,7 +11,7 @@ public struct Icon: LeafView {
     }
 
     public func makeRenderer() -> Renderer {
-        UIKitIconRenderer(name: name, style: style)
+        UIKitIconRenderer(view: self)
     }
 }
 
@@ -58,56 +58,54 @@ public enum IconRenderingMode: Sendable {
 
 final class UIKitIconRenderer: Renderer {
     private weak var imageView: UIImageView?
+    private var view: Icon
 
-    var name: String {
-        didSet {
-            guard name != oldValue, let imageView else { return }
-            applyIcon(to: imageView)
+    init(view: Icon) {
+        self.view = view
+    }
+
+    func update(from newView: any View) {
+        guard let icon = newView as? Icon, let imageView else { return }
+        let old = view
+        view = icon
+
+        let nameChanged = old.name != icon.name
+        let sizeChanged = old.style.size != icon.style.size || old.style.weight != icon.style.weight
+        let renderingChanged = old.style.renderingMode != icon.style.renderingMode
+        let colorChanged = old.style.color != icon.style.color
+
+        if nameChanged || sizeChanged || renderingChanged {
+            applyIconImage(to: imageView)
             imageView.superview?.setNeedsLayout()
+        } else if colorChanged {
+            if icon.style.renderingMode.isTemplate {
+                imageView.tintColor = icon.style.color?.platformColor ?? .label
+            }
         }
-    }
-
-    var style: IconStyle {
-        didSet {
-            guard let imageView else { return }
-            applyIcon(to: imageView)
-            imageView.superview?.setNeedsLayout()
-        }
-    }
-
-    init(name: String, style: IconStyle) {
-        self.name = name
-        self.style = style
-    }
-
-    func update(from view: any View) {
-        guard let icon = view as? Icon else { return }
-        name = icon.name
-        style = icon.style
     }
 
     func mount() -> PlatformView {
         let imageView = UIImageView()
         imageView.contentMode = .scaleAspectFit
+        imageView.setContentHuggingPriority(.required, for: .horizontal)
+        imageView.setContentHuggingPriority(.required, for: .vertical)
         self.imageView = imageView
-        applyIcon(to: imageView)
+        applyIconImage(to: imageView)
         return imageView
     }
 
-    private func applyIcon(to imageView: UIImageView) {
-        let config = UIImage.SymbolConfiguration(pointSize: style.size, weight: style.weight.uiSymbolWeight)
-        var image = UIImage(systemName: name, withConfiguration: config)
+    private func applyIconImage(to imageView: UIImageView) {
+        let config = UIImage.SymbolConfiguration(pointSize: view.style.size, weight: view.style.weight.uiSymbolWeight)
+        var image = UIImage(systemName: view.name, withConfiguration: config)
 
-        if style.renderingMode.isTemplate {
+        if view.style.renderingMode.isTemplate {
             image = image?.withRenderingMode(.alwaysTemplate)
-            imageView.tintColor = style.color?.platformColor ?? .label
+            imageView.tintColor = view.style.color?.platformColor ?? .label
         } else {
             image = image?.withRenderingMode(.alwaysOriginal)
         }
 
         imageView.image = image
-        imageView.setContentHuggingPriority(.required, for: .horizontal)
-        imageView.setContentHuggingPriority(.required, for: .vertical)
     }
 }
 

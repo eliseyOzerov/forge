@@ -61,43 +61,50 @@ final class FlexRenderer: ContainerRenderer {
 
     var axis: NSLayoutConstraint.Axis {
         didSet {
-            guard let flexView else { return }
-            applyFlex(to: flexView)
+            guard axis != oldValue, let flexView else { return }
+            flexView.flexAxis = axis
+            flexView.setNeedsLayout()
+            flexView.superview?.setNeedsLayout()
         }
     }
 
     var spacing: Double {
         didSet {
             guard spacing != oldValue, let flexView else { return }
-            applyFlex(to: flexView)
+            flexView.flexSpacing = spacing
+            flexView.setNeedsLayout()
         }
     }
 
     var lineSpacing: Double {
         didSet {
             guard lineSpacing != oldValue, let flexView else { return }
-            applyFlex(to: flexView)
+            flexView.flexLineSpacing = lineSpacing
+            flexView.setNeedsLayout()
         }
     }
 
     var alignment: Alignment {
         didSet {
-            guard let flexView else { return }
-            applyFlex(to: flexView)
+            guard alignment != oldValue, let flexView else { return }
+            flexView.flexAlignment = alignment
+            flexView.setNeedsLayout()
         }
     }
 
     var spread: Spread {
         didSet {
             guard let flexView else { return }
-            applyFlex(to: flexView)
+            flexView.flexSpread = spread
+            flexView.setNeedsLayout()
         }
     }
 
     var wrap: Bool {
         didSet {
             guard wrap != oldValue, let flexView else { return }
-            applyFlex(to: flexView)
+            flexView.flexWrap = wrap
+            flexView.setNeedsLayout()
         }
     }
 
@@ -127,18 +134,13 @@ final class FlexRenderer: ContainerRenderer {
     func mount() -> PlatformView {
         let view = FlexView()
         self.flexView = view
-        applyFlex(to: view)
-        return view
-    }
-
-    private func applyFlex(to view: FlexView) {
         view.flexAxis = axis
         view.flexSpacing = spacing
         view.flexLineSpacing = lineSpacing
         view.flexAlignment = alignment
         view.flexSpread = spread
         view.flexWrap = wrap
-        view.setNeedsLayout()
+        return view
     }
 
     func insert(_ platformView: PlatformView, at index: Int, into container: PlatformView) {

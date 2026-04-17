@@ -351,49 +351,28 @@ public final class TextFieldBuilder<T>: ViewBuilder<TextFieldModel<T>> {
 struct TextFieldLeaf<T>: LeafView {
     let model: TextFieldModel<T>
     let style: TextFieldStyle
-    func makeRenderer() -> Renderer { UIKitTextFieldRenderer(model: model, style: style) }
+    func makeRenderer() -> Renderer { UIKitTextFieldRenderer(view: self) }
 }
 
 // MARK: - Renderer
 
 final class UIKitTextFieldRenderer<T>: Renderer {
     private weak var wrapper: TextFieldWrapperView<T>?
+    private var view: TextFieldLeaf<T>
 
-    var model: TextFieldModel<T> {
-        didSet {
-            guard let wrapper else { return }
-            applyTextField(to: wrapper)
-        }
-    }
+    init(view: TextFieldLeaf<T>) { self.view = view }
 
-    var style: TextFieldStyle {
-        didSet {
-            guard let wrapper else { return }
-            applyTextField(to: wrapper)
-        }
-    }
+    func update(from newView: any View) {
+        guard let leaf = newView as? TextFieldLeaf<T>, let wrapper else { return }
+        let old = view
+        view = leaf
 
-    init(model: TextFieldModel<T>, style: TextFieldStyle) { self.model = model; self.style = style }
-
-    func update(from view: any View) {
-        guard let leaf = view as? TextFieldLeaf<T> else { return }
-        model = leaf.model
-        style = leaf.style
-    }
-
-    func mount() -> PlatformView {
-        let wrapper = TextFieldWrapperView<T>()
-        self.wrapper = wrapper
-        applyTextField(to: wrapper)
-        return wrapper
-    }
-
-    private func applyTextField(to wrapper: TextFieldWrapperView<T>) {
+        // Apply model props
         let field = wrapper.textField
-        let kb = model.view.keyboard
-        let dec = model.view.decoration
+        let kb = leaf.model.view.keyboard
+        let dec = leaf.model.view.decoration
 
-        field.text = model.isFocused ? model.displayText : model.transformedText
+        field.text = leaf.model.isFocused ? leaf.model.displayText : leaf.model.transformedText
         field.placeholder = dec.placeholder
         field.isSecureTextEntry = kb.secure
         field.keyboardType = kb.type.ui
@@ -401,15 +380,49 @@ final class UIKitTextFieldRenderer<T>: Renderer {
         field.returnKeyType = kb.returnKey.ui
         field.textAlignment = dec.alignment.nsTextAlignment
         if let ct = kb.contentType { field.textContentType = ct.ui }
-        field.font = style.text.font.resolvedFont
+        wrapper.model = leaf.model
 
-        wrapper.model = model
-        wrapper.sizing = style.field.frame
-        wrapper.surface = style.field.surface
-        wrapper.shape = style.field.shape
-        wrapper.padding = style.field.padding
+        // Apply style props
+        let styleChanged = old.style.text.font.size != leaf.style.text.font.size
+            || old.style.text.font.weight != leaf.style.text.font.weight
+            || old.style.text.font.family != leaf.style.text.font.family
+        if styleChanged {
+            field.font = leaf.style.text.font.resolvedFont
+        }
+
+        wrapper.sizing = leaf.style.field.frame
+        wrapper.surface = leaf.style.field.surface
+        wrapper.shape = leaf.style.field.shape
+        wrapper.padding = leaf.style.field.padding
         wrapper.invalidateIntrinsicContentSize()
         wrapper.setNeedsDisplay()
+        wrapper.superview?.setNeedsLayout()
+    }
+
+    func mount() -> PlatformView {
+        let wrapper = TextFieldWrapperView<T>()
+        self.wrapper = wrapper
+        let field = wrapper.textField
+        let kb = view.model.view.keyboard
+        let dec = view.model.view.decoration
+
+        field.text = view.model.isFocused ? view.model.displayText : view.model.transformedText
+        field.placeholder = dec.placeholder
+        field.isSecureTextEntry = kb.secure
+        field.keyboardType = kb.type.ui
+        field.autocapitalizationType = kb.autocapitalization.ui
+        field.returnKeyType = kb.returnKey.ui
+        field.textAlignment = dec.alignment.nsTextAlignment
+        if let ct = kb.contentType { field.textContentType = ct.ui }
+        field.font = view.style.text.font.resolvedFont
+
+        wrapper.model = view.model
+        wrapper.sizing = view.style.field.frame
+        wrapper.surface = view.style.field.surface
+        wrapper.shape = view.style.field.shape
+        wrapper.padding = view.style.field.padding
+        wrapper.invalidateIntrinsicContentSize()
+        return wrapper
     }
 }
 

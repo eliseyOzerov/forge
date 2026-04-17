@@ -17,7 +17,7 @@ public struct Image: LeafView {
     }
 
     public func makeRenderer() -> Renderer {
-        UIKitImageRenderer(image: image, style: style)
+        UIKitImageRenderer(view: self)
     }
 }
 
@@ -182,51 +182,45 @@ public final class AsyncImageBuilder: ViewBuilder<AsyncImageModel> {
 
 final class UIKitImageRenderer: Renderer {
     private weak var imageView: UIImageView?
+    private var view: Image
 
-    var image: UIImage {
-        didSet {
-            guard let imageView else { return }
-            applyImage(to: imageView)
+    init(view: Image) {
+        self.view = view
+    }
+
+    func update(from newView: any View) {
+        guard let img = newView as? Image, let imageView else { return }
+        let old = view
+        view = img
+
+        let imageChanged = old.image !== img.image
+        if imageChanged {
+            imageView.superview?.setNeedsLayout()
         }
-    }
 
-    var style: ImageStyle {
-        didSet {
-            guard let imageView else { return }
-            applyImage(to: imageView)
-        }
-    }
-
-    init(image: UIImage, style: ImageStyle) {
-        self.image = image
-        self.style = style
-    }
-
-    func update(from view: any View) {
-        guard let img = view as? Image else { return }
-        image = img.image
-        style = img.style
+        // Always apply image+style (ImageFit/tint lack Equatable)
+        applyImage(to: imageView)
+        imageView.contentMode = img.style.fit.uiContentMode
+        imageView.layer.cornerRadius = img.style.cornerRadius
     }
 
     func mount() -> PlatformView {
         let imageView = UIImageView()
+        imageView.clipsToBounds = true
         self.imageView = imageView
+        imageView.contentMode = view.style.fit.uiContentMode
         applyImage(to: imageView)
+        imageView.layer.cornerRadius = view.style.cornerRadius
         return imageView
     }
 
     private func applyImage(to imageView: UIImageView) {
-        imageView.contentMode = style.fit.uiContentMode
-        imageView.clipsToBounds = true
-
-        if let tint = style.tintColor {
-            imageView.image = image.withRenderingMode(.alwaysTemplate)
+        if let tint = view.style.tintColor {
+            imageView.image = view.image.withRenderingMode(.alwaysTemplate)
             imageView.tintColor = tint.platformColor
         } else {
-            imageView.image = image
+            imageView.image = view.image
         }
-
-        imageView.layer.cornerRadius = style.cornerRadius
     }
 }
 
