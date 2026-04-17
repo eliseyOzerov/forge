@@ -31,22 +31,30 @@ public struct LayoutReader: LeafView {
 }
 
 final class LayoutReaderRenderer: Renderer {
-    var content: @MainActor (Size) -> any View
+    private weak var readerView: LayoutReaderView?
+
+    var content: @MainActor (Size) -> any View {
+        didSet {
+            guard let readerView else { return }
+            readerView.content = content
+            readerView.rebuildIfSized()
+        }
+    }
 
     init(content: @escaping @MainActor (Size) -> any View) {
         self.content = content
     }
 
-    func mount() -> PlatformView {
-        let view = LayoutReaderView()
-        view.content = content
-        return view
+    func update(from view: any View) {
+        guard let reader = view as? LayoutReader else { return }
+        content = reader.content
     }
 
-    func update(_ platformView: PlatformView) {
-        guard let view = platformView as? LayoutReaderView else { return }
+    func mount() -> PlatformView {
+        let view = LayoutReaderView()
+        self.readerView = view
         view.content = content
-        view.rebuildIfSized()
+        return view
     }
 }
 

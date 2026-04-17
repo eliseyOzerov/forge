@@ -88,7 +88,7 @@ public struct AsyncImage: ModelView {
         self.error = error
     }
 
-    public func model(context: BuildContext) -> AsyncImageModel {
+    public func model(context: ViewContext) -> AsyncImageModel {
         AsyncImageModel(context: context)
     }
 
@@ -164,7 +164,7 @@ public final class AsyncImageModel: ViewModel<AsyncImage> {
 }
 
 public final class AsyncImageBuilder: ViewBuilder<AsyncImageModel> {
-    public override func build(context: BuildContext) -> any View {
+    public override func build(context: ViewContext) -> any View {
         if model.isLoading {
             return model.view.loading?() ?? Text("Loading...")
         }
@@ -181,26 +181,41 @@ public final class AsyncImageBuilder: ViewBuilder<AsyncImageModel> {
 // MARK: - Renderer
 
 final class UIKitImageRenderer: Renderer {
-    let image: UIImage
-    let style: ImageStyle
+    private weak var imageView: UIImageView?
+
+    var image: UIImage {
+        didSet {
+            guard let imageView else { return }
+            applyImage(to: imageView)
+        }
+    }
+
+    var style: ImageStyle {
+        didSet {
+            guard let imageView else { return }
+            applyImage(to: imageView)
+        }
+    }
 
     init(image: UIImage, style: ImageStyle) {
         self.image = image
         self.style = style
     }
 
+    func update(from view: any View) {
+        guard let img = view as? Image else { return }
+        image = img.image
+        style = img.style
+    }
+
     func mount() -> PlatformView {
         let imageView = UIImageView()
-        apply(to: imageView)
+        self.imageView = imageView
+        applyImage(to: imageView)
         return imageView
     }
 
-    func update(_ platformView: PlatformView) {
-        guard let imageView = platformView as? UIImageView else { return }
-        apply(to: imageView)
-    }
-
-    private func apply(to imageView: UIImageView) {
+    private func applyImage(to imageView: UIImageView) {
         imageView.contentMode = style.fit.uiContentMode
         imageView.clipsToBounds = true
 

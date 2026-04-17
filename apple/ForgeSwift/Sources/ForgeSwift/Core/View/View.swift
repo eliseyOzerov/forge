@@ -50,7 +50,7 @@ public extension LeafView {
 /// still be dirtied by upstream observable emissions (Provided
 /// changes, `context.watch`), which re-runs its build.
 @MainActor public protocol BuiltView: View {
-    func build(context: BuildContext) -> any View
+    func build(context: ViewContext) -> any View
 }
 
 public extension BuiltView {
@@ -74,7 +74,7 @@ public extension BuiltView {
 @MainActor public protocol ModelView: View {
     associatedtype Model: ViewLifecycle<Self>
     associatedtype Builder: ViewBuilding<Model>
-    func model(context: BuildContext) -> Model
+    func model(context: ViewContext) -> Model
     func builder(model: Model) -> Builder
 }
 
@@ -140,10 +140,10 @@ public extension ViewLifecycle {
 /// `super` to preserve the view-stash behavior (unless they stash
 /// it themselves).
 @MainActor open class ViewModel<View>: ViewLifecycle {
-    public let context: BuildContext
+    public let context: ViewContext
     public private(set) var view: View!
 
-    public init(context: BuildContext) {
+    public init(context: ViewContext) {
         self.context = context
     }
 
@@ -174,7 +174,7 @@ public extension ViewLifecycle {
 /// the stored-model init for free.
 @MainActor public protocol ViewBuilding<Model> {
     associatedtype Model
-    func build(context: BuildContext) -> any View
+    func build(context: ViewContext) -> any View
 }
 
 /// Default base class for a ModelView's Builder. Holds the Model as
@@ -196,42 +196,57 @@ public extension ViewLifecycle {
         self.model = model
     }
 
-    open func build(context: BuildContext) -> any View {
+    open func build(context: ViewContext) -> any View {
         fatalError("ViewBuilder subclass must override build(context:)")
     }
 }
 
-// MARK: - BuildContext
+// MARK: - ViewContext
 
-/// A builder's limited view of its owning Node. Instances are
-/// created by the framework per build pass — don't retain them.
-/// Also passed to ModelView.makeModel so models can do one-time
-/// context-aware setup (DI lookups, etc., once we grow those APIs).
-@MainActor public struct BuildContext {
-    let node: Node
-
-    init(node: Node) {
-        self.node = node
-    }
-
+/// The contract a builder/Model holds onto to interact with the
+/// framework: subscribe to observables, trigger rebuilds, look up
+/// Provided values. Implemented by `Node` — when the framework
+/// calls `build(context:)` or `model(context:)`, it passes the
+/// owning node, typed as `ViewContext` so consumers only see the
+/// documented surface and not Node's internals.
+///
+/// Lookup methods split along a read/watch axis:
+///
+/// - `read(_:)` / `maybeRead(_:)` — one-shot value lookup. Doesn't
+///   subscribe anything. Use when you just need the current value
+///   (e.g. grabbing a handle to store). Safe to call inside
+///   modifiers that also write to the same observable — no feedback
+///   loop.
+/// - `watch(_:)` / `maybeWatch(_:)` — subscribes the current build
+///   pass to slot replacement and, if the value conforms to
+///   `AnyObservable`, to its in-place mutations. Use when the
+///   screen should rebuild when the value changes.
+@MainActor public protocol ViewContext {
     /// Read an Observable's current value and subscribe this build
-    /// pass to its changes. Currently vestigial — the preferred
-    /// pattern for local state is a ViewModel + rebuild { ... }, not
-    /// observables. Kept for cases where a leaf needs to subscribe
-    /// to an externally-owned observable.
-    public func watch<T>(_ observable: Observable<T>) -> T {
-        node.watch(observable)
-    }
+    /// pass to its changes.
+    func watch<T>(_ observable: Observable<T>) -> T
 
     /// Flutter-style setState. Runs the mutation closure synchronously,
     /// then marks the owning node dirty — which schedules a rebuild
-    /// on the next main-actor tick. Used by Models to trigger rebuilds
-    /// after mutating their own state; the Model captures the context
-    /// at construction (`model(context:)`) and calls this when needed.
-    public func rebuild(_ mutation: () -> Void) {
-        mutation()
-        node.markDirty()
-    }
+    /// on the next main-actor tick.
+    func rebuild(_ mutation: () -> Void)
+
+    /// One-shot read of the nearest ancestor's `Provided<T>` value.
+    /// No subscriptions. Fatal if no provider is found — use
+    /// `maybeRead` for optional access.
+    func read<T>(_ type: T.Type) -> T
+
+    /// Optional one-shot read. Returns nil if no ancestor provides T.
+    /// No subscriptions.
+    func tryRead<T>(_ type: T.Type) -> T?
+
+    /// Read the nearest `Provided<T>` and subscribe this build pass
+    /// to slot replacement AND (if the value is `AnyObservable`) to
+    /// its in-place mutations. Fatal if no provider is found.
+    func watch<T>(_ type: T.Type) -> T
+
+    /// Optional watch. Same subscription semantics as `watch`.
+    func tryWatch<T>(_ type: T.Type) -> T?
 }
 
 // MARK: - Buildable
@@ -245,14 +260,38 @@ public extension ViewLifecycle {
 ///         return Text("hi", color: theme.label)
 ///     }
 public struct Buildable: BuiltView {
-    private let body: @MainActor (BuildContext) -> any View
+    private let body: @MainActor (ViewContext) -> any View
 
-    public init(_ body: @escaping @MainActor (BuildContext) -> any View) {
+    public init(_ body: @escaping @MainActor (ViewContext) -> any View) {
         self.body = body
     }
 
-    public func build(context: BuildContext) -> any View {
+    public func build(context: ViewContext) -> any View {
         body(context)
+    }
+}
+
+// MARK: - Observing
+
+/// A BuiltView that watches an Observable and rebuilds its content
+/// whenever the value changes. Convenience for the common pattern
+/// of subscribing to a single observable value.
+///
+///     Observing(counter) { value in
+///         Text("Count: \(value)")
+///     }
+public struct Observing<T>: BuiltView {
+    private let observable: Observable<T>
+    private let content: @MainActor (T) -> any View
+
+    public init(_ observable: Observable<T>, content: @escaping @MainActor (T) -> any View) {
+        self.observable = observable
+        self.content = content
+    }
+
+    public func build(context: ViewContext) -> any View {
+        let value = context.watch(observable)
+        return content(value)
     }
 }
 
@@ -341,7 +380,6 @@ private final class EmptyRenderer: Renderer {
         #endif
         return view
     }
-    func update(_ platformView: PlatformView) {}
 }
 
 // MARK: - Identified
@@ -381,11 +419,18 @@ public extension View {
 // MARK: - Renderer
 
 @MainActor public protocol Renderer: AnyObject {
-    /// Create a fresh PlatformView from this renderer's props.
+    /// Create and return this renderer's PlatformView. Called once at
+    /// mount. The renderer should store a reference to the view it
+    /// creates so it can apply updates directly.
     func mount() -> PlatformView
 
-    /// Apply this renderer's props to an already-mounted PlatformView.
-    /// Called during rebuild when the leaf node's type hasn't changed —
-    /// preserves PlatformView identity and any native state it carries.
-    func update(_ platformView: PlatformView)
+    /// Apply new props from the given View to the already-mounted
+    /// platform view. The renderer casts to its concrete View type
+    /// internally, diffs against stored state, and selectively
+    /// updates the platform view and invalidates layout.
+    func update(from view: any View)
+}
+
+public extension Renderer {
+    func update(from view: any View) {}
 }

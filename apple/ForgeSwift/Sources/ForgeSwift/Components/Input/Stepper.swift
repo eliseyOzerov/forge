@@ -113,7 +113,7 @@ public struct Stepper<T: Numeric & Comparable & LosslessStringConvertible>: Mode
         self.states = states; self.label = label; self.style = style
     }
 
-    public func model(context: BuildContext) -> StepperModel<T> { StepperModel(context: context) }
+    public func model(context: ViewContext) -> StepperModel<T> { StepperModel(context: context) }
     public func builder(model: StepperModel<T>) -> StepperBuilder<T> { StepperBuilder(model: model) }
 }
 
@@ -257,7 +257,7 @@ public final class StepperModel<T: Numeric & Comparable & LosslessStringConverti
 // MARK: - Builder
 
 public final class StepperBuilder<T: Numeric & Comparable & LosslessStringConvertible>: ViewBuilder<StepperModel<T>> {
-    public override func build(context: BuildContext) -> any View {
+    public override func build(context: ViewContext) -> any View {
         let style = model.view.style(model.currentState)
 
         let decContent: any View = style.decrement.view ?? Text("−", style: style.decrement.style.textStyle)
@@ -302,25 +302,40 @@ struct StepperFieldLeaf<T: Numeric & Comparable & LosslessStringConvertible>: Le
 // MARK: - StepperFieldRenderer
 
 final class StepperFieldRenderer<T: Numeric & Comparable & LosslessStringConvertible>: Renderer {
-    let model: StepperModel<T>
-    let style: StepperStyle<T>
+    private weak var fieldView: StepperFieldView<T>?
+
+    var model: StepperModel<T> {
+        didSet {
+            guard let fieldView else { return }
+            applyStepper(to: fieldView)
+        }
+    }
+
+    var style: StepperStyle<T> {
+        didSet {
+            guard let fieldView else { return }
+            applyStepper(to: fieldView)
+        }
+    }
 
     init(model: StepperModel<T>, style: StepperStyle<T>) {
         self.model = model; self.style = style
     }
 
+    func update(from view: any View) {
+        guard let leaf = view as? StepperFieldLeaf<T> else { return }
+        model = leaf.model
+        style = leaf.style
+    }
+
     func mount() -> PlatformView {
         let view = StepperFieldView<T>()
-        apply(to: view)
+        self.fieldView = view
+        applyStepper(to: view)
         return view
     }
 
-    func update(_ platformView: PlatformView) {
-        guard let view = platformView as? StepperFieldView<T> else { return }
-        apply(to: view)
-    }
-
-    private func apply(to view: StepperFieldView<T>) {
+    private func applyStepper(to view: StepperFieldView<T>) {
         let field = view.textField
         field.text = model.displayText()
         field.font = style.text.font.resolvedFont

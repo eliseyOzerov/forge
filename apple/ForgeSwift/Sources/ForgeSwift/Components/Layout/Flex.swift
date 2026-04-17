@@ -57,30 +57,81 @@ public struct Row: ContainerView {
 // MARK: - Renderer
 
 final class FlexRenderer: ContainerRenderer {
-    let axis: NSLayoutConstraint.Axis
-    let spacing: Double
-    let lineSpacing: Double
-    let alignment: Alignment
-    let spread: Spread
-    let wrap: Bool
+    private weak var flexView: FlexView?
+
+    var axis: NSLayoutConstraint.Axis {
+        didSet {
+            guard let flexView else { return }
+            applyFlex(to: flexView)
+        }
+    }
+
+    var spacing: Double {
+        didSet {
+            guard spacing != oldValue, let flexView else { return }
+            applyFlex(to: flexView)
+        }
+    }
+
+    var lineSpacing: Double {
+        didSet {
+            guard lineSpacing != oldValue, let flexView else { return }
+            applyFlex(to: flexView)
+        }
+    }
+
+    var alignment: Alignment {
+        didSet {
+            guard let flexView else { return }
+            applyFlex(to: flexView)
+        }
+    }
+
+    var spread: Spread {
+        didSet {
+            guard let flexView else { return }
+            applyFlex(to: flexView)
+        }
+    }
+
+    var wrap: Bool {
+        didSet {
+            guard wrap != oldValue, let flexView else { return }
+            applyFlex(to: flexView)
+        }
+    }
 
     init(axis: NSLayoutConstraint.Axis, spacing: Double, lineSpacing: Double, alignment: Alignment, spread: Spread, wrap: Bool) {
         self.axis = axis; self.spacing = spacing; self.lineSpacing = lineSpacing
         self.alignment = alignment; self.spread = spread; self.wrap = wrap
     }
 
+    func update(from view: any View) {
+        if let column = view as? Column {
+            axis = .vertical
+            spacing = column.spacing
+            lineSpacing = column.lineSpacing
+            alignment = column.alignment
+            spread = column.spread
+            wrap = column.wrap
+        } else if let row = view as? Row {
+            axis = .horizontal
+            spacing = row.spacing
+            lineSpacing = row.lineSpacing
+            alignment = row.alignment
+            spread = row.spread
+            wrap = row.wrap
+        }
+    }
+
     func mount() -> PlatformView {
         let view = FlexView()
-        apply(to: view)
+        self.flexView = view
+        applyFlex(to: view)
         return view
     }
 
-    func update(_ platformView: PlatformView) {
-        guard let view = platformView as? FlexView else { return }
-        apply(to: view)
-    }
-
-    private func apply(to view: FlexView) {
+    private func applyFlex(to view: FlexView) {
         view.flexAxis = axis
         view.flexSpacing = spacing
         view.flexLineSpacing = lineSpacing

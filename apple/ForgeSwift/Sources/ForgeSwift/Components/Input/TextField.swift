@@ -30,7 +30,7 @@ public struct TextField<T>: ModelView {
         self.decoration = decoration; self.keyboard = keyboard; self.style = style
     }
 
-    public func model(context: BuildContext) -> TextFieldModel<T> { TextFieldModel(context: context) }
+    public func model(context: ViewContext) -> TextFieldModel<T> { TextFieldModel(context: context) }
     public func builder(model: TextFieldModel<T>) -> TextFieldBuilder<T> { TextFieldBuilder(model: model) }
 }
 
@@ -328,7 +328,7 @@ public final class TextFieldModel<T>: ViewModel<TextField<T>> {
 // MARK: - Builder
 
 public final class TextFieldBuilder<T>: ViewBuilder<TextFieldModel<T>> {
-    public override func build(context: BuildContext) -> any View {
+    public override func build(context: ViewContext) -> any View {
         let style = model.view.style(model.currentState)
         let dec = model.view.decoration
 
@@ -357,23 +357,38 @@ struct TextFieldLeaf<T>: LeafView {
 // MARK: - Renderer
 
 final class UIKitTextFieldRenderer<T>: Renderer {
-    let model: TextFieldModel<T>
-    let style: TextFieldStyle
+    private weak var wrapper: TextFieldWrapperView<T>?
+
+    var model: TextFieldModel<T> {
+        didSet {
+            guard let wrapper else { return }
+            applyTextField(to: wrapper)
+        }
+    }
+
+    var style: TextFieldStyle {
+        didSet {
+            guard let wrapper else { return }
+            applyTextField(to: wrapper)
+        }
+    }
 
     init(model: TextFieldModel<T>, style: TextFieldStyle) { self.model = model; self.style = style }
 
+    func update(from view: any View) {
+        guard let leaf = view as? TextFieldLeaf<T> else { return }
+        model = leaf.model
+        style = leaf.style
+    }
+
     func mount() -> PlatformView {
         let wrapper = TextFieldWrapperView<T>()
-        apply(to: wrapper)
+        self.wrapper = wrapper
+        applyTextField(to: wrapper)
         return wrapper
     }
 
-    func update(_ platformView: PlatformView) {
-        guard let wrapper = platformView as? TextFieldWrapperView<T> else { return }
-        apply(to: wrapper)
-    }
-
-    private func apply(to wrapper: TextFieldWrapperView<T>) {
+    private func applyTextField(to wrapper: TextFieldWrapperView<T>) {
         let field = wrapper.textField
         let kb = model.view.keyboard
         let dec = model.view.decoration

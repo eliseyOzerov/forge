@@ -52,7 +52,7 @@ public struct Toggle: ModelView {
         self.label = label
     }
 
-    public func model(context: BuildContext) -> ToggleModel { ToggleModel(context: context) }
+    public func model(context: ViewContext) -> ToggleModel { ToggleModel(context: context) }
     public func builder(model: ToggleModel) -> ToggleBuilder { ToggleBuilder(model: model) }
 }
 
@@ -136,7 +136,7 @@ public final class ToggleModel: ViewModel<Toggle> {
 // MARK: - Builder
 
 public final class ToggleBuilder: ViewBuilder<ToggleModel> {
-    public override func build(context: BuildContext) -> any View {
+    public override func build(context: ViewContext) -> any View {
         ToggleLeaf(model: model)
     }
 }
@@ -151,24 +151,32 @@ struct ToggleLeaf: LeafView {
 // MARK: - Renderer
 
 final class ToggleRenderer: Renderer {
-    let model: ToggleModel
+    private weak var toggleView: ToggleView?
+
+    var model: ToggleModel {
+        didSet {
+            guard let toggleView else { return }
+            toggleView.model = model
+            applyToggle(to: toggleView)
+        }
+    }
 
     init(model: ToggleModel) { self.model = model }
 
+    func update(from view: any View) {
+        guard let leaf = view as? ToggleLeaf else { return }
+        model = leaf.model
+    }
+
     func mount() -> PlatformView {
         let view = ToggleView()
+        self.toggleView = view
         view.model = model
-        apply(to: view)
+        applyToggle(to: view)
         return view
     }
 
-    func update(_ platformView: PlatformView) {
-        guard let view = platformView as? ToggleView else { return }
-        view.model = model
-        apply(to: view)
-    }
-
-    private func apply(to view: ToggleView) {
+    private func applyToggle(to view: ToggleView) {
         let style = model.resolveStyle()
         view.toggleSize = style.size
         view.isOpaque = false

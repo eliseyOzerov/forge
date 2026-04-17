@@ -10,24 +10,31 @@ struct TestLeaf: LeafView {
 }
 
 final class TestLeafRenderer: Renderer {
-    let label: String
-    init(label: String) { self.label = label }
-    func mount() -> PlatformView {
-        let l = UILabel(); l.text = label; return l
+    private weak var uiLabel: UILabel?
+    var label: String {
+        didSet {
+            guard label != oldValue, let uiLabel else { return }
+            uiLabel.text = label
+        }
     }
-    func update(_ platformView: PlatformView) {
-        (platformView as? UILabel)?.text = label
+    init(label: String) { self.label = label }
+    func update(from view: any View) {
+        guard let leaf = view as? TestLeaf else { return }
+        label = leaf.label
+    }
+    func mount() -> PlatformView {
+        let l = UILabel(); self.uiLabel = l; l.text = label; return l
     }
 }
 
 struct TestComposed: BuiltView {
     let child: any View
-    func build(context: BuildContext) -> any View { child }
+    func build(context: ViewContext) -> any View { child }
 }
 
 struct TestModel: ModelView {
     let value: String
-    func model(context: BuildContext) -> TestViewModel { TestViewModel(context: context) }
+    func model(context: ViewContext) -> TestViewModel { TestViewModel(context: context) }
     func builder(model: TestViewModel) -> TestBuilder { TestBuilder(model: model) }
 }
 
@@ -52,7 +59,7 @@ final class TestViewModel: ViewModel<TestModel> {
 }
 
 final class TestBuilder: ViewBuilder<TestViewModel> {
-    override func build(context: BuildContext) -> any View {
+    override func build(context: ViewContext) -> any View {
         TestLeaf(label: model.view.value)
     }
 }
@@ -64,7 +71,6 @@ struct TestContainer: ContainerView {
 
 final class TestContainerRenderer: ContainerRenderer {
     func mount() -> PlatformView { UIView() }
-    func update(_ platformView: PlatformView) {}
     func insert(_ platformView: PlatformView, at index: Int, into container: PlatformView) {
         container.insertSubview(platformView, at: index)
     }

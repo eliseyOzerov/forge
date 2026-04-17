@@ -91,7 +91,7 @@ public struct Button: ModelView {
         self.label = title
     }
 
-    public func model(context: BuildContext) -> ButtonModel { ButtonModel(context: context) }
+    public func model(context: ViewContext) -> ButtonModel { ButtonModel(context: context) }
     public func builder(model: ButtonModel) -> ButtonBuilder { ButtonBuilder(model: model) }
 }
 
@@ -162,7 +162,7 @@ public final class ButtonModel: ViewModel<Button> {
 // MARK: - Builder
 
 public final class ButtonBuilder: ViewBuilder<ButtonModel> {
-    public override func build(context: BuildContext) -> any View {
+    public override func build(context: ViewContext) -> any View {
         let style = model.view.style(model.currentState)
         return TappableBox(style.box, model: model, animation: style.animation) {
             model.view.body
@@ -192,9 +192,27 @@ struct TappableBox: ContainerView {
 }
 
 final class TappableBoxRenderer: ContainerRenderer {
-    let style: BoxStyle
-    let model: ButtonModel
-    let animation: Animation?
+    private weak var tappableView: TappableBoxView?
+
+    var style: BoxStyle {
+        didSet {
+            guard let tappableView else { return }
+            applyTappable(to: tappableView, animated: true)
+        }
+    }
+
+    var model: ButtonModel {
+        didSet {
+            guard let tappableView else { return }
+            applyTappable(to: tappableView, animated: true)
+        }
+    }
+
+    var animation: Animation? {
+        didSet {
+            // No immediate application needed; used by next style/model update
+        }
+    }
 
     init(style: BoxStyle, model: ButtonModel, animation: Animation?) {
         self.style = style
@@ -202,18 +220,21 @@ final class TappableBoxRenderer: ContainerRenderer {
         self.animation = animation
     }
 
+    func update(from view: any View) {
+        guard let tappable = view as? TappableBox else { return }
+        style = tappable.boxStyle
+        model = tappable.model
+        animation = tappable.animation
+    }
+
     func mount() -> PlatformView {
         let view = TappableBoxView()
-        apply(to: view, animated: false)
+        self.tappableView = view
+        applyTappable(to: view, animated: false)
         return view
     }
 
-    func update(_ platformView: PlatformView) {
-        guard let view = platformView as? TappableBoxView else { return }
-        apply(to: view, animated: true)
-    }
-
-    private func apply(to view: TappableBoxView, animated: Bool) {
+    private func applyTappable(to view: TappableBoxView, animated: Bool) {
         let applyBlock = {
             view.sizing = self.style.frame
             view.shape = self.style.shape

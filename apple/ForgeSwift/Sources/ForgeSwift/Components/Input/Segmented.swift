@@ -69,7 +69,7 @@ public struct Segmented<T: Hashable>: ModelView {
         self.style = style
     }
 
-    public func model(context: BuildContext) -> SegmentedModel<T> { SegmentedModel(context: context) }
+    public func model(context: ViewContext) -> SegmentedModel<T> { SegmentedModel(context: context) }
     public func builder(model: SegmentedModel<T>) -> SegmentedBuilder<T> { SegmentedBuilder(model: model) }
 }
 
@@ -183,7 +183,7 @@ public final class SegmentedModel<T: Hashable>: ViewModel<Segmented<T>> {
 // MARK: - Builder
 
 public final class SegmentedBuilder<T: Hashable>: ViewBuilder<SegmentedModel<T>> {
-    public override func build(context: BuildContext) -> any View {
+    public override func build(context: ViewContext) -> any View {
         let model = self.model
         return LayoutReader { [weak model] size in
             guard let model else { return EmptyView() }
@@ -238,26 +238,40 @@ struct SegmentedGestures<T: Hashable>: LeafView {
 }
 
 final class SegmentedGestureRenderer<T: Hashable>: Renderer {
-    let model: SegmentedModel<T>
-    let dragEnabled: Bool
+    private weak var gestureView: SegmentedGestureView<T>?
+
+    var model: SegmentedModel<T> {
+        didSet {
+            guard let gestureView else { return }
+            gestureView.model = model
+        }
+    }
+
+    var dragEnabled: Bool {
+        didSet {
+            guard dragEnabled != oldValue, let gestureView else { return }
+            gestureView.dragEnabled = dragEnabled
+        }
+    }
 
     init(model: SegmentedModel<T>, dragEnabled: Bool) {
         self.model = model
         self.dragEnabled = dragEnabled
     }
 
+    func update(from view: any View) {
+        guard let gestures = view as? SegmentedGestures<T> else { return }
+        model = gestures.model
+        dragEnabled = gestures.dragEnabled
+    }
+
     func mount() -> PlatformView {
         let v = SegmentedGestureView<T>()
+        self.gestureView = v
         v.model = model
         v.dragEnabled = dragEnabled
         v.installGestures()
         return v
-    }
-
-    func update(_ platformView: PlatformView) {
-        guard let v = platformView as? SegmentedGestureView<T> else { return }
-        v.model = model
-        v.dragEnabled = dragEnabled
     }
 }
 

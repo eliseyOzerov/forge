@@ -57,27 +57,44 @@ public enum IconRenderingMode: Sendable {
 // MARK: - Renderer
 
 final class UIKitIconRenderer: Renderer {
-    let name: String
-    let style: IconStyle
+    private weak var imageView: UIImageView?
+
+    var name: String {
+        didSet {
+            guard name != oldValue, let imageView else { return }
+            applyIcon(to: imageView)
+            imageView.superview?.setNeedsLayout()
+        }
+    }
+
+    var style: IconStyle {
+        didSet {
+            guard let imageView else { return }
+            applyIcon(to: imageView)
+            imageView.superview?.setNeedsLayout()
+        }
+    }
 
     init(name: String, style: IconStyle) {
         self.name = name
         self.style = style
     }
 
+    func update(from view: any View) {
+        guard let icon = view as? Icon else { return }
+        name = icon.name
+        style = icon.style
+    }
+
     func mount() -> PlatformView {
         let imageView = UIImageView()
         imageView.contentMode = .scaleAspectFit
-        apply(to: imageView)
+        self.imageView = imageView
+        applyIcon(to: imageView)
         return imageView
     }
 
-    func update(_ platformView: PlatformView) {
-        guard let imageView = platformView as? UIImageView else { return }
-        apply(to: imageView)
-    }
-
-    private func apply(to imageView: UIImageView) {
+    private func applyIcon(to imageView: UIImageView) {
         let config = UIImage.SymbolConfiguration(pointSize: style.size, weight: style.weight.uiSymbolWeight)
         var image = UIImage(systemName: name, withConfiguration: config)
 

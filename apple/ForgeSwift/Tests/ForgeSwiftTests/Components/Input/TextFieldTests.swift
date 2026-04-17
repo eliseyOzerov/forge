@@ -17,7 +17,7 @@ final class TextFieldTests: XCTestCase {
     ) -> TextFieldModel<String> {
         let binding = Binding( text)
         let field = TextField(text: binding, logic: logic, decoration: decoration, keyboard: keyboard, style: style)
-        let context = BuildContext(node: BuiltNode())
+        let context = BuiltNode()
         let model = TextFieldModel<String>(context: context)
         model.didInit(view: field)
         return model
@@ -251,7 +251,7 @@ final class TextFieldTests: XCTestCase {
     ) -> TextFieldWrapperView<String> {
         let binding = Binding(text)
         let field = TextField(text: binding, decoration: decoration, keyboard: keyboard, style: .constant(style))
-        let context = BuildContext(node: BuiltNode())
+        let context = BuiltNode()
         let model = TextFieldModel<String>(context: context)
         model.didInit(view: field)
         let renderer = UIKitTextFieldRenderer(model: model, style: style)

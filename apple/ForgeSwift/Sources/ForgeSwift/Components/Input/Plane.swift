@@ -53,7 +53,7 @@ public struct Plane: ModelView {
         self.body = body()
     }
 
-    public func model(context: BuildContext) -> PlaneModel { PlaneModel(context: context) }
+    public func model(context: ViewContext) -> PlaneModel { PlaneModel(context: context) }
     public func builder(model: PlaneModel) -> PlaneBuilder { PlaneBuilder(model: model) }
 }
 
@@ -170,7 +170,7 @@ public final class PlaneModel: ViewModel<Plane> {
 // MARK: - Builder
 
 public final class PlaneBuilder: ViewBuilder<PlaneModel> {
-    public override func build(context: BuildContext) -> any View {
+    public override func build(context: ViewContext) -> any View {
         PlaneLeaf(model: model)
     }
 }
@@ -188,20 +188,28 @@ struct PlaneLeaf: LeafView {
 import UIKit
 
 final class PlaneRenderer: Renderer {
-    let model: PlaneModel
+    private weak var planeView: PlaneView?
+
+    var model: PlaneModel {
+        didSet {
+            guard let planeView else { return }
+            planeView.model = model
+            if model.motion.isRunning { planeView.startAnimation() }
+        }
+    }
 
     init(model: PlaneModel) { self.model = model }
 
-    func mount() -> PlatformView {
-        let view = PlaneView()
-        view.model = model
-        return view
+    func update(from view: any View) {
+        guard let leaf = view as? PlaneLeaf else { return }
+        model = leaf.model
     }
 
-    func update(_ platformView: PlatformView) {
-        guard let view = platformView as? PlaneView else { return }
+    func mount() -> PlatformView {
+        let view = PlaneView()
+        self.planeView = view
         view.model = model
-        if model.motion.isRunning { view.startAnimation() }
+        return view
     }
 }
 

@@ -401,7 +401,7 @@ public struct Text: LeafView {
 
     public func makeRenderer() -> Renderer {
         #if canImport(UIKit)
-        return UIKitTextRenderer(content: content, style: style)
+        return UIKitTextRenderer(view: self)
         #elseif canImport(AppKit)
         return AppKitTextRenderer(content: content)
         #endif
@@ -414,42 +414,60 @@ public struct Text: LeafView {
 import UIKit
 
 final class UIKitTextRenderer: Renderer {
-    let content: String
-    let style: TextStyle
+    private weak var label: UILabel?
+    private var view: Text
 
-    init(content: String, style: TextStyle) {
-        self.content = content
-        self.style = style
+    init(view: Text) {
+        self.view = view
     }
 
     func mount() -> PlatformView {
         let label = UILabel()
-        apply(to: label)
+        self.label = label
+        apply()
         return label
     }
 
-    func update(_ platformView: PlatformView) {
-        guard let label = platformView as? UILabel else { return }
-        apply(to: label)
+    func update(from newView: any View) {
+        guard let text = newView as? Text, let label else { return }
+        let old = view
+        view = text
+
+        apply()
+
+        let needsLayout = old.content != text.content
+            || old.style.textCase != text.style.textCase
+            || old.style.maxLines != text.style.maxLines
+            || old.style.font.size != text.style.font.size
+            || old.style.font.weight != text.style.font.weight
+            || old.style.font.family != text.style.font.family
+            || old.style.font.italic != text.style.font.italic
+            || old.style.font.tracking != text.style.font.tracking
+            || old.style.font.height != text.style.font.height
+
+        if needsLayout {
+            label.superview?.setNeedsLayout()
+        }
     }
 
-    private func apply(to label: UILabel) {
-        let displayText = style.textCase.apply(to: content)
-        let font = style.font.resolvedFont
+    private func apply() {
+        guard let label else { return }
+        let displayText = view.style.textCase.apply(to: view.content)
+        let font = view.style.font.resolvedFont
         let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.alignment = style.align.nsTextAlignment
-        paragraphStyle.lineBreakMode = style.overflow.lineBreakMode
-        paragraphStyle.lineSpacing = style.font.resolvedLineSpacing
+        paragraphStyle.alignment = view.style.align.nsTextAlignment
+        paragraphStyle.lineBreakMode = view.style.overflow.lineBreakMode
+        paragraphStyle.lineSpacing = view.style.font.resolvedLineSpacing
 
         var attributes: [NSAttributedString.Key: Any] = [
             .font: font,
             .paragraphStyle: paragraphStyle,
-            .kern: style.font.tracking,
+            .kern: view.style.font.tracking,
         ]
 
-        attributes[.foregroundColor] = style.color?.platformColor ?? UIColor.label
+        attributes[.foregroundColor] = view.style.color?.platformColor ?? UIColor.label
 
-        if let decoration = style.decoration {
+        if let decoration = view.style.decoration {
             if let line = decoration.line {
                 switch line.position {
                 case .underline:
@@ -470,7 +488,7 @@ final class UIKitTextRenderer: Renderer {
         }
 
         label.attributedText = NSAttributedString(string: displayText, attributes: attributes)
-        label.numberOfLines = style.maxLines ?? 0
+        label.numberOfLines = view.style.maxLines ?? 0
     }
 }
 
@@ -482,7 +500,14 @@ final class UIKitTextRenderer: Renderer {
 import AppKit
 
 final class AppKitTextRenderer: Renderer {
-    let content: String
+    private weak var field: NSTextField?
+
+    var content: String {
+        didSet {
+            guard content != oldValue, let field else { return }
+            field.stringValue = content
+        }
+    }
 
     init(content: String) {
         self.content = content
@@ -491,12 +516,8 @@ final class AppKitTextRenderer: Renderer {
     func mount() -> PlatformView {
         let field = NSTextField(labelWithString: content)
         field.alignment = .center
+        self.field = field
         return field
-    }
-
-    func update(_ platformView: PlatformView) {
-        guard let field = platformView as? NSTextField else { return }
-        field.stringValue = content
     }
 }
 

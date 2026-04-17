@@ -126,13 +126,56 @@ public struct Box: ContainerView {
 // MARK: - Renderer
 
 final class BoxRenderer: ContainerRenderer {
-    let frame: Frame
-    let shape: Shape?
-    let surface: Surface?
-    let padding: Padding
-    let alignment: Alignment
-    let clip: Bool
-    let overflow: Overflow
+    private weak var boxView: BoxView?
+
+    var frame: Frame {
+        didSet {
+            guard let boxView else { return }
+            applyBox(to: boxView)
+        }
+    }
+
+    var shape: Shape? {
+        didSet {
+            guard let boxView else { return }
+            applyBox(to: boxView)
+        }
+    }
+
+    var surface: Surface? {
+        didSet {
+            guard let boxView else { return }
+            applyBox(to: boxView)
+        }
+    }
+
+    var padding: Padding {
+        didSet {
+            guard let boxView else { return }
+            applyBox(to: boxView)
+        }
+    }
+
+    var alignment: Alignment {
+        didSet {
+            guard let boxView else { return }
+            applyBox(to: boxView)
+        }
+    }
+
+    var clip: Bool {
+        didSet {
+            guard clip != oldValue, let boxView else { return }
+            applyBox(to: boxView)
+        }
+    }
+
+    var overflow: Overflow {
+        didSet {
+            guard let boxView else { return }
+            applyBox(to: boxView)
+        }
+    }
 
     init(frame: Frame, shape: Shape?, surface: Surface?, padding: Padding, alignment: Alignment, clip: Bool, overflow: Overflow = .clip) {
         self.frame = frame
@@ -144,18 +187,25 @@ final class BoxRenderer: ContainerRenderer {
         self.overflow = overflow
     }
 
+    func update(from view: any View) {
+        guard let box = view as? Box else { return }
+        frame = box.frame
+        shape = box.shape
+        surface = box.surface
+        padding = box.padding
+        alignment = box.alignment
+        clip = box.clip
+        overflow = box.overflow
+    }
+
     func mount() -> PlatformView {
         let view = BoxView()
-        apply(to: view)
+        self.boxView = view
+        applyBox(to: view)
         return view
     }
 
-    func update(_ platformView: PlatformView) {
-        guard let view = platformView as? BoxView else { return }
-        apply(to: view)
-    }
-
-    private func apply(to view: BoxView) {
+    private func applyBox(to view: BoxView) {
         view.sizing = frame
         view.shape = shape
         view.surface = surface
@@ -510,25 +560,40 @@ public struct DebugOverlay: ContainerView {
 }
 
 final class DebugOverlayRenderer: ContainerRenderer {
-    let color: Color
-    let label: String?
+    private weak var overlayView: DebugOverlayView?
+
+    var color: Color {
+        didSet {
+            guard let overlayView else { return }
+            overlayView.debugColor = color
+            overlayView.setNeedsDisplay()
+        }
+    }
+
+    var label: String? {
+        didSet {
+            guard let overlayView else { return }
+            overlayView.debugLabel = label
+            overlayView.setNeedsDisplay()
+        }
+    }
 
     init(color: Color, label: String?) {
         self.color = color; self.label = label
     }
 
+    func update(from view: any View) {
+        guard let overlay = view as? DebugOverlay else { return }
+        color = overlay.color
+        label = overlay.label
+    }
+
     func mount() -> PlatformView {
         let view = DebugOverlayView()
+        self.overlayView = view
         view.debugColor = color
         view.debugLabel = label
         return view
-    }
-
-    func update(_ platformView: PlatformView) {
-        guard let view = platformView as? DebugOverlayView else { return }
-        view.debugColor = color
-        view.debugLabel = label
-        view.setNeedsDisplay()
     }
 
     func insert(_ platformView: PlatformView, at index: Int, into container: PlatformView) {

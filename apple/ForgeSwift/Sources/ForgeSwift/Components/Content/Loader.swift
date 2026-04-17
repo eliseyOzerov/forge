@@ -287,9 +287,28 @@ struct FadePainter: LoaderPainter {
 import UIKit
 
 final class LoaderRenderer: Renderer {
-    let style: LoaderStyle
-    let color: Color
-    let size: Double
+    private weak var loaderView: LoaderView?
+
+    var style: LoaderStyle {
+        didSet {
+            guard let loaderView else { return }
+            applyLoader(to: loaderView)
+        }
+    }
+
+    var color: Color {
+        didSet {
+            guard color != oldValue, let loaderView else { return }
+            applyLoader(to: loaderView)
+        }
+    }
+
+    var size: Double {
+        didSet {
+            guard size != oldValue, let loaderView else { return }
+            applyLoader(to: loaderView)
+        }
+    }
 
     init(style: LoaderStyle, color: Color, size: Double) {
         self.style = style
@@ -297,18 +316,21 @@ final class LoaderRenderer: Renderer {
         self.size = size
     }
 
+    func update(from view: any View) {
+        guard let loader = view as? Loader else { return }
+        style = loader.style
+        color = loader.color
+        size = loader.size
+    }
+
     func mount() -> PlatformView {
         let view = LoaderView()
-        apply(to: view)
+        self.loaderView = view
+        applyLoader(to: view)
         return view
     }
 
-    func update(_ platformView: PlatformView) {
-        guard let view = platformView as? LoaderView else { return }
-        apply(to: view)
-    }
-
-    private func apply(to view: LoaderView) {
+    private func applyLoader(to view: LoaderView) {
         view.painter = style.painter()
         view.loaderColor = color
         view.loaderSize = size

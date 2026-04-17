@@ -27,3 +27,39 @@
         return platform
     }
 }
+
+// MARK: - PlatformBridge
+
+#if canImport(UIKit)
+import UIKit
+
+/// A UIView that hosts a single Forge View. Owns a Resolver
+/// internally — mounts on first call, updates in-place on subsequent
+/// calls. The mounted platform view is pinned to the bridge's edges.
+@MainActor public final class PlatformBridge: UIView {
+    private let resolver = Resolver()
+
+    public init(_ view: any View) {
+        super.init(frame: .zero)
+        updateView(view)
+    }
+
+    public convenience init(@ChildBuilder _ content: () -> any View) {
+        self.init(content())
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+
+    public func updateView(_ view: any View) {
+        if let existing = resolver.rootNode, existing.canUpdate(to: view) {
+            existing.update(from: view)
+        } else {
+            subviews.forEach { $0.removeFromSuperview() }
+            let platform = resolver.mount(view)
+            addSubview(platform)
+            platform.pin(to: self)
+        }
+    }
+}
+#endif

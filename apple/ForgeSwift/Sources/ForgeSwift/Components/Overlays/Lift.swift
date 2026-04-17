@@ -105,9 +105,28 @@ public struct Lift: LeafView {
 }
 
 final class LiftRenderer: Renderer {
-    var controller: LiftController?
-    var dismissDuration: TimeInterval
-    var builder: @MainActor (LiftView) -> any View
+    private weak var hostView: LiftHostView?
+
+    var controller: LiftController? {
+        didSet {
+            guard let hostView else { return }
+            applyLift(to: hostView)
+        }
+    }
+
+    var dismissDuration: TimeInterval {
+        didSet {
+            guard dismissDuration != oldValue, let hostView else { return }
+            applyLift(to: hostView)
+        }
+    }
+
+    var builder: @MainActor (LiftView) -> any View {
+        didSet {
+            guard let hostView else { return }
+            applyLift(to: hostView)
+        }
+    }
 
     init(
         controller: LiftController?,
@@ -119,14 +138,21 @@ final class LiftRenderer: Renderer {
         self.builder = builder
     }
 
+    func update(from view: any View) {
+        guard let lift = view as? Lift else { return }
+        controller = lift.controller
+        dismissDuration = lift.dismissDuration
+        builder = lift.builder
+    }
+
     func mount() -> PlatformView {
         let v = LiftHostView()
-        v.configure(controller: controller, dismissDuration: dismissDuration, builder: builder)
+        self.hostView = v
+        applyLift(to: v)
         return v
     }
 
-    func update(_ platformView: PlatformView) {
-        guard let v = platformView as? LiftHostView else { return }
+    private func applyLift(to v: LiftHostView) {
         v.configure(controller: controller, dismissDuration: dismissDuration, builder: builder)
     }
 }

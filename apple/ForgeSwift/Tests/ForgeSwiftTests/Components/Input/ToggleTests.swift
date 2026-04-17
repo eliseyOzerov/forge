@@ -11,7 +11,7 @@ final class ToggleTests: XCTestCase {
     private func makeModel(isOn: Bool = false) -> ToggleModel {
         let binding = Binding(isOn)
         let toggle = Toggle.checkbox(value: binding)
-        let context = BuildContext(node: BuiltNode())
+        let context = BuiltNode()
         let model = ToggleModel(context: context)
         model.didInit(view: toggle)
         return model
@@ -298,7 +298,7 @@ final class ToggleTests: XCTestCase {
     func testDisabledBlocksPress() {
         let binding = Binding(false)
         let toggle = Toggle(value: binding, states: .disabled)
-        let context = BuildContext(node: BuiltNode())
+        let context = BuiltNode()
         let model = ToggleModel(context: context)
         model.didInit(view: toggle)
         model.handlePress()
@@ -308,7 +308,7 @@ final class ToggleTests: XCTestCase {
     func testLoadingBlocksPress() {
         let binding = Binding(false)
         let toggle = Toggle(value: binding, states: .loading)
-        let context = BuildContext(node: BuiltNode())
+        let context = BuiltNode()
         let model = ToggleModel(context: context)
         model.didInit(view: toggle)
         model.handlePress()

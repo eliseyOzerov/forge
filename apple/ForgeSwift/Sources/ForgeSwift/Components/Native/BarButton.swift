@@ -114,24 +114,32 @@ public extension BarButton {
 // MARK: - Renderer (used when BarButton is NOT in a bar slot)
 
 final class BarButtonRenderer: Renderer {
-    let view: BarButton
+    private weak var button: UIButton?
+
+    var view: BarButton {
+        didSet {
+            guard let button else { return }
+            button.configuration = configuration(for: view)
+            button.isEnabled = view.isEnabled
+            rewireAction(on: button)
+        }
+    }
 
     init(view: BarButton) {
         self.view = view
     }
 
+    func update(from view: any View) {
+        guard let barButton = view as? BarButton else { return }
+        self.view = barButton
+    }
+
     func mount() -> PlatformView {
         let button = UIButton(configuration: configuration(for: view))
+        self.button = button
         button.isEnabled = view.isEnabled
         wireAction(on: button)
         return button
-    }
-
-    func update(_ platformView: PlatformView) {
-        guard let button = platformView as? UIButton else { return }
-        button.configuration = configuration(for: view)
-        button.isEnabled = view.isEnabled
-        rewireAction(on: button)
     }
 
     private func configuration(for view: BarButton) -> UIButton.Configuration {

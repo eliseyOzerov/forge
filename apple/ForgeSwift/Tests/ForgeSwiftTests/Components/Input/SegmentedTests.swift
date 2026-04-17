@@ -10,7 +10,7 @@ final class SegmentedTests: XCTestCase {
     private func makeModel(initial: Option = .apple) -> SegmentedModel<Option> {
         let binding = Binding(initial)
         let view = Segmented<Option>(value: binding, items: [.apple, .banana, .cherry])
-        let context = BuildContext(node: BuiltNode())
+        let context = BuiltNode()
         let model = SegmentedModel<Option>(context: context)
         model.didInit(view: view)
         return model
@@ -36,7 +36,7 @@ final class SegmentedTests: XCTestCase {
             items: [.apple, .banana, .cherry],
             states: .disabled
         )
-        let context = BuildContext(node: BuiltNode())
+        let context = BuiltNode()
         let model = SegmentedModel<Option>(context: context)
         model.didInit(view: view)
         model.tapSegment(at: 2)

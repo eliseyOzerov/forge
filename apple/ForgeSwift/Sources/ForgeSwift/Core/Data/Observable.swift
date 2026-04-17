@@ -55,6 +55,18 @@
     }
 }
 
+// MARK: - Observable → Binding
+
+public extension Observable {
+    /// Create a Binding backed by this Observable's value.
+    /// Usage: `TextField(text: name.binding)` where `name` is an `Observable<String>`.
+    var binding: Binding<T> {
+        Binding(get: { self.value }, set: { self.value = $0 })
+    }
+}
+
+// MARK: - Subscription
+
 @MainActor public final class Subscription {
     private var cancelClosure: (() -> Void)?
 

@@ -633,27 +633,55 @@ public enum GraphicSource {
 // MARK: - Renderer
 
 final class GraphicRenderer: Renderer {
-    let source: GraphicSource
-    let color: Color?
-    let size: CGSize?
-    let overrides: [String: GraphicOverride]
+    private weak var graphicView: GraphicView?
+
+    var source: GraphicSource {
+        didSet {
+            guard let graphicView else { return }
+            applyGraphic(to: graphicView)
+            graphicView.superview?.setNeedsLayout()
+        }
+    }
+    var color: Color? {
+        didSet {
+            guard let graphicView else { return }
+            applyGraphic(to: graphicView)
+        }
+    }
+    var size: CGSize? {
+        didSet {
+            guard let graphicView else { return }
+            applyGraphic(to: graphicView)
+            graphicView.superview?.setNeedsLayout()
+        }
+    }
+    var overrides: [String: GraphicOverride] {
+        didSet {
+            guard let graphicView else { return }
+            applyGraphic(to: graphicView)
+        }
+    }
 
     init(source: GraphicSource, color: Color?, size: CGSize?, overrides: [String: GraphicOverride]) {
         self.source = source; self.color = color; self.size = size; self.overrides = overrides
     }
 
+    func update(from view: any View) {
+        guard let graphic = view as? Graphic else { return }
+        source = graphic.source
+        color = graphic.color
+        size = graphic.size
+        overrides = graphic.overrides
+    }
+
     func mount() -> PlatformView {
         let view = GraphicView()
-        apply(to: view)
+        self.graphicView = view
+        applyGraphic(to: view)
         return view
     }
 
-    func update(_ platformView: PlatformView) {
-        guard let view = platformView as? GraphicView else { return }
-        apply(to: view)
-    }
-
-    private func apply(to view: GraphicView) {
+    private func applyGraphic(to view: GraphicView) {
         switch source {
         case .string(let svg):
             view.setDocument(SVGParser().parse(svg), color: color, size: size, overrides: overrides)

@@ -59,60 +59,22 @@ public struct Provided<each T>: BuiltView {
         self.child = child()
     }
 
-    public func build(context: BuildContext) -> any View {
+    public func build(context: ViewContext) -> any View {
         // Install one slot per pack element. The repeat-in-tuple form
         // evaluates installSlot for each element; we discard the void
-        // tuple result.
-        let node = context.node
+        // tuple result. `installSlot` is a Node-level API and not on
+        // ViewContext's public surface — we force-cast because the
+        // framework only ever hands Node instances as `context`.
+        guard let node = context as? Node else { return child }
         _ = (repeat node.installSlot(each values))
         return child
     }
 }
 
-// MARK: - BuildContext consumer API
-
-public extension BuildContext {
-    /// Read the nearest ancestor's Provided<T> value and subscribe
-    /// to slot replacement. Fatal if no provider is found — wire one
-    /// at the app root, or use `maybeWatch` for optional cases.
-    ///
-    /// `read` registers a slot subscription only. If the value is
-    /// itself an Observable (e.g. a store), use `watch` to also
-    /// subscribe to its in-place mutations.
-    func read<T>(_ type: T.Type) -> T {
-        guard let slot = node.findSlot(type) else {
-            fatalError("No Provided<\(T.self)> found in ancestors. " +
-                       "Wrap your subtree in Provided(\(T.self)(...)) { ... }, " +
-                       "or use maybeWatch(\(T.self).self) for optional access.")
-        }
-        return node.watch(slot.observable)
-    }
-
-    /// Like `read`, but additionally subscribes to the value's own
-    /// observations if it conforms to AnyObservable. Use this when the
-    /// provided value is a store you mutate in place — `read` only
-    /// catches whole-value swaps at the provider; `watch` catches both.
-    func watch<T>(_ type: T.Type) -> T {
-        guard let slot = node.findSlot(type) else {
-            fatalError("No Provided<\(T.self)> found in ancestors. " +
-                       "Wrap your subtree in Provided(\(T.self)(...)) { ... }, " +
-                       "or use maybeWatch(\(T.self).self) for optional access.")
-        }
-        let value = node.watch(slot.observable)
-        if let observable = value as? AnyObservable {
-            node.watchAny(observable)
-        }
-        return value
-    }
-
-    /// Optional read — returns nil if no ancestor provides T. Same
-    /// subscription behavior as `watch` (slot + value-observable).
-    func maybeWatch<T>(_ type: T.Type) -> T? {
-        guard let slot = node.findSlot(type) else { return nil }
-        let value = node.watch(slot.observable)
-        if let observable = value as? AnyObservable {
-            node.watchAny(observable)
-        }
-        return value
-    }
-}
+// The ViewContext Provided-slot lookup methods live on Node itself
+// (see `Node+ViewContext.swift` — or an extension inside Node.swift
+// if not split). The old `extension ViewContext { func read/watch/...
+// { ... } }` is gone: with ViewContext as a protocol and Node as its
+// sole in-module conformer, implementing the methods directly on
+// Node is cleaner and avoids exposing `node: Node` through the
+// protocol surface.

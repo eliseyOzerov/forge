@@ -46,25 +46,40 @@ public extension View {
 }
 
 final class RectReporterRenderer: Renderer {
-    var onRect: @MainActor (Rect) -> Void
-    var content: any View
+    private weak var reporterView: RectReporterView?
+
+    var onRect: @MainActor (Rect) -> Void {
+        didSet {
+            guard let reporterView else { return }
+            reporterView.onRect = onRect
+        }
+    }
+
+    var content: any View {
+        didSet {
+            guard let reporterView else { return }
+            reporterView.onRect = onRect
+            reporterView.updateContent(content)
+        }
+    }
 
     init(onRect: @escaping @MainActor (Rect) -> Void, content: any View) {
         self.onRect = onRect
         self.content = content
     }
 
+    func update(from view: any View) {
+        guard let reporter = view as? RectReporter else { return }
+        onRect = reporter.onRect
+        content = reporter.content
+    }
+
     func mount() -> PlatformView {
         let view = RectReporterView()
+        self.reporterView = view
         view.onRect = onRect
         view.installContent(content)
         return view
-    }
-
-    func update(_ platformView: PlatformView) {
-        guard let view = platformView as? RectReporterView else { return }
-        view.onRect = onRect
-        view.updateContent(content)
     }
 }
 

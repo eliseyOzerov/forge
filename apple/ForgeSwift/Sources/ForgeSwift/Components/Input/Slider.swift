@@ -126,7 +126,7 @@ public struct Slider: ModelView {
         self.states = states; self.label = label; self.style = style
     }
 
-    public func model(context: BuildContext) -> SliderModel { SliderModel(context: context) }
+    public func model(context: ViewContext) -> SliderModel { SliderModel(context: context) }
     public func builder(model: SliderModel) -> SliderBuilder { SliderBuilder(model: model) }
 }
 
@@ -223,7 +223,7 @@ public final class SliderModel: ViewModel<Slider> {
 // MARK: - Builder
 
 public final class SliderBuilder: ViewBuilder<SliderModel> {
-    public override func build(context: BuildContext) -> any View {
+    public override func build(context: ViewContext) -> any View {
         SliderLeaf(model: model)
     }
 }
@@ -238,24 +238,32 @@ struct SliderLeaf: LeafView {
 // MARK: - Renderer
 
 final class SliderRenderer: Renderer {
-    let model: SliderModel
+    private weak var sliderView: SliderView?
+
+    var model: SliderModel {
+        didSet {
+            guard let sliderView else { return }
+            sliderView.model = model
+            applySlider(to: sliderView)
+        }
+    }
 
     init(model: SliderModel) { self.model = model }
 
+    func update(from view: any View) {
+        guard let leaf = view as? SliderLeaf else { return }
+        model = leaf.model
+    }
+
     func mount() -> PlatformView {
         let view = SliderView()
+        self.sliderView = view
         view.model = model
-        apply(to: view)
+        applySlider(to: view)
         return view
     }
 
-    func update(_ platformView: PlatformView) {
-        guard let view = platformView as? SliderView else { return }
-        view.model = model
-        apply(to: view)
-    }
-
-    private func apply(to view: SliderView) {
+    private func applySlider(to view: SliderView) {
         view.isOpaque = false
         view.backgroundColor = .clear
         if model.motion.isRunning { view.startAnimation() }

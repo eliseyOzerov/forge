@@ -45,6 +45,11 @@ class ProxyView: UIView {
         subviews.first?.intrinsicContentSize ?? CGSize(width: UIView.noIntrinsicMetric, height: UIView.noIntrinsicMetric)
     }
 
+    override func setNeedsLayout() {
+        super.setNeedsLayout()
+        superview?.setNeedsLayout()
+    }
+
     override func layoutSubviews() {
         super.layoutSubviews()
         subviews.first?.frame = bounds
@@ -190,6 +195,64 @@ class ProxyView: NSView {
     func unmountChildren() {}
 }
 
+// MARK: - ViewContext conformance
+
+/// Node is the concrete implementation of `ViewContext`. The
+/// framework passes a Node (typed as `ViewContext`) into every
+/// `build(context:)` and `model(context:)` so consumer code only
+/// sees the documented surface, not Node's lifecycle internals.
+extension Node: ViewContext {
+    /// Flutter-style setState. Runs the mutation closure synchronously,
+    /// then marks the owning node dirty, scheduling a rebuild on the
+    /// next main-actor tick.
+    public func rebuild(_ mutation: () -> Void) {
+        mutation()
+        markDirty()
+    }
+
+    /// One-shot read of the nearest ancestor's `Provided<T>` value.
+    /// No subscriptions. Fatal if no provider is found.
+    public func read<T>(_ type: T.Type) -> T {
+        guard let slot = findSlot(type) else {
+            fatalError("No Provided<\(T.self)> found in ancestors. " +
+                       "Wrap your subtree in Provided(\(T.self)(...)) { ... }, " +
+                       "or use maybeRead(\(T.self).self) for optional access.")
+        }
+        return slot.observable.value
+    }
+
+    /// Optional one-shot read. No subscriptions.
+    public func tryRead<T>(_ type: T.Type) -> T? {
+        findSlot(type)?.observable.value
+    }
+
+    /// Subscribing read. Registers this build pass on slot replacement
+    /// AND — if the value is `AnyObservable` — on the value's own
+    /// in-place mutations.
+    public func watch<T>(_ type: T.Type) -> T {
+        guard let slot = findSlot(type) else {
+            fatalError("No Provided<\(T.self)> found in ancestors. " +
+                       "Wrap your subtree in Provided(\(T.self)(...)) { ... }, " +
+                       "or use maybeWatch(\(T.self).self) for optional access.")
+        }
+        let value = watch(slot.observable)
+        if let observable = value as? AnyObservable {
+            watchAny(observable)
+        }
+        return value
+    }
+
+    /// Optional subscribing read. Nil if no ancestor provides T.
+    public func tryWatch<T>(_ type: T.Type) -> T? {
+        guard let slot = findSlot(type) else { return nil }
+        let value = watch(slot.observable)
+        if let observable = value as? AnyObservable {
+            watchAny(observable)
+        }
+        return value
+    }
+}
+
 /// Peel an IdentifiedView wrapper (possibly nested) to extract the
 /// outermost id and the fully-unwrapped inner view.
 @MainActor
@@ -220,17 +283,7 @@ public final class LeafNode: Node {
 
     override func update(from view: any View) {
         super.update(from: view)
-        guard let leaf = self.view as? any LeafView else {
-            fatalError("LeafNode.update called with non-LeafView: \(type(of: self.view!))")
-        }
-        // Fresh renderer holds the new props; apply them to the
-        // existing PlatformView so its identity and native state are
-        // preserved. Old renderer is discarded.
-        let newRenderer = leaf.makeRenderer()
-        if let platformView = self.platformView {
-            newRenderer.update(platformView)
-        }
-        self.renderer = newRenderer
+        renderer?.update(from: self.view!)
     }
 }
 
@@ -281,12 +334,11 @@ public final class BuiltNode: Node {
     private func performBuild() {
         guard let wrapper = self.platformView else { return }
         beginBuild()
-        let context = BuildContext(node: self)
 
         guard let built = self.view as? any BuiltView else {
             fatalError("BuiltNode has no build path")
         }
-        let newChildView = built.build(context: context)
+        let newChildView = built.build(context: self)
 
         reconcileChild(newChildView, into: wrapper)
     }
@@ -358,8 +410,7 @@ public final class ModelNode: Node {
     /// bounce — opens the existential `any ModelView` to recover V,
     /// which in turn gives us V.Model for subsequent typed dispatch.
     private func makeModel<V: ModelView>(for view: V) {
-        let context = BuildContext(node: self)
-        let model = view.model(context: context)
+        let model = view.model(context: self)
         model.didInit(view: view)
         self.model = model
         self.lifecycle = ModelLifecycle(
@@ -387,8 +438,7 @@ public final class ModelNode: Node {
             fatalError("ModelNode has no ModelView in self.view")
         }
         beginBuild()
-        let context = BuildContext(node: self)
-        let newChildView = buildChildView(for: modelView, context: context)
+        let newChildView = buildChildView(for: modelView, context: self)
         reconcileChild(newChildView, into: wrapper)
         lifecycle?.didRebuild()
     }
@@ -397,7 +447,7 @@ public final class ModelNode: Node {
     /// the current Model and calling its `build(context:)`. Generic
     /// bounce mirrors `makeModel` — opening V gives us V.Model so we
     /// can downcast `self.model` and typecheck `builder(model:)`.
-    private func buildChildView<V: ModelView>(for view: V, context: BuildContext) -> any View {
+    private func buildChildView<V: ModelView>(for view: V, context: ViewContext) -> any View {
         guard let model = self.model as? V.Model else {
             fatalError("ModelNode has no Model of the expected type")
         }
@@ -460,19 +510,12 @@ public final class ContainerNode: Node {
 
     override func update(from view: any View) {
         super.update(from: view)
-        guard let container = self.view as? any ContainerView else {
+        guard let container = self.view as? any ContainerView, let renderer else {
             fatalError("ContainerNode.update called with non-ContainerView: \(type(of: self.view!))")
         }
 
-        // Remake renderer with new props (spacing, alignment, etc.),
-        // apply to existing stack view.
-        let newRenderer = container.makeRenderer()
-        if let platformView = self.platformView {
-            newRenderer.update(platformView)
-        }
-        self.renderer = newRenderer
-
-        reconcileChildren(container.children, renderer: newRenderer)
+        renderer.update(from: self.view!)
+        reconcileChildren(container.children, renderer: renderer)
     }
 
     override func unmountChildren() {

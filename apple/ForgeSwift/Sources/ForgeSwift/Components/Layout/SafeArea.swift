@@ -52,22 +52,30 @@ public struct SafeArea: ContainerView {
 // MARK: - Renderer
 
 final class SafeAreaRenderer: ContainerRenderer {
-    let edges: Edge.Set
+    private weak var safeAreaView: SafeAreaView?
+
+    var edges: Edge.Set {
+        didSet {
+            guard let safeAreaView else { return }
+            safeAreaView.edges = edges
+            safeAreaView.setNeedsLayout()
+        }
+    }
 
     init(edges: Edge.Set) {
         self.edges = edges
     }
 
-    func mount() -> PlatformView {
-        let view = SafeAreaView()
-        view.edges = edges
-        return view
+    func update(from view: any View) {
+        guard let safeArea = view as? SafeArea else { return }
+        edges = safeArea.edges
     }
 
-    func update(_ platformView: PlatformView) {
-        guard let view = platformView as? SafeAreaView else { return }
+    func mount() -> PlatformView {
+        let view = SafeAreaView()
+        self.safeAreaView = view
         view.edges = edges
-        view.setNeedsLayout()
+        return view
     }
 
     func insert(_ platformView: PlatformView, at index: Int, into container: PlatformView) {

@@ -37,7 +37,7 @@ public extension ThemeSlot where T == TextTheme {
 
 // MARK: - BuildContext accessor
 
-public extension BuildContext {
+public extension ViewContext {
     /// Typed theme lookup. Always watches — theme changes fire
     /// consumer rebuilds. Use `read(T.self)` for non-subscribing
     /// access when you have a reason to skip reactivity.
