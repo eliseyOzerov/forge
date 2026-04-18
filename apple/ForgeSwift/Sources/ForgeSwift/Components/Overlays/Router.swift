@@ -177,9 +177,9 @@ public struct DeepLinkMap {
     func insert(at index: Int, route: Route)
     func insert(below predicate: (Route) -> Bool, route: Route)
     func insert(above predicate: (Route) -> Bool, route: Route)
-    func remove(where predicate: (Route) -> Bool)
-    func remove(at index: Int)
-    func replace(routes: [Route])
+    func remove(where predicate: (Route) -> Bool, result: Any?, animated: Bool)
+    func remove(at index: Int, result: Any?, animated: Bool)
+    func replace(with routes: [Route])
     func replaceTop(_ route: Route)
     func resolve(url: URL) -> Bool
 }
@@ -285,20 +285,20 @@ public struct DeepLinkMap {
 
     /// Remove the first route matching the predicate. No-op if the
     /// removal would leave the stack empty.
-    public func remove(where predicate: (Route) -> Bool) {
-        delegate?.remove(where: predicate)
+    public func remove(where predicate: (Route) -> Bool, result: Any? = nil, animated: Bool = true) {
+        delegate?.remove(where: predicate, result: result, animated: animated)
     }
 
     /// Remove the route at `index`. No-op if out of bounds or if the
     /// removal would leave the stack empty.
-    public func remove(at index: Int) {
-        delegate?.remove(at: index)
+    public func remove(at index: Int, result: Any? = nil, animated: Bool = true) {
+        delegate?.remove(at: index, result: result, animated: animated)
     }
 
     /// Replace the entire stack, including the first route. The new
     /// array must be non-empty — empty input is treated as no-op.
-    public func replace(routes: [Route]) {
-        delegate?.replace(routes: routes)
+    public func replace(with routes: [Route]) {
+        delegate?.replace(with: routes)
     }
 
     /// Replace only the top-most route. If the stack has only the
@@ -339,6 +339,8 @@ public enum RoutePhase: Equatable, Sendable {
     case entering
     /// Route is fully visible and interactive.
     case settled
+    /// Another route is animating on top of this one.
+    case covered
     /// Route is animating out (pop). `progress` goes 1→0.
     case exiting
 }
@@ -353,7 +355,7 @@ public enum RoutePhase: Equatable, Sendable {
     var id: UUID { get }
     var index: Int { get }
     var phase: RoutePhase { get }
-    var progress: Double { get set }
+    var progress: Observable<Double> { get }
     var isTop: Bool { get }
     var isBottom: Bool { get }
     var canPop: Bool { get }
@@ -372,8 +374,8 @@ public extension RouteHandle {
 /// by ModelNode and preserved across rebuilds. Derives position info
 /// from the RouterModel's stack on demand.
 public final class RouteModel: ViewModel<Route>, RouteHandle {
-    public var phase: RoutePhase = .settled
-    public var progress: Double = 1.0
+    public var phase: RoutePhase = .entering
+    public let progress = Observable<Double>(0)
 
     private var router: RouterModel? {
         context.tryRead(RouterModel.self)
@@ -397,7 +399,7 @@ public final class RouteModel: ViewModel<Route>, RouteHandle {
 
     public func dismiss(result: Any? = nil, animated: Bool = true) {
         let routeID = view.id
-        router?.remove(where: { $0.id == routeID })
+        router?.remove(where: { $0.id == routeID }, result: result, animated: animated)
     }
 }
 
@@ -405,17 +407,8 @@ public final class RouteModel: ViewModel<Route>, RouteHandle {
 
 public final class RouteBuilder: ViewBuilder<RouteModel> {
     public override func build(context: ViewContext) -> any View {
-        let route = model.view!
-        let router = context.tryRead(RouterModel.self)
-        let navItemObs = router?.navItem(for: route.id)
-
-        if let navItemObs {
-            return Provided(model as RouteHandle, navItemObs) {
-                route.content()
-            }
-        }
-        return Provided(model as RouteHandle) {
-            route.content()
+        Provided(model as RouteHandle) {
+            model.view.content()
         }
     }
 }
@@ -600,24 +593,24 @@ public final class RouterModel: ViewModel<Router>, RouterHandleDelegate {
         rebuild { stack.insert(route, at: idx + 1) }
     }
 
-    public func remove(where predicate: (Route) -> Bool) {
+    public func remove(where predicate: (Route) -> Bool, result: Any? = nil, animated: Bool = true) {
         guard let idx = stack.firstIndex(where: predicate),
               stack.count > 1 else { return }
         rebuild {
             let removed = stack.remove(at: idx)
-            resolveResult(for: removed, with: nil)
+            resolveResult(for: removed, with: result)
         }
     }
 
-    public func remove(at index: Int) {
+    public func remove(at index: Int, result: Any? = nil, animated: Bool = true) {
         guard stack.indices.contains(index), stack.count > 1 else { return }
         rebuild {
             let removed = stack.remove(at: index)
-            resolveResult(for: removed, with: nil)
+            resolveResult(for: removed, with: result)
         }
     }
 
-    public func replace(routes: [Route]) {
+    public func replace(with routes: [Route]) {
         guard !routes.isEmpty else { return }
         rebuild {
             for route in stack { resolveResult(for: route, with: nil) }
@@ -661,8 +654,11 @@ public final class RouterBuilder: ViewBuilder<RouterModel> {
         // The model reads position/router from context, not from the struct.
         let routeViews: [any View] = stack.map { route in
             let isTop = route.id == topID
+            let navItemObs = model.navItem(for: route.id)
             return Offstage(offstage: !isTop) {
-                Box(.fill) { route }
+                Provided(navItemObs) {
+                    Box(.fill) { route }
+                }
             }.id(route.id)
         }
 
