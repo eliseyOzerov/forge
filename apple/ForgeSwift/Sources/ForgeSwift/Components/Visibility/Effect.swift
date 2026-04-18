@@ -176,7 +176,7 @@ final class EffectHostView: UIView {
     ])
 
     var operations: [EffectOp] = [] {
-        didSet { applyOperations() }
+        didSet { setNeedsLayout() }
     }
 
     func invalidateSnapshot() {

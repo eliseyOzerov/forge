@@ -149,6 +149,21 @@ public extension ViewLifecycle {
 
     open func didInit(view: View) {
         self.view = view
+        autoWatchObservables()
+    }
+
+    /// Discover all Observable properties via Mirror and subscribe
+    /// to them automatically. No manual watch() needed for @Observable.
+    private func autoWatchObservables() {
+        let mirror = Mirror(reflecting: self)
+        for child in mirror.children {
+            if let observable = child.value as? AnyObservable {
+                let sub = observable.observeChange { [weak self] in
+                    self?.rebuild {}
+                }
+                subscriptions.append(sub)
+            }
+        }
     }
 
     open func didUpdate(newView: View) {
@@ -156,12 +171,27 @@ public extension ViewLifecycle {
     }
 
     open func didRebuild() {}
-    open func didDispose() {}
+
+    open func didDispose() {
+        for sub in subscriptions { sub.cancel() }
+        subscriptions.removeAll()
+    }
 
     /// Sandwich-style rebuild. Equivalent to `context.rebuild { ... }`,
     /// provided so subclass methods read naturally: `rebuild { count += 1 }`.
     public func rebuild(_ mutation: () -> Void) {
         context.rebuild(mutation)
+    }
+
+    private var subscriptions: [Subscription] = []
+
+    /// Subscribe to an observable and rebuild automatically when it
+    /// changes. The subscription is cancelled on dispose.
+    public func watch<T>(_ observable: Observable<T>) {
+        let sub = observable.observeChange { [weak self] in
+            self?.rebuild {}
+        }
+        subscriptions.append(sub)
     }
 }
 
