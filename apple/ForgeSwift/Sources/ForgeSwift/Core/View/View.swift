@@ -142,6 +142,7 @@ public extension ViewLifecycle {
 @MainActor open class ViewModel<View>: ViewLifecycle {
     public let context: ViewContext
     public private(set) var view: View!
+    private var subscriptions: [Subscription] = []
 
     public init(context: ViewContext) {
         self.context = context
@@ -149,6 +150,22 @@ public extension ViewLifecycle {
 
     open func didInit(view: View) {
         self.view = view
+        autoWatchObservables()
+    }
+
+    /// Discover all Observable properties on this model via Mirror
+    /// and subscribe to them automatically. No manual watch() needed
+    /// for properties declared with @Observable.
+    private func autoWatchObservables() {
+        let mirror = Mirror(reflecting: self)
+        for child in mirror.children {
+            if let observable = child.value as? AnyObservable {
+                let sub = observable.observeChange { [weak self] in
+                    self?.rebuild {}
+                }
+                subscriptions.append(sub)
+            }
+        }
     }
 
     open func didUpdate(newView: View) {
@@ -156,12 +173,30 @@ public extension ViewLifecycle {
     }
 
     open func didRebuild() {}
-    open func didDispose() {}
+
+    open func didDispose() {
+        for sub in subscriptions { sub.cancel() }
+        subscriptions.removeAll()
+    }
 
     /// Sandwich-style rebuild. Equivalent to `context.rebuild { ... }`,
     /// provided so subclass methods read naturally: `rebuild { count += 1 }`.
     public func rebuild(_ mutation: () -> Void) {
         context.rebuild(mutation)
+    }
+
+    /// Subscribe to an observable and rebuild automatically when it
+    /// changes. The subscription is cancelled on dispose.
+    ///
+    ///     override func didInit(view: MyView) {
+    ///         super.didInit(view: view)
+    ///         watch(myObservable)
+    ///     }
+    public func watch<T>(_ observable: Observable<T>) {
+        let sub = observable.observeChange { [weak self] in
+            self?.rebuild {}
+        }
+        subscriptions.append(sub)
     }
 }
 

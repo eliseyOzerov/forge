@@ -18,7 +18,8 @@
     func observeChange(_ callback: @escaping @MainActor () -> Void) -> Subscription
 }
 
-@MainActor public final class Observable<T>: AnyObservable {
+@MainActor @propertyWrapper
+public final class Observable<T>: AnyObservable {
     private var _value: T
     private var nextId: Int = 0
     private var observers: [Int: @MainActor (T) -> Void] = [:]
@@ -26,6 +27,19 @@
     public init(_ value: T) {
         self._value = value
     }
+
+    public convenience init(wrappedValue: T) {
+        self.init(wrappedValue)
+    }
+
+    /// Direct value access: `model.count` returns the T.
+    public var wrappedValue: T {
+        get { _value }
+        set { value = newValue }
+    }
+
+    /// `$model.count` returns a Binding<T>.
+    public var projectedValue: Binding<T> { binding }
 
     public var value: T {
         get { _value }
