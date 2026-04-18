@@ -197,38 +197,22 @@ final class EffectHostView: UIView {
         super.layoutSubviews()
         guard let child = childPlatform else { return }
 
-        // Reset child for clean layout
+        // Reset
         child.layer.transform = CATransform3DIdentity
         child.layer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
         child.layer.opacity = 1
         child.layer.mask = nil
         child.isHidden = false
         child.frame = bounds
+        outputLayer?.removeFromSuperlayer()
+        outputLayer = nil
 
-        // Bounds changed → snapshot invalid
         if bounds.size != snapshotSize {
             invalidateSnapshot()
             snapshotSize = bounds.size
         }
 
-        applyOperations()
-    }
-
-    private func applyOperations() {
-        guard let child = childPlatform else { return }
-
-        // Reset child
-        child.layer.transform = CATransform3DIdentity
-        child.layer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
-        child.layer.opacity = 1
-        child.layer.mask = nil
-        child.isHidden = false
-        outputLayer?.removeFromSuperlayer()
-        outputLayer = nil
-
-        let hasFilters = operations.contains { $0.isFilter }
-
-        if hasFilters {
+        if operations.contains(where: { $0.isFilter }) {
             applyWithFilters(child: child)
         } else {
             applyDirect(child: child)

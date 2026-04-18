@@ -2,355 +2,61 @@
 //  Router.swift
 //  ForgeSwift
 //
-//  Router view + its ecosystem:
+//  Route protocol + Router stack host.
 //
-//    - `NavigationItem` / `.navigation(_:)`  — per-screen nav bar config,
-//       set by the hosted view, applied to the native UINavigationItem.
-//    - `Route`                               — value struct wrapping the
-//       view to present, plus optional user key and (internal) result key.
-//    - `RouterHandle`                        — plain-class imperative API.
-//       Can be created outside the view tree and injected from above.
-//    - `DeepLink` / `@DeepLinkBuilder` / `DeepLinkMap`  — URL→Route
-//       mapping with a result-builder DSL.
-//    - `Router: ModelView`                   — the mounted view. Seeds
-//       the handle's stack with an initial "first" route built from a
-//       `@ChildBuilder` closure. First is a regular stack entry — user
-//       can replace/insert around it — it just can't be popped below.
-//    - `RouterHost` (leaf) + UIKit integration backing the UINavigationController.
-//    - `BuildContext.router` / `BuildContext.route` — descendants' access.
-//
-//  Non-screen presentations (sheet/modal/drawer/alert/cover/lightbox) are
-//  reserved in Route but not yet plumbed through the host — this file
-//  handles screen-style push/pop only for now.
+//    - `Route`              — protocol: id + key + content. Any ModelView
+//       struct can conform. The only model constraint: extend RouteModel<Self>.
+//    - `RouteModel<V>`      — open base model with phase, progress, dismiss.
+//    - `RouteContentBuilder` — generic ViewBuilder that renders content +
+//       provides RouteHandle. Override per-type for custom presentation.
+//    - `RouteEntry`         — default generic route for simple push cases.
+//    - Concrete types       — Screen, Sheet, Modal, etc.
+//    - `Router`             — stack host. Presentation-agnostic.
 //
 
 import Foundation
 
 // MARK: - Route
 
-/// A navigation destination and its own ModelView. Constructed at
-/// the push site; the Router builds Route instances directly.
+/// Protocol for any view the Router can manage. Conform to both
+/// Route and ModelView, with a model that extends RouteModel<Self>.
 ///
-///     Route { ProfileView(id: 42) }
-///     Route(key: "inbox") { InboxView() }
-///
-/// Identity: every Route has a stable `id: UUID` assigned at
-/// construction. The reconciler uses `.id(route.id)` to preserve
-/// the RouteModel (and all descendant state) across rebuilds.
-/// The user-facing `key` is for predicate-based operations
-/// (`insert(below:)`, `pop(until:)`, etc.).
-public struct Route: ModelView {
-    public let id: UUID
-    public let key: AnyHashable?
-    public let content: @MainActor () -> any View
-
-    public init(
-        key: AnyHashable? = nil,
-        @ChildBuilder body: @escaping @MainActor () -> any View
-    ) {
-        self.id = UUID()
-        self.key = key
-        self.content = body
-    }
-
-    /// Internal init used by Router to construct a root route with a
-    /// stable, pre-known id.
-    init(
-        id: UUID,
-        key: AnyHashable? = nil,
-        @ChildBuilder body: @escaping @MainActor () -> any View
-    ) {
-        self.id = id
-        self.key = key
-        self.content = body
-    }
-
-    public func model(context: ViewContext) -> RouteModel {
-        RouteModel(context: context)
-    }
-
-    public func builder(model: RouteModel) -> RouteBuilder {
-        RouteBuilder(model: model)
-    }
+///     struct Screen: ModelView, Route {
+///         let id = UUID()
+///         let content: () -> any View
+///         init(@ChildBuilder body: ...) { content = body }
+///     }
+@MainActor public protocol Route: View {
+    var id: UUID { get }
+    var key: AnyHashable? { get }
+    var content: @MainActor () -> any View { get }
 }
 
-// MARK: - Deep links
-
-/// One entry in a `DeepLinkMap`: a URL pattern and a factory that
-/// produces a Route from matched parameters. Patterns use `:name` for
-/// path-segment captures (e.g. `/profile/:id`).
-public struct DeepLink {
-    public let pattern: String
-    public let factory: @MainActor (URLParams) -> Route?
-
-    public init(
-        _ pattern: String,
-        factory: @escaping @MainActor (URLParams) -> Route?
-    ) {
-        self.pattern = pattern
-        self.factory = factory
-    }
+public extension Route {
+    var key: AnyHashable? { nil }
+    var content: @MainActor () -> any View { { EmptyView() } }
 }
 
-/// Parameters extracted from a URL match. Access by name via subscript.
-public struct URLParams {
-    public let values: [String: String]
-    public subscript(key: String) -> String? { values[key] }
-}
-
-@resultBuilder
-public struct DeepLinkBuilder {
-    public static func buildBlock(_ components: DeepLink...) -> [DeepLink] { components }
-    public static func buildOptional(_ component: [DeepLink]?) -> [DeepLink] { component ?? [] }
-    public static func buildEither(first component: [DeepLink]) -> [DeepLink] { component }
-    public static func buildEither(second component: [DeepLink]) -> [DeepLink] { component }
-    public static func buildArray(_ components: [[DeepLink]]) -> [DeepLink] { components.flatMap { $0 } }
-}
-
-/// The Router's deep-link table. Attach to a Router at construction;
-/// resolve with `router.resolve(url:)` at the app boundary
-/// (SceneDelegate, UNNotification, etc.).
-public struct DeepLinkMap {
-    public let links: [DeepLink]
-
-    public init(@DeepLinkBuilder _ build: () -> [DeepLink] = { [] }) {
-        self.links = build()
-    }
-
-    /// Match a URL against the registered patterns in declaration order.
-    /// Returns the first successful factory's Route, or nil if nothing
-    /// matches or the factory rejects (returns nil from its closure).
-    @MainActor
-    public func resolve(_ url: URL) -> Route? {
-        for link in links {
-            if let params = Self.match(pattern: link.pattern, url: url),
-               let route = link.factory(params) {
-                return route
-            }
-        }
-        return nil
-    }
-
-    /// Match a pattern like `/profile/:id` against a URL's path. Only
-    /// handles static segments and `:name` captures in v1 — no query
-    /// strings, no nested optionals, no regex.
-    static func match(pattern: String, url: URL) -> URLParams? {
-        let patternSegments = pattern.split(separator: "/").map(String.init)
-        let pathSegments = url.path.split(separator: "/").map(String.init)
-        guard patternSegments.count == pathSegments.count else { return nil }
-
-        var params: [String: String] = [:]
-        for (p, v) in zip(patternSegments, pathSegments) {
-            if p.hasPrefix(":") {
-                params[String(p.dropFirst())] = v
-            } else if p != v {
-                return nil
-            }
-        }
-        return URLParams(values: params)
-    }
-}
-
-// MARK: - RouterHandleDelegate
-
-/// Handle-to-owner contract. The handle is a pure dispatch surface:
-/// it owns no state, every method forwards to its delegate. The
-/// owning `RouterModel` is the delegate, which holds the stack, the
-/// pending-result continuations, the deep-link table, and implements
-/// all of the navigation operations.
-///
-/// This separation means the handle stays cheap to construct, can be
-/// handed around freely (to code outside the view tree, to tests
-/// with a custom delegate, etc.) without dragging along any runtime
-/// state. Tests can drop in a mock delegate that records calls
-/// without booting the full view pipeline.
-@MainActor public protocol RouterHandleDelegate: AnyObject {
-    /// Current route stack. `stack[0]` is the first (bottom) route;
-    /// `stack.last` is the top. Read-only from the handle's side.
-    var stack: [Route] { get }
-
-    func push(_ route: Route)
-    func pushForResult<R: Sendable>(_ route: Route) async -> R?
-    func pop(result: Any?)
-    func pop(until predicate: (Route) -> Bool)
-    func popToFirst()
-    func insert(at index: Int, route: Route)
-    func insert(below predicate: (Route) -> Bool, route: Route)
-    func insert(above predicate: (Route) -> Bool, route: Route)
-    func remove(where predicate: (Route) -> Bool, result: Any?, animated: Bool)
-    func remove(at index: Int, result: Any?, animated: Bool)
-    func replace(with routes: [Route])
-    func replaceTop(_ route: Route)
-    func resolve(url: URL) -> Bool
-}
-
-// MARK: - RouterHandle
-
-/// Imperative API for driving a Router. Can be created outside the
-/// view tree and injected into a Router's init; descendants reach
-/// the same instance via `context.router`.
-///
-/// The handle itself is stateless — it forwards every call to its
-/// delegate (the owning `RouterModel`). Operations issued before a
-/// delegate is attached (e.g. against a handle that's been created
-/// but not yet mounted) are silent no-ops.
-@MainActor public final class RouterHandle {
-    /// The delegate that backs this handle's operations. Set by the
-    /// owning `RouterModel` in `didInit(view:)`; weak so the handle
-    /// doesn't keep the model alive. Calls on the handle before the
-    /// delegate is set are silent no-ops.
-    public weak var delegate: RouterHandleDelegate?
-
-    public init() {}
-
-    // MARK: Reads
-
-    /// The full route stack — forwarded from the delegate, or empty
-    /// if no delegate is attached yet.
-    public var stack: [Route] { delegate?.stack ?? [] }
-
-    /// The current top of the stack — the route the user sees. Nil
-    /// before a delegate has seeded its first route.
-    public var top: Route? { stack.last }
-
-    /// The first (bottom) route — what's visible after `popToFirst`.
-    /// Nil before a delegate has seeded the stack.
-    public var first: Route? { stack.first }
-
-    /// Whether a `pop()` would succeed. Equivalent to `stack.count > 1`.
-    public var canPop: Bool { stack.count > 1 }
-
-    /// Whether any route matches the predicate.
-    public func contains(where predicate: (Route) -> Bool) -> Bool {
-        stack.contains(where: predicate)
-    }
-
-    // MARK: Writes
-
-    /// Push a route onto the stack. Fire-and-forget — use
-    /// `pushForResult` if you need a value back.
-    public func push(_ route: Route) {
-        delegate?.push(route)
-    }
-
-    /// Push a route and suspend until it's popped. Returns the result
-    /// value cast to the caller's expected type `R`, or nil if the
-    /// route was popped without a result (user swipe-back, programmatic
-    /// pop without arg, removal via `remove(where:)` etc., or no
-    /// delegate attached).
-    ///
-    /// Caller is responsible for the result type matching the popper's
-    /// argument — mismatches silently yield nil. A mis-cast is almost
-    /// always a bug; consider a named wrapper struct for the result
-    /// payload if the screen's callers vary in how they interpret it.
-    public func pushForResult<R: Sendable>(_ route: Route) async -> R? {
-        guard let delegate else { return nil }
-        return await delegate.pushForResult(route)
-    }
-
-    /// Pop the top route, optionally delivering a result to any
-    /// `pushForResult` caller awaiting that route. No-op if the first
-    /// route is the only one in the stack (see `canPop`).
-    public func pop(result: Any? = nil) {
-        delegate?.pop(result: result)
-    }
-
-    /// Pop until the predicate matches a route remaining at the top,
-    /// or until only the first route is left. Matching route stays on
-    /// the stack. The first route itself can never be popped.
-    public func pop(until predicate: (Route) -> Bool) {
-        delegate?.pop(until: predicate)
-    }
-
-    /// Pop everything above the first route. First stays visible.
-    public func popToFirst() {
-        delegate?.popToFirst()
-    }
-
-    public func insert(at index: Int, route: Route) {
-        delegate?.insert(at: index, route: route)
-    }
-
-    /// Insert a route just below the top-most stack entry matching
-    /// the predicate (searched top-down). No-op if no match.
-    public func insert(below predicate: (Route) -> Bool, route: Route) {
-        delegate?.insert(below: predicate, route: route)
-    }
-
-    /// Insert a route just above the top-most stack entry matching
-    /// the predicate (searched top-down). No-op if no match.
-    public func insert(above predicate: (Route) -> Bool, route: Route) {
-        delegate?.insert(above: predicate, route: route)
-    }
-
-    /// Remove the first route matching the predicate. No-op if the
-    /// removal would leave the stack empty.
-    public func remove(where predicate: (Route) -> Bool, result: Any? = nil, animated: Bool = true) {
-        delegate?.remove(where: predicate, result: result, animated: animated)
-    }
-
-    /// Remove the route at `index`. No-op if out of bounds or if the
-    /// removal would leave the stack empty.
-    public func remove(at index: Int, result: Any? = nil, animated: Bool = true) {
-        delegate?.remove(at: index, result: result, animated: animated)
-    }
-
-    /// Replace the entire stack, including the first route. The new
-    /// array must be non-empty — empty input is treated as no-op.
-    public func replace(with routes: [Route]) {
-        delegate?.replace(with: routes)
-    }
-
-    /// Replace only the top-most route. If the stack has only the
-    /// first route, this replaces the first.
-    public func replaceTop(_ route: Route) {
-        delegate?.replaceTop(route)
-    }
-
-    /// Attempt to resolve the URL through the delegate's registered
-    /// deep-link map and push the resulting route. Returns whether a
-    /// route matched.
-    @discardableResult
-    public func resolve(url: URL) -> Bool {
-        delegate?.resolve(url: url) ?? false
-    }
-}
-
-public extension ViewContext {
-    /// The nearest enclosing Router's handle.
-    var router: RouterHandle { read(RouterHandle.self) }
-
-    /// Optional access to the ancestor Router's handle.
-    var maybeRouter: RouterHandle? { tryRead(RouterHandle.self) }
-
-    /// The enclosing Route's handle — per-route state provided by
-    /// the Router. Provides phase, progress, dismiss, and position info.
-    var route: RouteHandle { read(RouteHandle.self) }
-
-    /// Optional variant of `route`.
-    var maybeRoute: RouteHandle? { tryRead(RouteHandle.self) }
+/// Default model() and builder() for routes that use RouteModel
+/// and RouteContentBuilder without customization.
+public extension Route where Self: ModelView,
+                             Model == RouteModel<Self>,
+                             Builder == RouteContentBuilder<Self> {
+    func model(context: ViewContext) -> RouteModel<Self> { RouteModel(context: context) }
+    func builder(model: RouteModel<Self>) -> RouteContentBuilder<Self> { RouteContentBuilder(model: model) }
 }
 
 // MARK: - RoutePhase
 
-/// The lifecycle phase of a route in the stack.
 public enum RoutePhase: Equatable, Sendable {
-    /// Route is animating in (push). `progress` goes 0→1.
     case entering
-    /// Route is fully visible and interactive.
     case settled
-    /// Another route is animating on top of this one.
     case covered
-    /// Route is animating out (pop). `progress` goes 1→0.
     case exiting
 }
 
 // MARK: - RouteHandle
 
-/// Per-route handle provided to each route's subtree. Exposes
-/// lifecycle state (phase, progress), position info (index, isTop,
-/// isBottom), and a dismiss method. Progress is settable for
-/// interactive gestures (e.g. swipe-to-dismiss).
 @MainActor public protocol RouteHandle: AnyObject {
     var id: UUID { get }
     var index: Int { get }
@@ -370,10 +76,16 @@ public extension RouteHandle {
 
 // MARK: - RouteModel
 
-/// Per-route model conforming to RouteHandle. Created once per Route
-/// by ModelNode and preserved across rebuilds. Derives position info
-/// from the RouterModel's stack on demand.
-public final class RouteModel: ViewModel<Route>, RouteHandle {
+/// Base model for all routes. Extend for per-type state.
+///
+///     // Use as-is for simple routes:
+///     func model(context:) -> RouteModel<Screen> { RouteModel(context: context) }
+///
+///     // Or subclass for custom state:
+///     class SheetModel: RouteModel<Sheet> {
+///         var currentDetent: SheetDetent = .large
+///     }
+open class RouteModel<V: Route>: ViewModel<V>, RouteHandle {
     public var phase: RoutePhase = .entering
     public let progress = Observable<Double>(0)
 
@@ -403,50 +115,409 @@ public final class RouteModel: ViewModel<Route>, RouteHandle {
     }
 }
 
-// MARK: - RouteBuilder
+// MARK: - RouteContentBuilder
 
-public final class RouteBuilder: ViewBuilder<RouteModel> {
-    public override func build(context: ViewContext) -> any View {
+/// Generic builder that renders a route's content and provides
+/// the RouteHandle to descendants. Subclass for custom presentation
+/// (navbar wrapping, scrim, drag handle, etc.).
+open class RouteContentBuilder<V: Route>: ViewBuilder<RouteModel<V>> {
+    open override func build(context: ViewContext) -> any View {
         Provided(model as RouteHandle) {
             model.view.content()
         }
     }
 }
 
+// MARK: - RouteEntry
+
+/// Default generic route. Use for simple push cases where you
+/// don't need a custom type:
+///
+///     router.push(RouteEntry { DetailView() })
+public struct RouteEntry: ModelView, Route {
+    public let id: UUID
+    public let key: AnyHashable?
+    public let content: @MainActor () -> any View
+
+    public init(
+        id: UUID = UUID(),
+        key: AnyHashable? = nil,
+        @ChildBuilder body: @escaping @MainActor () -> any View
+    ) {
+        self.id = id
+        self.key = key
+        self.content = body
+    }
+}
+
+// MARK: - Concrete routes
+
+/// Full-area navigation push. Navbar, back gesture, linear back stack.
+public struct Screen: ModelView, Route {
+    public let id: UUID
+    public let key: AnyHashable?
+    public let content: @MainActor () -> any View
+
+    public init(
+        id: UUID = UUID(),
+        key: AnyHashable? = nil,
+        @ChildBuilder body: @escaping @MainActor () -> any View
+    ) {
+        self.id = id
+        self.key = key
+        self.content = body
+    }
+}
+
+/// Centered overlay sized to content. Scrim, tap-outside or X to dismiss.
+public struct Modal: ModelView, Route {
+    public let id: UUID
+    public let key: AnyHashable?
+    public let content: @MainActor () -> any View
+
+    public init(
+        id: UUID = UUID(),
+        key: AnyHashable? = nil,
+        @ChildBuilder body: @escaping @MainActor () -> any View
+    ) {
+        self.id = id
+        self.key = key
+        self.content = body
+    }
+}
+
+/// Bottom partial overlay with detents and drag handle.
+public struct Sheet: ModelView, Route {
+    public let id: UUID
+    public let key: AnyHashable?
+    public let detents: [SheetDetent]
+    public let content: @MainActor () -> any View
+
+    public init(
+        detents: [SheetDetent] = [.large],
+        id: UUID = UUID(),
+        key: AnyHashable? = nil,
+        @ChildBuilder body: @escaping @MainActor () -> any View
+    ) {
+        self.id = id
+        self.key = key
+        self.detents = detents
+        self.content = body
+    }
+}
+
+public enum SheetDetent: Sendable {
+    case medium
+    case large
+    case custom(Double)
+}
+
+/// Side panel. Scrim, drag or tap scrim to dismiss.
+public struct Drawer: ModelView, Route {
+    public let id: UUID
+    public let key: AnyHashable?
+    public let edge: HorizontalEdge
+    public let content: @MainActor () -> any View
+
+    public init(
+        edge: HorizontalEdge = .leading,
+        id: UUID = UUID(),
+        key: AnyHashable? = nil,
+        @ChildBuilder body: @escaping @MainActor () -> any View
+    ) {
+        self.id = id
+        self.key = key
+        self.edge = edge
+        self.content = body
+    }
+}
+
+public enum HorizontalEdge: Sendable {
+    case leading
+    case trailing
+}
+
+/// Full-screen overlay. X button or programmatic dismiss.
+public struct Cover: ModelView, Route {
+    public let id: UUID
+    public let key: AnyHashable?
+    public let content: @MainActor () -> any View
+
+    public init(
+        id: UUID = UUID(),
+        key: AnyHashable? = nil,
+        @ChildBuilder body: @escaping @MainActor () -> any View
+    ) {
+        self.id = id
+        self.key = key
+        self.content = body
+    }
+}
+
+/// Centered dialog with action buttons. Blocks interaction, scrim.
+public struct Alert: ModelView, Route {
+    public let id: UUID
+    public let key: AnyHashable?
+    public let content: @MainActor () -> any View
+
+    public init(
+        id: UUID = UUID(),
+        key: AnyHashable? = nil,
+        @ChildBuilder body: @escaping @MainActor () -> any View
+    ) {
+        self.id = id
+        self.key = key
+        self.content = body
+    }
+}
+
+/// Full-screen blocker (loading, auth gate). No user dismiss.
+public struct Barrier: ModelView, Route {
+    public let id: UUID
+    public let key: AnyHashable?
+    public let content: @MainActor () -> any View
+
+    public init(
+        id: UUID = UUID(),
+        key: AnyHashable? = nil,
+        @ChildBuilder body: @escaping @MainActor () -> any View
+    ) {
+        self.id = id
+        self.key = key
+        self.content = body
+    }
+}
+
+/// Spotlight overlay highlighting a target element. Tap to advance.
+public struct Coachmark: ModelView, Route {
+    public let id: UUID
+    public let key: AnyHashable?
+    public let content: @MainActor () -> any View
+
+    public init(
+        id: UUID = UUID(),
+        key: AnyHashable? = nil,
+        @ChildBuilder body: @escaping @MainActor () -> any View
+    ) {
+        self.id = id
+        self.key = key
+        self.content = body
+    }
+}
+
+/// Anchored menu at touch point. Tap outside to dismiss.
+public struct ContextMenu: ModelView, Route {
+    public let id: UUID
+    public let key: AnyHashable?
+    public let content: @MainActor () -> any View
+
+    public init(
+        id: UUID = UUID(),
+        key: AnyHashable? = nil,
+        @ChildBuilder body: @escaping @MainActor () -> any View
+    ) {
+        self.id = id
+        self.key = key
+        self.content = body
+    }
+}
+
+/// Full-screen media viewer. Black background, tap/swipe to dismiss.
+public struct Lightbox: ModelView, Route {
+    public let id: UUID
+    public let key: AnyHashable?
+    public let content: @MainActor () -> any View
+
+    public init(
+        id: UUID = UUID(),
+        key: AnyHashable? = nil,
+        @ChildBuilder body: @escaping @MainActor () -> any View
+    ) {
+        self.id = id
+        self.key = key
+        self.content = body
+    }
+}
+
+/// Anchored overlay with arrow pointing to source element.
+public struct Popover: ModelView, Route {
+    public let id: UUID
+    public let key: AnyHashable?
+    public let content: @MainActor () -> any View
+
+    public init(
+        id: UUID = UUID(),
+        key: AnyHashable? = nil,
+        @ChildBuilder body: @escaping @MainActor () -> any View
+    ) {
+        self.id = id
+        self.key = key
+        self.content = body
+    }
+}
+
+/// Small notification. Auto-dismisses, non-blocking.
+public struct Toast: ModelView, Route {
+    public let id: UUID
+    public let key: AnyHashable?
+    public let duration: Double
+    public let position: ToastPosition
+    public let content: @MainActor () -> any View
+
+    public init(
+        duration: Double = 3.0,
+        position: ToastPosition = .bottom,
+        id: UUID = UUID(),
+        key: AnyHashable? = nil,
+        @ChildBuilder body: @escaping @MainActor () -> any View
+    ) {
+        self.id = id
+        self.key = key
+        self.duration = duration
+        self.position = position
+        self.content = body
+    }
+}
+
+public enum ToastPosition: Sendable {
+    case top
+    case bottom
+}
+
+// MARK: - Deep links
+
+public struct DeepLink {
+    public let pattern: String
+    public let factory: @MainActor (URLParams) -> (any Route)?
+
+    public init(
+        _ pattern: String,
+        factory: @escaping @MainActor (URLParams) -> (any Route)?
+    ) {
+        self.pattern = pattern
+        self.factory = factory
+    }
+}
+
+public struct URLParams {
+    public let values: [String: String]
+    public subscript(key: String) -> String? { values[key] }
+}
+
+@resultBuilder
+public struct DeepLinkBuilder {
+    public static func buildBlock(_ components: DeepLink...) -> [DeepLink] { components }
+    public static func buildOptional(_ component: [DeepLink]?) -> [DeepLink] { component ?? [] }
+    public static func buildEither(first component: [DeepLink]) -> [DeepLink] { component }
+    public static func buildEither(second component: [DeepLink]) -> [DeepLink] { component }
+    public static func buildArray(_ components: [[DeepLink]]) -> [DeepLink] { components.flatMap { $0 } }
+}
+
+public struct DeepLinkMap {
+    public let links: [DeepLink]
+
+    public init(@DeepLinkBuilder _ build: () -> [DeepLink] = { [] }) {
+        self.links = build()
+    }
+
+    @MainActor
+    public func resolve(_ url: URL) -> (any Route)? {
+        for link in links {
+            if let params = Self.match(pattern: link.pattern, url: url),
+               let route = link.factory(params) {
+                return route
+            }
+        }
+        return nil
+    }
+
+    static func match(pattern: String, url: URL) -> URLParams? {
+        let patternSegments = pattern.split(separator: "/").map(String.init)
+        let pathSegments = url.path.split(separator: "/").map(String.init)
+        guard patternSegments.count == pathSegments.count else { return nil }
+
+        var params: [String: String] = [:]
+        for (p, v) in zip(patternSegments, pathSegments) {
+            if p.hasPrefix(":") {
+                params[String(p.dropFirst())] = v
+            } else if p != v {
+                return nil
+            }
+        }
+        return URLParams(values: params)
+    }
+}
+
+// MARK: - RouterHandleDelegate
+
+@MainActor public protocol RouterHandleDelegate: AnyObject {
+    var stack: [any Route] { get }
+
+    func push(_ route: any Route)
+    func pushForResult<R: Sendable>(_ route: any Route) async -> R?
+    func pop(result: Any?)
+    func pop(until predicate: (any Route) -> Bool)
+    func popToFirst()
+    func insert(at index: Int, route: any Route)
+    func insert(below predicate: (any Route) -> Bool, route: any Route)
+    func insert(above predicate: (any Route) -> Bool, route: any Route)
+    func remove(where predicate: (any Route) -> Bool, result: Any?, animated: Bool)
+    func remove(at index: Int, result: Any?, animated: Bool)
+    func replace(with routes: [any Route])
+    func replaceTop(_ route: any Route)
+    func resolve(url: URL) -> Bool
+}
+
+// MARK: - RouterHandle
+
+@MainActor public final class RouterHandle {
+    public weak var delegate: RouterHandleDelegate?
+
+    public init() {}
+
+    public var stack: [any Route] { delegate?.stack ?? [] }
+    public var top: (any Route)? { stack.last }
+    public var first: (any Route)? { stack.first }
+    public var canPop: Bool { stack.count > 1 }
+
+    public func contains(where predicate: (any Route) -> Bool) -> Bool {
+        stack.contains(where: predicate)
+    }
+
+    public func push(_ route: any Route) { delegate?.push(route) }
+
+    public func pushForResult<R: Sendable>(_ route: any Route) async -> R? {
+        guard let delegate else { return nil }
+        return await delegate.pushForResult(route)
+    }
+
+    public func pop(result: Any? = nil) { delegate?.pop(result: result) }
+    public func pop(until predicate: (any Route) -> Bool) { delegate?.pop(until: predicate) }
+    public func popToFirst() { delegate?.popToFirst() }
+    public func insert(at index: Int, route: any Route) { delegate?.insert(at: index, route: route) }
+    public func insert(below predicate: (any Route) -> Bool, route: any Route) { delegate?.insert(below: predicate, route: route) }
+    public func insert(above predicate: (any Route) -> Bool, route: any Route) { delegate?.insert(above: predicate, route: route) }
+    public func remove(where predicate: (any Route) -> Bool, result: Any? = nil, animated: Bool = true) { delegate?.remove(where: predicate, result: result, animated: animated) }
+    public func remove(at index: Int, result: Any? = nil, animated: Bool = true) { delegate?.remove(at: index, result: result, animated: animated) }
+    public func replace(with routes: [any Route]) { delegate?.replace(with: routes) }
+    public func replaceTop(_ route: any Route) { delegate?.replaceTop(route) }
+
+    @discardableResult
+    public func resolve(url: URL) -> Bool { delegate?.resolve(url: url) ?? false }
+}
+
+public extension ViewContext {
+    var router: RouterHandle { read(RouterHandle.self) }
+    var maybeRouter: RouterHandle? { tryRead(RouterHandle.self) }
+    var route: RouteHandle { read(RouteHandle.self) }
+    var maybeRoute: RouteHandle? { tryRead(RouteHandle.self) }
+}
+
 // MARK: - UIKit-backed implementation
-//
-// Everything above this line is platform-neutral — Route, RouterHandle,
-// NavigationItem, DeepLinks, RouteContext, and the BuildContext sugar
-// can compile on any Forge platform. Below is the iOS/UIKit-specific
-// rendering: the Router view itself, its Model/Builder, and the
-// UINavigationController-backed host. Porting to AppKit / Android
-// would add parallel sections here.
 
 #if canImport(UIKit)
 import UIKit
 
-// MARK: - Router view
-
-/// A navigation host backed by a `UINavigationController`. The
-/// `@ChildBuilder` closure provides the permanent root view; pushed
-/// routes layer on top via the imperative handle.
-///
-///     Router(deeplinks: DeepLinkMap {
-///         DeepLink("/profile/:id") { params in
-///             guard let id = params["id"].flatMap(Int.init) else { return nil }
-///             return Route { ProfileView(id: id) }
-///         }
-///     }) {
-///         HomeView()
-///     }
-///
-/// Inject a handle from above for out-of-tree navigation (app delegate,
-/// deep-link resolvers):
-///
-///     let handle = RouterHandle()
-///     Router(handle: handle) { HomeView() }
-///     // ...
-///     handle.push(Route { ThreadView(id: 42) })
 public struct Router: ModelView {
     public let providedHandle: RouterHandle?
     public let deeplinks: DeepLinkMap
@@ -479,29 +550,19 @@ public struct Router: ModelView {
 
 public final class RouterModel: ViewModel<Router>, RouterHandleDelegate {
     public let handle: RouterHandle
-    public private(set) var stack: [Route] = []
+    public private(set) var stack: [any Route] = []
 
-    /// Per-route nav item observables, keyed by route id.
     var navItems: [UUID: Observable<NavigationItem>] = [:]
-
-
-    /// Stable id for the initial first-route so the Router can keep
-    /// its view controller across rebuilds AND so `didUpdate` can
-    /// recognize whether the user has since replaced the first.
     let firstRouteID = UUID()
-
-
     private var pendingResults: [UUID: (Any?) -> Void] = [:]
     private let deepLinks: DeepLinkMap
 
-    /// Get or create the nav item observable for a route.
     func navItem(for routeID: UUID) -> Observable<NavigationItem> {
         if let existing = navItems[routeID] { return existing }
         let obs = Observable(NavigationItem())
         navItems[routeID] = obs
         return obs
     }
-
 
     init(context: ViewContext, handle: RouterHandle, deeplinks: DeepLinkMap) {
         self.handle = handle
@@ -513,34 +574,31 @@ public final class RouterModel: ViewModel<Router>, RouterHandleDelegate {
         super.didInit(view: view)
         if stack.isEmpty {
             let firstView = view.root
-            stack = [Route(id: firstRouteID) { firstView }]
+            stack = [Screen(id: firstRouteID) { firstView }]
         }
         handle.delegate = self
     }
 
     public override func didUpdate(newView: Router) {
         super.didUpdate(newView: newView)
-        // Parent rebuilt with a new Router value — stack[0]'s body
-        // closure may have captured new props. Refresh it in place
-        // (same id, new closure). If the user has since replaced the
-        // first with a different route, leave it alone.
         if !stack.isEmpty, stack[0].id == firstRouteID {
             let firstView = newView.root
-            stack[0] = Route(id: firstRouteID) { firstView }
+            stack[0] = Screen(id: firstRouteID) { firstView }
         }
     }
 
     public override func didDispose() {
+        super.didDispose()
         if handle.delegate === self { handle.delegate = nil }
     }
 
-    // MARK: - RouterHandleDelegate — mutation ops dispatch direct
+    // MARK: - RouterHandleDelegate
 
-    public func push(_ route: Route) {
+    public func push(_ route: any Route) {
         rebuild { stack.append(route) }
     }
 
-    public func pushForResult<R: Sendable>(_ route: Route) async -> R? {
+    public func pushForResult<R: Sendable>(_ route: any Route) async -> R? {
         await withCheckedContinuation { (continuation: CheckedContinuation<R?, Never>) in
             pendingResults[route.id] = { any in
                 continuation.resume(returning: any as? R)
@@ -557,7 +615,7 @@ public final class RouterModel: ViewModel<Router>, RouterHandleDelegate {
         }
     }
 
-    public func pop(until predicate: (Route) -> Bool) {
+    public func pop(until predicate: (any Route) -> Bool) {
         rebuild {
             while stack.count > 1, let top = stack.last, !predicate(top) {
                 let r = stack.removeLast()
@@ -576,24 +634,24 @@ public final class RouterModel: ViewModel<Router>, RouterHandleDelegate {
         }
     }
 
-    public func insert(at index: Int, route: Route) {
+    public func insert(at index: Int, route: any Route) {
         rebuild {
             let clamped = max(0, min(index, stack.count))
             stack.insert(route, at: clamped)
         }
     }
 
-    public func insert(below predicate: (Route) -> Bool, route: Route) {
+    public func insert(below predicate: (any Route) -> Bool, route: any Route) {
         guard let idx = stack.lastIndex(where: predicate) else { return }
         rebuild { stack.insert(route, at: idx) }
     }
 
-    public func insert(above predicate: (Route) -> Bool, route: Route) {
+    public func insert(above predicate: (any Route) -> Bool, route: any Route) {
         guard let idx = stack.lastIndex(where: predicate) else { return }
         rebuild { stack.insert(route, at: idx + 1) }
     }
 
-    public func remove(where predicate: (Route) -> Bool, result: Any? = nil, animated: Bool = true) {
+    public func remove(where predicate: (any Route) -> Bool, result: Any? = nil, animated: Bool = true) {
         guard let idx = stack.firstIndex(where: predicate),
               stack.count > 1 else { return }
         rebuild {
@@ -610,7 +668,7 @@ public final class RouterModel: ViewModel<Router>, RouterHandleDelegate {
         }
     }
 
-    public func replace(with routes: [Route]) {
+    public func replace(with routes: [any Route]) {
         guard !routes.isEmpty else { return }
         rebuild {
             for route in stack { resolveResult(for: route, with: nil) }
@@ -618,7 +676,7 @@ public final class RouterModel: ViewModel<Router>, RouterHandleDelegate {
         }
     }
 
-    public func replaceTop(_ route: Route) {
+    public func replaceTop(_ route: any Route) {
         rebuild {
             if !stack.isEmpty {
                 let popped = stack.removeLast()
@@ -635,7 +693,7 @@ public final class RouterModel: ViewModel<Router>, RouterHandleDelegate {
         return true
     }
 
-    private func resolveResult(for route: Route, with value: Any?) {
+    private func resolveResult(for route: any Route, with value: Any?) {
         guard let resolver = pendingResults.removeValue(forKey: route.id) else { return }
         resolver(value)
     }
@@ -649,9 +707,6 @@ public final class RouterBuilder: ViewBuilder<RouterModel> {
         let topID = stack.last?.id
         let topNavItem: Observable<NavigationItem>? = topID.map { model.navItem(for: $0) }
 
-        // Each Route is a ModelView — its RouteModel (conforming to
-        // RouteHandle) is created once and preserved by the node tree.
-        // The model reads position/router from context, not from the struct.
         let routeViews: [any View] = stack.map { route in
             let isTop = route.id == topID
             let navItemObs = model.navItem(for: route.id)
@@ -662,7 +717,6 @@ public final class RouterBuilder: ViewBuilder<RouterModel> {
             }.id(route.id)
         }
 
-        // NavigationBar driven by the topmost route's nav item.
         let navbar: any View = Buildable { ctx in
             guard let obs = topNavItem else { return EmptyView() }
             let item = ctx.watch(obs)

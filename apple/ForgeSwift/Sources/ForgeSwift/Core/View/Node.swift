@@ -105,6 +105,16 @@ class ProxyView: NSView {
     /// renderer, model, builder, and child subtree.
     func setup(from view: any View) {
         self.view = view
+        populateRef(view)
+    }
+
+    /// Auto-populate a Ref<V> if one was provided from an ancestor.
+    /// Opens the existential to get the concrete view type, then looks
+    /// for a Provided Ref keyed by that type.
+    private func populateRef<V: View>(_ view: V) {
+        if let ref = findSlot(Ref<V>.self)?.observable.value {
+            ref.node = self
+        }
     }
 
     /// Apply a new view to this node in place. Base class unwraps

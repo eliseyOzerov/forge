@@ -67,10 +67,10 @@ final class DeepLinkTests: XCTestCase {
         let map = DeepLinkMap {
             DeepLink("/profile/:id") { params in
                 guard params["id"] != nil else { return nil }
-                return Route { EmptyView() }
+                return Screen { EmptyView() }
             }
             DeepLink("/settings") { _ in
-                Route { EmptyView() }
+                Screen { EmptyView() }
             }
         }
 
@@ -82,10 +82,10 @@ final class DeepLinkTests: XCTestCase {
     func testResolveSecondMatch() {
         let map = DeepLinkMap {
             DeepLink("/profile/:id") { _ in
-                Route { EmptyView() }
+                Screen { EmptyView() }
             }
             DeepLink("/settings") { _ in
-                Route { EmptyView() }
+                Screen { EmptyView() }
             }
         }
 
@@ -97,7 +97,7 @@ final class DeepLinkTests: XCTestCase {
     func testResolveNoMatch() {
         let map = DeepLinkMap {
             DeepLink("/profile/:id") { _ in
-                Route { EmptyView() }
+                Screen { EmptyView() }
             }
         }
 
@@ -111,7 +111,7 @@ final class DeepLinkTests: XCTestCase {
             DeepLink("/profile/:id") { params in
                 // Reject non-numeric ids
                 guard let _ = params["id"].flatMap(Int.init) else { return nil }
-                return Route { EmptyView() }
+                return Screen { EmptyView() }
             }
         }
 
@@ -125,11 +125,11 @@ final class DeepLinkTests: XCTestCase {
             DeepLink("/item/:id") { params in
                 // Only accept numeric
                 guard let _ = params["id"].flatMap(Int.init) else { return nil }
-                return Route(key: "numeric") { EmptyView() }
+                return Screen(key: "numeric") { EmptyView() }
             }
             DeepLink("/item/:id") { _ in
                 // Catch-all
-                return Route(key: "catchall") { EmptyView() }
+                return Screen(key: "catchall") { EmptyView() }
             }
         }
 

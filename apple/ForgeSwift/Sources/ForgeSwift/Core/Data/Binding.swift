@@ -5,7 +5,7 @@
     /// Create a binding backed by a mutable reference cell.
     /// Reads and writes go to the stored value directly.
     public init(_ initial: Value) {
-        let storage = Ref(initial)
+        let storage = RefBox(initial)
         self.getter = { storage.value }
         self.setter = { storage.value = $0 }
     }
@@ -31,7 +31,7 @@
 }
 
 /// Simple reference-type box for value storage.
-private final class Ref<T> {
+private final class RefBox<T> {
     var value: T
     init(_ value: T) { self.value = value }
 }
