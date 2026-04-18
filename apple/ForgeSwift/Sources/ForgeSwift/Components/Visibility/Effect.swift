@@ -2,35 +2,69 @@
 import UIKit
 import CoreImage
 
-// MARK: - EffectView
+// MARK: - Effect
 
-/// Wraps a child and applies visual-only effects to its platform view.
-/// No layout impact — the child is measured and positioned normally,
-/// then effects are applied after layout.
-struct EffectView: LeafView {
-    let child: any View
-    let effect: VisualEffect
+/// A chain of visual operations applied to a view without affecting
+/// layout. Built with a fluent API:
+///
+///     view.effect { $0.scale(1.5).blur(8).opacity(0.5) }
+///
+// TODO: Metal shader filter support
+// The .filter() pipeline currently uses CIFilter (snapshot → CIImage → process → CGImage).
+// To support Metal shaders:
+// 1. Add a shared MTLDevice + MTLCommandQueue (MetalContext singleton)
+// 2. Add a .metalFilter(shader:configure:) method
+// 3. Same pipeline: CIImage → MTLTexture → shader → MTLTexture → CIImage
 
-    func makeRenderer() -> Renderer {
-        EffectRenderer(view: self)
+public final class Effect {
+    private(set) var operations: [EffectOp] = []
+
+    public init() {}
+
+    @discardableResult
+    public func scale(_ s: Double, anchor: Alignment = .center) -> Effect {
+        scale(s, s, anchor: anchor)
+    }
+
+    @discardableResult
+    public func scale(_ x: Double, _ y: Double, anchor: Alignment = .center) -> Effect {
+        operations.append(.scale(x: x, y: y, anchor: anchor)); return self
+    }
+
+    @discardableResult
+    public func rotate(_ angle: Double, anchor: Alignment = .center, perspective: Double? = nil) -> Effect {
+        operations.append(.rotate(angle: angle, anchor: anchor, perspective: perspective)); return self
+    }
+
+    @discardableResult
+    public func opacity(_ value: Double) -> Effect {
+        operations.append(.opacity(value)); return self
+    }
+
+    @discardableResult
+    public func offset(_ x: Double = 0, _ y: Double = 0, fractional: Bool = false) -> Effect {
+        operations.append(.offset(x: x, y: y, fractional: fractional)); return self
+    }
+
+    @discardableResult
+    public func blur(_ radius: Double) -> Effect {
+        operations.append(.blur(radius)); return self
+    }
+
+    @discardableResult
+    public func filter(_ process: @escaping @MainActor (CIImage) -> CIImage?) -> Effect {
+        operations.append(.filter(process)); return self
+    }
+
+    @discardableResult
+    public func clip(_ shape: Shape) -> Effect {
+        operations.append(.clip(shape)); return self
     }
 }
 
-// MARK: - VisualEffect
+// MARK: - EffectOp
 
-// TODO: Metal shader filter support
-// The .filter() pipeline currently uses CIFilter (snapshot → CIImage → process → CALayer).
-// To support Metal shaders with the same pipeline:
-// 1. Add a shared MTLDevice + MTLCommandQueue on ForgeSwift (e.g. a MetalContext singleton)
-// 2. Compile .metal shader files from the SDK or app bundle into MTLLibrary
-// 3. Add a .metalFilter(shader:configure:) modifier that:
-//    a. Converts CIImage → MTLTexture via CIContext.render(_:to:)
-//    b. Encodes a compute pass with the shader pipeline + input/output textures
-//    c. Converts output MTLTexture → CIImage via CIImage(mtlTexture:)
-// 4. The existing applyFilter(to:filter:) method works unchanged — Metal
-//    is just a different implementation of the (CIImage) -> CIImage? closure.
-
-enum VisualEffect {
+enum EffectOp {
     case scale(x: Double, y: Double, anchor: Alignment)
     case rotate(angle: Double, anchor: Alignment, perspective: Double?)
     case opacity(Double)
@@ -38,6 +72,31 @@ enum VisualEffect {
     case blur(Double)
     case filter(@MainActor (CIImage) -> CIImage?)
     case clip(Shape)
+
+    var isFilter: Bool {
+        switch self {
+        case .blur, .filter: true
+        default: false
+        }
+    }
+
+    var isTransform: Bool {
+        switch self {
+        case .scale, .rotate, .offset: true
+        default: false
+        }
+    }
+}
+
+// MARK: - EffectView
+
+struct EffectView: LeafView {
+    let child: any View
+    let effect: Effect
+
+    func makeRenderer() -> Renderer {
+        EffectRenderer(view: self)
+    }
 }
 
 // MARK: - EffectRenderer
@@ -58,7 +117,7 @@ final class EffectRenderer: Renderer {
         let childPlatform = host.resolver.mount(view.child)
         host.childPlatform = childPlatform
         host.addSubview(childPlatform)
-        host.effect = view.effect
+        host.operations = view.effect.operations
         return host
     }
 
@@ -66,48 +125,63 @@ final class EffectRenderer: Renderer {
         guard let ev = newView as? EffectView, let host = hostView else { return }
         view = ev
 
+        var childChanged = false
         if let existing = host.resolver.rootNode, existing.canUpdate(to: ev.child) {
             existing.update(from: ev.child)
+            childChanged = true
         } else {
             host.subviews.forEach { $0.removeFromSuperview() }
             let childPlatform = host.resolver.mount(ev.child)
             host.childPlatform = childPlatform
             host.addSubview(childPlatform)
+            childChanged = true
         }
 
-        host.effect = ev.effect
+        if childChanged {
+            host.invalidateSnapshot()
+        }
+        host.operations = ev.effect.operations
     }
 }
 
 // MARK: - EffectHostView
 
-/// Host view that manages two rendering paths:
+/// Three-stage cached pipeline:
 ///
-/// **Direct path** (scale, rotate, offset, opacity, clip):
-/// Transforms applied directly to the child's layer after layout.
+/// 1. **Snapshot** — child rendered at identity. Cached as CIImage.
+///    Invalidated when child content changes.
+/// 2. **Filter** — blur/CIFilter applied to snapshot. Cached as CGImage.
+///    Invalidated when filter ops change or snapshot invalidates.
+/// 3. **Transform** — scale/rotate/offset applied to the output layer.
+///    Just layer properties, no re-render.
 ///
-/// **Filter path** (blur, future Metal shaders):
-/// Child is snapshotted, processed through a filter pipeline,
-/// and the result is displayed in a sublayer. The child stays in
-/// the hierarchy (opacity 0) for hit testing and interaction.
-/// The filter sublayer receives transforms instead.
+/// Opacity and clip are applied to the output layer directly.
+/// When no filters are active, transforms go on the child's layer
+/// (no snapshot needed).
 final class EffectHostView: UIView {
     let resolver = Resolver()
     weak var childPlatform: UIView?
 
-    /// Sublayer that displays filtered content. Sits above the child
-    /// in the layer hierarchy. Only active when a filter effect is applied.
-    private var filterLayer: CALayer?
+    private var outputLayer: CALayer?
 
-    /// Shared CIContext for GPU-accelerated filter processing.
-    /// Reused across frames to avoid setup cost.
+    // Cache
+    private var cachedSnapshot: CIImage?
+    private var cachedFilterResult: CGImage?
+    private var cachedFilterOps: [ObjectIdentifier] = [] // identity tokens for filter ops
+    private var snapshotSize: CGSize = .zero
+
     private static let ciContext = CIContext(options: [
         .useSoftwareRenderer: false,
         .cacheIntermediates: false,
     ])
 
-    var effect: VisualEffect = .opacity(1) {
-        didSet { setNeedsLayout() }
+    var operations: [EffectOp] = [] {
+        didSet { applyOperations() }
+    }
+
+    func invalidateSnapshot() {
+        cachedSnapshot = nil
+        cachedFilterResult = nil
     }
 
     override func sizeThatFits(_ size: CGSize) -> CGSize {
@@ -123,55 +197,52 @@ final class EffectHostView: UIView {
         super.layoutSubviews()
         guard let child = childPlatform else { return }
 
-        // Reset child to identity for clean frame assignment
+        // Reset child for clean layout
         child.layer.transform = CATransform3DIdentity
         child.layer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
         child.layer.opacity = 1
         child.layer.mask = nil
+        child.isHidden = false
         child.frame = bounds
 
-        // Clear filter layer
-        filterLayer?.removeFromSuperlayer()
-        filterLayer = nil
+        // Bounds changed → snapshot invalid
+        if bounds.size != snapshotSize {
+            invalidateSnapshot()
+            snapshotSize = bounds.size
+        }
 
-        switch effect {
-        case .scale(let x, let y, let anchor):
-            child.layer.anchorPoint = anchor.anchorPoint
-            child.layer.transform = CATransform3DMakeScale(x, y, 1)
+        applyOperations()
+    }
 
-        case .rotate(let angle, let anchor, let perspective):
-            child.layer.anchorPoint = anchor.anchorPoint
-            var t = CATransform3DIdentity
-            if let p = perspective { t.m34 = -p }
-            t = CATransform3DRotate(t, angle, 0, 0, 1)
-            child.layer.transform = t
+    private func applyOperations() {
+        guard let child = childPlatform else { return }
 
-        case .opacity(let alpha):
-            child.layer.opacity = Float(alpha)
+        // Reset child
+        child.layer.transform = CATransform3DIdentity
+        child.layer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+        child.layer.opacity = 1
+        child.layer.mask = nil
+        child.isHidden = false
+        outputLayer?.removeFromSuperlayer()
+        outputLayer = nil
 
-        case .offset(let x, let y, let fractional):
-            if fractional {
-                let tx = x * Double(bounds.width)
-                let ty = y * Double(bounds.height)
-                child.layer.transform = CATransform3DMakeTranslation(tx, ty, 0)
-            } else {
-                child.layer.transform = CATransform3DMakeTranslation(x, y, 0)
-            }
+        let hasFilters = operations.contains { $0.isFilter }
 
-        case .blur(let radius):
-            if radius > 0 {
-                applyFilter(to: child) { input in
-                    let f = CIFilter(name: "CIGaussianBlur")!
-                    f.setValue(input, forKey: kCIInputImageKey)
-                    f.setValue(radius, forKey: kCIInputRadiusKey)
-                    return f.outputImage
-                }
-            }
+        if hasFilters {
+            applyWithFilters(child: child)
+        } else {
+            applyDirect(child: child)
+        }
+    }
 
-        case .filter(let process):
-            applyFilter(to: child, filter: process)
+    // MARK: - Direct path (no filters)
 
-        case .clip(let shape):
+    private func applyDirect(child: UIView) {
+        let (transform, anchor, opacity, clipShape) = buildLayerProps()
+        child.layer.anchorPoint = anchor
+        child.layer.transform = transform
+        if let opacity { child.layer.opacity = Float(opacity) }
+        if let shape = clipShape {
             let mask = CAShapeLayer()
             mask.frame = child.bounds
             mask.path = shape.resolve(in: Rect(child.bounds)).cgPath
@@ -179,68 +250,193 @@ final class EffectHostView: UIView {
         }
     }
 
-    // MARK: - Filter pipeline
+    // MARK: - Filter path (cached pipeline)
 
-    /// Snapshot the child, process through a filter, display result
-    /// in a sublayer. The child becomes invisible but stays interactive.
-    ///
-    /// The filter closure receives a CIImage and returns a processed
-    /// CIImage. This is the plug point for CIFilter chains or future
-    /// Metal shader pipelines.
-    private func applyFilter(
-        to child: UIView,
-        filter: (CIImage) -> CIImage?
-    ) {
-        let size = child.bounds.size
-        guard size.width > 0, size.height > 0 else { return }
+    private func applyWithFilters(child: UIView) {
+        guard bounds.width > 0, bounds.height > 0 else { return }
 
         let scale = UIScreen.main.scale
+        let filterOpsChanged = hasFilterOpsChanged()
 
-        // 1. Snapshot child's layer
+        // Stage 1: Snapshot (reuse if valid)
+        if cachedSnapshot == nil {
+            cachedSnapshot = captureSnapshot(of: child, scale: scale)
+            cachedFilterResult = nil // snapshot changed → filter invalid
+        }
+
+        // Stage 2: Filter (reuse if valid)
+        if cachedFilterResult == nil || filterOpsChanged {
+            if let snapshot = cachedSnapshot {
+                cachedFilterResult = applyFilterChain(to: snapshot, scale: scale)
+                updateFilterOpsIdentity()
+            }
+        }
+
+        // Stage 3: Display with transforms
+        guard let result = cachedFilterResult else { return }
+        let fl = makeOutputLayer(cgImage: result, scale: scale)
+        applyTransformsToLayer(fl)
+        layer.addSublayer(fl)
+        outputLayer = fl
+        child.isHidden = true
+    }
+
+    private func captureSnapshot(of child: UIView, scale: CGFloat) -> CIImage? {
+        let savedClips = disableClipping(in: child)
+        defer { restoreClipping(savedClips) }
+
         let renderer = UIGraphicsImageRenderer(
-            size: size,
+            size: bounds.size,
             format: {
                 let f = UIGraphicsImageRendererFormat()
                 f.scale = scale
                 return f
             }()
         )
-        let snapshot = renderer.image { ctx in
+        let image = renderer.image { ctx in
             child.layer.render(in: ctx.cgContext)
         }
+        return CIImage(image: image)
+    }
 
-        guard let ciInput = CIImage(image: snapshot),
-              let ciOutput = filter(ciInput) else { return }
+    private func applyFilterChain(to input: CIImage, scale: CGFloat) -> CGImage? {
+        var ciImage = input
+        for op in operations {
+            switch op {
+            case .blur(let radius) where radius > 0:
+                let f = CIFilter(name: "CIGaussianBlur")!
+                f.setValue(ciImage, forKey: kCIInputImageKey)
+                f.setValue(radius * Double(scale), forKey: kCIInputRadiusKey)
+                if let out = f.outputImage { ciImage = out }
+            case .filter(let process):
+                if let out = process(ciImage) { ciImage = out }
+            default: break
+            }
+        }
+        return Self.ciContext.createCGImage(ciImage, from: ciImage.extent)
+    }
 
-        // 2. Render the processed image. The output may be larger than
-        //    the input (e.g. blur expands edges). We render the full
-        //    output extent and position the layer to account for the
-        //    expansion.
-        let inputExtent = ciInput.extent
-        let outputExtent = ciOutput.extent
-        guard let cgImage = Self.ciContext.createCGImage(ciOutput, from: outputExtent) else { return }
-
-        // 3. Display in a sublayer
+    private func makeOutputLayer(cgImage: CGImage, scale: CGFloat) -> CALayer {
         let fl = CALayer()
         fl.contents = cgImage
         fl.contentsScale = scale
         fl.contentsGravity = .center
 
-        // Position: account for the expansion (blur extends beyond original bounds)
-        let dx = outputExtent.origin.x - inputExtent.origin.x
-        let dy = outputExtent.origin.y - inputExtent.origin.y
+        // The filter output extent may differ from input (blur expands).
+        // Center the output on the host's bounds.
+        let w = CGFloat(cgImage.width) / scale
+        let h = CGFloat(cgImage.height) / scale
         fl.frame = CGRect(
-            x: dx / scale,
-            y: -dy / scale - (outputExtent.height - inputExtent.height) / scale,
-            width: outputExtent.width / scale,
-            height: outputExtent.height / scale
+            x: (bounds.width - w) / 2,
+            y: (bounds.height - h) / 2,
+            width: w,
+            height: h
         )
+        return fl
+    }
 
-        layer.addSublayer(fl)
-        filterLayer = fl
+    private func applyTransformsToLayer(_ fl: CALayer) {
+        let (transform, anchor, opacity, clipShape) = buildLayerProps()
+        fl.anchorPoint = anchor
+        fl.transform = transform
+        if let opacity { fl.opacity = Float(opacity) }
+        if let shape = clipShape {
+            let mask = CAShapeLayer()
+            mask.frame = fl.bounds
+            mask.path = shape.resolve(in: Rect(fl.bounds)).cgPath
+            fl.mask = mask
+        }
+    }
 
-        // 4. Hide child visually, keep for interaction
-        child.layer.opacity = 0
+    // MARK: - Transform builder
+
+    /// Build the final transform, anchor, opacity, and clip from
+    /// the operations list. Scale and rotate compose around the anchor.
+    /// Offset is applied in parent space (independent of rotation).
+    private func buildLayerProps() -> (
+        transform: CATransform3D,
+        anchor: CGPoint,
+        opacity: Double?,
+        clip: Shape?
+    ) {
+        var scaleRotate = CATransform3DIdentity
+        var anchor = CGPoint(x: 0.5, y: 0.5)
+        var offsetX = 0.0
+        var offsetY = 0.0
+        var opacity: Double?
+        var clipShape: Shape?
+
+        for op in operations {
+            switch op {
+            case .scale(let x, let y, let a):
+                anchor = a.anchorPoint
+                scaleRotate = CATransform3DScale(scaleRotate, x, y, 1)
+            case .rotate(let angle, let a, let perspective):
+                anchor = a.anchorPoint
+                if let p = perspective { scaleRotate.m34 = -p }
+                scaleRotate = CATransform3DRotate(scaleRotate, angle, 0, 0, 1)
+            case .offset(let x, let y, let fractional):
+                offsetX += fractional ? x * Double(bounds.width) : x
+                offsetY += fractional ? y * Double(bounds.height) : y
+            case .opacity(let a):
+                opacity = a
+            case .clip(let shape):
+                clipShape = shape
+            default: break
+            }
+        }
+
+        // Compose: offset in parent space, then scale+rotate around anchor
+        // CATransform3DConcat(A, B) = A * B, applied as B(A(point))
+        // We want: first scaleRotate around anchor, then offset in parent space
+        // = offset * scaleRotate
+        let offset = CATransform3DMakeTranslation(offsetX, offsetY, 0)
+        let transform = CATransform3DConcat(scaleRotate, offset)
+
+        return (transform, anchor, opacity, clipShape)
+    }
+
+    // MARK: - Filter ops change detection
+
+    /// Simple identity check: did the filter operations change since
+    /// last render? Uses the blur radius values as identity tokens.
+    private var lastFilterSignature: [Double] = []
+
+    private func hasFilterOpsChanged() -> Bool {
+        let sig = filterSignature()
+        return sig != lastFilterSignature
+    }
+
+    private func updateFilterOpsIdentity() {
+        lastFilterSignature = filterSignature()
+    }
+
+    private func filterSignature() -> [Double] {
+        operations.compactMap { op in
+            switch op {
+            case .blur(let r): r
+            default: nil
+            }
+        }
+    }
+
+    // MARK: - Clipping helpers
+
+    private func disableClipping(in view: UIView) -> [UIView] {
+        var clipped: [UIView] = []
+        func walk(_ v: UIView) {
+            if v.clipsToBounds {
+                clipped.append(v)
+                v.clipsToBounds = false
+            }
+            for sub in v.subviews { walk(sub) }
+        }
+        walk(view)
+        return clipped
+    }
+
+    private func restoreClipping(_ views: [UIView]) {
+        for v in views { v.clipsToBounds = true }
     }
 }
 
@@ -252,40 +448,14 @@ extension Alignment {
     }
 }
 
-// MARK: - View modifiers
+// MARK: - View modifier
 
 public extension View {
-    func scale(_ s: Double, anchor: Alignment = .center) -> some View {
-        scale(s, s, anchor: anchor)
-    }
-
-    func scale(_ x: Double, _ y: Double, anchor: Alignment = .center) -> some View {
-        EffectView(child: self, effect: .scale(x: x, y: y, anchor: anchor))
-    }
-
-    func rotate(_ angle: Double, anchor: Alignment = .center, perspective: Double? = nil) -> some View {
-        EffectView(child: self, effect: .rotate(angle: angle, anchor: anchor, perspective: perspective))
-    }
-
-    func opacity(_ value: Double) -> some View {
-        EffectView(child: self, effect: .opacity(value))
-    }
-
-    func offset(_ x: Double = 0, _ y: Double = 0, fractional: Bool = false) -> some View {
-        EffectView(child: self, effect: .offset(x: x, y: y, fractional: fractional))
-    }
-
-    func blur(_ radius: Double) -> some View {
-        EffectView(child: self, effect: .blur(radius))
-    }
-
-    /// Apply an arbitrary CIFilter chain to this view's rendered content.
-    func filter(_ process: @escaping @MainActor (CIImage) -> CIImage?) -> some View {
-        EffectView(child: self, effect: .filter(process))
-    }
-
-    func clip(_ shape: Shape) -> some View {
-        EffectView(child: self, effect: .clip(shape))
+    /// Apply a chain of visual effects without affecting layout.
+    ///
+    ///     view.effect { $0.scale(1.5).blur(8).opacity(0.5) }
+    func effect(_ build: (Effect) -> Effect) -> some View {
+        EffectView(child: self, effect: build(Effect()))
     }
 }
 
