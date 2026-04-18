@@ -295,6 +295,30 @@ public struct Observing<T>: BuiltView {
     }
 }
 
+// MARK: - Offstage
+
+/// Keeps its child mounted in the node tree (preserving state) but
+/// hidden and excluded from layout when `offstage` is true. When
+/// `offstage` is false the child renders and lays out normally.
+///
+/// Used by Router to keep pushed-but-not-visible routes alive
+/// without rebuilding them or including them in layout.
+///
+///     Offstage(offstage: !isVisible) {
+///         ExpensiveView()
+///     }
+public struct Offstage: View {
+    public let offstage: Bool
+    public let child: any View
+
+    public init(offstage: Bool = true, @ChildBuilder child: () -> any View) {
+        self.offstage = offstage
+        self.child = child()
+    }
+
+    public func makeNode() -> Node { OffstageNode() }
+}
+
 // MARK: - Container
 
 /// A View with a fixed list of child views and a native container

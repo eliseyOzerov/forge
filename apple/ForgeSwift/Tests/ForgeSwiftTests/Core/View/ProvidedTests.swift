@@ -124,12 +124,12 @@ final class ProvidedTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(log.values.count, 2)
     }
 
-    // MARK: - maybeWatch
+    // MARK: - tryWatch
 
-    func testMaybeWatchReturnsNilWhenAbsent() {
+    func testTryWatchReturnsNilWhenAbsent() {
         let log = BuildLog<Theme?>()
         let tree = Buildable { ctx in
-            log.values.append(ctx.maybeWatch(Theme.self))
+            log.values.append(ctx.tryWatch(Theme.self))
             return TestLeaf(label: "")
         }
         _ = Node.inflate(tree)
@@ -137,11 +137,11 @@ final class ProvidedTests: XCTestCase {
         XCTAssertNil(log.values[0])
     }
 
-    func testMaybeWatchReturnsValueWhenPresent() {
+    func testTryWatchReturnsValueWhenPresent() {
         let log = BuildLog<Theme?>()
         let tree = Provided(Theme(name: "found")) {
             Buildable { ctx in
-                log.values.append(ctx.maybeWatch(Theme.self))
+                log.values.append(ctx.tryWatch(Theme.self))
                 return TestLeaf(label: "")
             }
         }

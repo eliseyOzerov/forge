@@ -26,532 +26,23 @@
 
 import Foundation
 
-// MARK: - NavBarContentRow
-
-/// Three-slot horizontal layout: leading, main, trailing.
-/// Main is sized to the remaining space after leading/trailing are
-/// measured. Horizontal positioning of main depends on `centerMode`:
-///
-/// - `.absolute`: center main in the bar's full width. If that would
-///   overlap leading or trailing, fall back to centering in the
-///   remaining space between them.
-/// - `.between`: always center main in the remaining space between
-///   leading and trailing.
-///
-/// `alignment` controls where main sits when not centering:
-/// `.leading` pushes it flush after leading, `.trailing` flush before
-/// trailing. Default `.center` uses the `centerMode` logic.
-public struct NavBarContentRow: ContainerView {
-    public let leading: (any View)?
-    public let main: (any View)?
-    public let trailing: (any View)?
-    public let alignment: Alignment
-    public let centerMode: NavBarCenterMode
-    public let children: [any View]
-
-    public init(
-        leading: (any View)? = nil,
-        main: (any View)? = nil,
-        trailing: (any View)? = nil,
-        alignment: Alignment = .center,
-        centerMode: NavBarCenterMode = .absolute
-    ) {
-        self.leading = leading
-        self.main = main
-        self.trailing = trailing
-        self.alignment = alignment
-        self.centerMode = centerMode
-        self.children = [
-            leading ?? EmptyView(),
-            main ?? EmptyView(),
-            trailing ?? EmptyView(),
-        ]
-    }
-
-    public func makeRenderer() -> ContainerRenderer {
-        NavBarContentRowRenderer(view: self)
-    }
-}
-
-public enum NavBarCenterMode: Equatable, Sendable {
-    /// Center main in the bar's full width. Falls back to `.between`
-    /// if main would overlap leading or trailing.
-    case absolute
-    /// Center main in the space between leading and trailing.
-    case between
-}
-
-// MARK: - NavBarContentRowRenderer
-
-final class NavBarContentRowRenderer: ContainerRenderer {
-    private weak var rowView: NavBarContentRowView?
-    private var view: NavBarContentRow
-
-    init(view: NavBarContentRow) {
-        self.view = view
-    }
-
-    func mount() -> PlatformView {
-        let rv = NavBarContentRowView()
-        self.rowView = rv
-        rv.mainAlignment = view.alignment
-        rv.centerMode = view.centerMode
-        return rv
-    }
-
-    func update(from newView: any View) {
-        guard let row = newView as? NavBarContentRow, let rv = rowView else { return }
-        let old = view
-        view = row
-
-        var needsLayout = false
-
-        if old.alignment != row.alignment {
-            rv.mainAlignment = row.alignment
-            needsLayout = true
-        }
-        if old.centerMode != row.centerMode {
-            rv.centerMode = row.centerMode
-            needsLayout = true
-        }
-
-        if needsLayout { rv.setNeedsLayout() }
-    }
-
-    func insert(_ platformView: PlatformView, at index: Int, into container: PlatformView) {
-        container.insertSubview(platformView, at: index)
-    }
-
-    func remove(_ platformView: PlatformView, from container: PlatformView) {
-        platformView.removeFromSuperview()
-    }
-
-    func move(_ platformView: PlatformView, to index: Int, in container: PlatformView) {
-        platformView.removeFromSuperview()
-        container.insertSubview(platformView, at: index)
-    }
-
-    func index(of platformView: PlatformView, in container: PlatformView) -> Int? {
-        container.subviews.firstIndex(of: platformView)
-    }
-}
-
-// MARK: - NavBarContentRowView
-
-#if canImport(UIKit)
-import UIKit
-
-final class NavBarContentRowView: UIView {
-    var mainAlignment: Alignment = .center
-    var centerMode: NavBarCenterMode = .absolute
-
-    override func sizeThatFits(_ size: CGSize) -> CGSize {
-        let children = subviews
-        guard children.count == 3 else { return .zero }
-        let h = children.map({ $0.sizeThatFits(size).height }).max() ?? 0
-        return CGSize(width: size.width, height: h)
-    }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        let children = subviews
-        guard children.count == 3 else { return }
-
-        let leadingView = children[0]
-        let mainView = children[1]
-        let trailingView = children[2]
-
-        let w = bounds.width
-        let h = bounds.height
-
-        // 1. Measure leading and trailing with loose constraints.
-        let leadingSize = leadingView.sizeThatFits(bounds.size)
-        let trailingSize = trailingView.sizeThatFits(bounds.size)
-
-        // 2. Measure main within remaining space.
-        let remainingW = max(0, w - leadingSize.width - trailingSize.width)
-        let mainSize = mainView.sizeThatFits(CGSize(width: remainingW, height: h))
-
-        // 3. Position leading flush left, trailing flush right.
-        leadingView.frame = CGRect(
-            x: 0,
-            y: (h - leadingSize.height) / 2,
-            width: leadingSize.width,
-            height: leadingSize.height
-        )
-        trailingView.frame = CGRect(
-            x: w - trailingSize.width,
-            y: (h - trailingSize.height) / 2,
-            width: trailingSize.width,
-            height: trailingSize.height
-        )
-
-        // 4. Position main.
-        let mainX: CGFloat
-        let ax = mainAlignment.x
-
-        if ax < -0.5 {
-            mainX = leadingSize.width
-        } else if ax > 0.5 {
-            mainX = w - trailingSize.width - mainSize.width
-        } else {
-            switch centerMode {
-            case .absolute:
-                let centered = (w - mainSize.width) / 2
-                let overlapsLeading = centered < leadingSize.width
-                let overlapsTrailing = centered + mainSize.width > w - trailingSize.width
-                if overlapsLeading || overlapsTrailing {
-                    mainX = leadingSize.width + (remainingW - mainSize.width) / 2
-                } else {
-                    mainX = centered
-                }
-            case .between:
-                mainX = leadingSize.width + (remainingW - mainSize.width) / 2
-            }
-        }
-
-        mainView.frame = CGRect(
-            x: mainX,
-            y: (h - mainSize.height) / 2,
-            width: mainSize.width,
-            height: mainSize.height
-        )
-    }
-}
-#endif
-
-// MARK: - NavigationBar
-
-/// Full navigation bar component. Composes NavBarContentRow inside a
-/// styled Box with optional bottom accessory. The bar handles its own
-/// height, surface, padding, and safe area insets.
-///
-///     NavigationBar(
-///         main: Text("Home"),
-///         trailing: Button(onTap: { ... }) { Icon("plus") },
-///         surface: .color(.systemBackground)
-///     )
-///
-/// The `bottom` slot sits below the main content row (search bars,
-/// segmented controls, etc.). The surface can cover just the content
-/// row or extend to include the bottom via `includeBottomInSurface`.
-public struct NavigationBar: BuiltView {
-    public let leading: (any View)?
-    public let main: (any View)?
-    public let trailing: (any View)?
-    public let bottom: (any View)?
-    public let alignment: Alignment
-    public let centerMode: NavBarCenterMode
-    public let height: Double
-    public let padding: Padding
-    public let surface: Surface?
-    public let hidden: Bool
-    public let includeBottomInSurface: Bool
-
-    public init(
-        leading: (any View)? = nil,
-        main: (any View)? = nil,
-        trailing: (any View)? = nil,
-        bottom: (any View)? = nil,
-        alignment: Alignment = .center,
-        centerMode: NavBarCenterMode = .absolute,
-        height: Double = 44,
-        padding: Padding = .zero,
-        surface: Surface? = nil,
-        hidden: Bool = false,
-        includeBottomInSurface: Bool = false
-    ) {
-        self.leading = leading
-        self.main = main
-        self.trailing = trailing
-        self.bottom = bottom
-        self.alignment = alignment
-        self.centerMode = centerMode
-        self.height = height
-        self.padding = padding
-        self.surface = surface
-        self.hidden = hidden
-        self.includeBottomInSurface = includeBottomInSurface
-    }
-
-    public func build(context: ViewContext) -> any View {
-        if hidden { return EmptyView() }
-
-        let contentRow = Box(
-            BoxStyle(
-                .height(.fix(height)),
-                includeBottomInSurface ? nil : surface,
-                padding: padding
-            )
-        ) {
-            NavBarContentRow(
-                leading: leading,
-                main: main,
-                trailing: trailing,
-                alignment: alignment,
-                centerMode: centerMode
-            )
-        }
-
-        if let bottom {
-            let bar = Column {
-                contentRow
-                bottom
-            }
-            if includeBottomInSurface, let surface {
-                return Box(.hug, surface) { bar }
-            }
-            return bar
-        }
-
-        return contentRow
-    }
-}
-
-// MARK: - NavigationItem
-
-/// Per-screen navigation-bar configuration, declared by the hosted
-/// view via `.navigation(_:)` and applied to the UIKit `UINavigationItem`
-/// by the owning `RouteHostingController`.
-///
-/// Mirrors the shape of Wave's AppBar widget (title / main / leading /
-/// trailing / bottom / background / etc.) so Wave screens port over
-/// with minimal adaptation — but backed by UINavigationItem on iOS
-/// instead of a custom-rendered bar view. Fields beyond `title` and
-/// `hidden` are reserved in the struct but not yet wired through to
-/// the native bar; the rendering path will fill in as components
-/// need them.
-public struct NavigationItem {
-    /// Title string. If `main` is also set, `main` wins.
-    public var title: String?
-
-    /// Custom title view. Mounted via a sub-Resolver and installed as
-    /// `navigationItem.titleView`.
-    public var main: (any View)?
-
-    /// Leading bar item. If nil and `hideImplicitBackButton` is false,
-    /// the system back button is shown.
-    public var leading: (any View)?
-
-    /// Trailing bar item.
-    public var trailing: (any View)?
-
-    /// View rendered below the main bar content (search, tabs,
-    /// segmented controls). On iOS maps to the scroll-edge accessory
-    /// area when available; on older iOS, rendered as a secondary
-    /// row within the hosted view.
-    public var bottom: (any View)?
-
-    /// Bar background. State-aware (`.scrolledUnder` / `.idle`) —
-    /// `.scrolledUnder` maps to `standardAppearance`, `.idle` maps
-    /// to `scrollEdgeAppearance`. The Surface can be a solid color,
-    /// a Liquid-Glass material (`.glass(...)`), or both composed.
-    public var background: StateProperty<Surface>?
-
-    /// Whether the navigation bar is hidden for this route. Applied
-    /// via `UINavigationController.setNavigationBarHidden(_:animated:)`.
-    public var hidden: Bool
-
-    /// Suppresses the system back button when `leading` is nil.
-    public var hideImplicitBackButton: Bool
-
-    /// Override the back action. If set, replaces the system back
-    /// button with a custom one that calls this closure on tap.
-    /// Typical use: guard against data loss before popping.
-    public var onBack: (@MainActor () -> Void)?
-
-    /// Alignment for the main/title slot across the full bar width.
-    /// Mirrors `AppBar.mainAlignment`. Only the horizontal component
-    /// is consulted — UIKit's title slot is already vertically centered.
-    public var alignment: Alignment
-
-    /// Padding around the bar's content.
-    public var padding: Padding?
-
-    public init(
-        title: String? = nil,
-        main: (any View)? = nil,
-        leading: (any View)? = nil,
-        trailing: (any View)? = nil,
-        bottom: (any View)? = nil,
-        background: StateProperty<Surface>? = nil,
-        hidden: Bool = false,
-        hideImplicitBackButton: Bool = false,
-        onBack: (@MainActor () -> Void)? = nil,
-        alignment: Alignment = .center,
-        padding: Padding? = nil
-    ) {
-        self.title = title
-        self.main = main
-        self.leading = leading
-        self.trailing = trailing
-        self.bottom = bottom
-        self.background = background
-        self.hidden = hidden
-        self.hideImplicitBackButton = hideImplicitBackButton
-        self.onBack = onBack
-        self.alignment = alignment
-        self.padding = padding
-    }
-}
-
-/// Declarative navigation-bar configuration. Wrap a screen's content
-/// in `Navigation(title:, trailing:, …) { content }` and the enclosing
-/// `RouteHostingController` applies the declared fields to its
-/// native `UINavigationItem` on every rebuild.
-///
-/// All parameters are optional so call sites stay short — pass only
-/// the ones the screen cares about:
-///
-///     Navigation(title: "Home") {
-///         HomeContent()
-///     }
-///
-///     Navigation(
-///         title: "Home",
-///         trailing: BarButton(icon: "plus") { model.add() }
-///     ) {
-///         HomeContent()
-///     }
-///
-/// If you already have a fully-constructed `NavigationItem` (shared
-/// template, theme-driven default, etc.) pass it via
-/// `Navigation(item:) { content }`.
-///
-/// Lookup-and-write uses direct slot access (`context.node.findSlot`)
-/// rather than `context.maybeWatch(_:)` on purpose. `maybeWatch`
-/// would subscribe this BuiltNode to the observable it's about to
-/// write to — each write would re-fire the subscription, mark the
-/// node dirty, rebuild, write again, and loop forever. A pure-read
-/// lookup avoids it; writes still fire the hosting controller's
-/// own subscription (which applies the item to UIKit).
-public struct Navigation: BuiltView {
-    public let item: NavigationItem
-    public let child: any View
-
-    public init(
-        title: String? = nil,
-        main: (any View)? = nil,
-        leading: (any View)? = nil,
-        trailing: (any View)? = nil,
-        bottom: (any View)? = nil,
-        background: StateProperty<Surface>? = nil,
-        hidden: Bool = false,
-        hideImplicitBackButton: Bool = false,
-        onBack: (@MainActor () -> Void)? = nil,
-        alignment: Alignment = .center,
-        padding: Padding? = nil,
-        @ChildBuilder content: () -> any View
-    ) {
-        self.item = NavigationItem(
-            title: title,
-            main: main,
-            leading: leading,
-            trailing: trailing,
-            bottom: bottom,
-            background: background,
-            hidden: hidden,
-            hideImplicitBackButton: hideImplicitBackButton,
-            onBack: onBack,
-            alignment: alignment,
-            padding: padding
-        )
-        self.child = content()
-    }
-
-    public init(item: NavigationItem, @ChildBuilder content: () -> any View) {
-        self.item = item
-        self.child = content()
-    }
-
-    public func build(context: ViewContext) -> any View {
-        // `maybeRead` is non-subscribing: looking up the channel
-        // doesn't register this build pass as one of its observers.
-        // If we used `maybeWatch`, each write would fire our own
-        // subscription, mark this node dirty, rebuild, write again,
-        // forever. Writes still fire the hosting controller's own
-        // subscription — that's what applies the item to UIKit.
-        if let channel = context.tryRead(Observable<NavigationItem>.self) {
-            channel.value = item
-        }
-        return child
-    }
-}
-
-// MARK: - .navigation(...) modifier
-
-/// Sugar for wrapping a view in `Navigation(...) { self }`. Reads more
-/// naturally when the screen's body is the "main" thing and the nav
-/// bar is a modifier on top:
-///
-///     Column { ... }
-///         .navigation(title: "Home", trailing: BarButton(...))
-///
-/// Two forms — parameter-by-parameter, matching `Navigation.init`, or
-/// by passing a pre-built `NavigationItem`. Both are equivalent to the
-/// wrapping form; pick whichever reads better at the call site.
-public extension View {
-    /// Wrap this view in `Navigation(title:, leading:, trailing:, …)`.
-    /// All parameters are optional; forwards to `Navigation.init` and
-    /// installs this view as the content.
-    func navigation(
-        title: String? = nil,
-        main: (any View)? = nil,
-        leading: (any View)? = nil,
-        trailing: (any View)? = nil,
-        bottom: (any View)? = nil,
-        background: StateProperty<Surface>? = nil,
-        hidden: Bool = false,
-        hideImplicitBackButton: Bool = false,
-        onBack: (@MainActor () -> Void)? = nil,
-        alignment: Alignment = .center,
-        padding: Padding? = nil
-    ) -> Navigation {
-        Navigation(
-            title: title,
-            main: main,
-            leading: leading,
-            trailing: trailing,
-            bottom: bottom,
-            background: background,
-            hidden: hidden,
-            hideImplicitBackButton: hideImplicitBackButton,
-            onBack: onBack,
-            alignment: alignment,
-            padding: padding
-        ) { self }
-    }
-
-    /// Wrap this view in `Navigation(item:)`. Use when you already have
-    /// a fully-constructed `NavigationItem` (shared template, theme-
-    /// driven default, etc.).
-    func navigation(_ item: NavigationItem) -> Navigation {
-        Navigation(item: item) { self }
-    }
-}
-
 // MARK: - Route
 
-/// A navigation destination — a view to present plus the metadata the
-/// Router uses to identify and route to it. Constructed at the push
-/// site; not a protocol to conform to.
+/// A navigation destination and its own ModelView. Constructed at
+/// the push site; the Router builds Route instances directly.
 ///
 ///     Route { ProfileView(id: 42) }
 ///     Route(key: "inbox") { InboxView() }
 ///
-/// Identity: every Route has a stable `id: UUID` assigned at construction
-/// that the Router uses to reuse UIViewControllers across rebuilds.
-/// The user-facing `key: AnyHashable?` is for predicate-based operations
-/// (`insert(below:)`, `pop(until:)`, etc.) that want to recognize a
-/// logical screen without caring about its specific instance.
-public struct Route {
+/// Identity: every Route has a stable `id: UUID` assigned at
+/// construction. The reconciler uses `.id(route.id)` to preserve
+/// the RouteModel (and all descendant state) across rebuilds.
+/// The user-facing `key` is for predicate-based operations
+/// (`insert(below:)`, `pop(until:)`, etc.).
+public struct Route: ModelView {
     public let id: UUID
     public let key: AnyHashable?
-    public let body: @MainActor () -> any View
-
-    /// Set internally by `pushForResult` so the continuation can be
-    /// looked up and resumed when this route pops.
-    var resultKey: UUID?
+    public let content: @MainActor () -> any View
 
     public init(
         key: AnyHashable? = nil,
@@ -559,22 +50,27 @@ public struct Route {
     ) {
         self.id = UUID()
         self.key = key
-        self.body = body
-        self.resultKey = nil
+        self.content = body
     }
 
     /// Internal init used by Router to construct a root route with a
-    /// stable, pre-known id (so the root VC is preserved across
-    /// Router rebuilds).
+    /// stable, pre-known id.
     init(
         id: UUID,
         key: AnyHashable? = nil,
-        body: @escaping @MainActor () -> any View
+        @ChildBuilder body: @escaping @MainActor () -> any View
     ) {
         self.id = id
         self.key = key
-        self.body = body
-        self.resultKey = nil
+        self.content = body
+    }
+
+    public func model(context: ViewContext) -> RouteModel {
+        RouteModel(context: context)
+    }
+
+    public func builder(model: RouteModel) -> RouteBuilder {
+        RouteBuilder(model: model)
     }
 }
 
@@ -821,39 +317,107 @@ public struct DeepLinkMap {
 }
 
 public extension ViewContext {
-    /// The nearest enclosing Router's handle. Fatal if no Router is
-    /// above this point in the tree — use `maybeRouter` for optional.
-    /// No subscription; the handle is a stable reference for the
-    /// Router's lifetime.
+    /// The nearest enclosing Router's handle.
     var router: RouterHandle { read(RouterHandle.self) }
 
     /// Optional access to the ancestor Router's handle.
     var maybeRouter: RouterHandle? { tryRead(RouterHandle.self) }
 
-    /// The enclosing Route's context — per-route environment installed
-    /// by the hosting controller. Access from inside a routed view's
-    /// subtree to read position-dependent info like `canPop`. Fatal
-    /// if called outside any Route. Subscribing: `canPop` changes as
-    /// routes are pushed/popped, and callers (e.g. custom back buttons)
-    /// typically want to rebuild on that change.
-    var route: RouteContext { watch(RouteContext.self) }
+    /// The enclosing Route's handle — per-route state provided by
+    /// the Router. Provides phase, progress, dismiss, and position info.
+    var route: RouteHandle { read(RouteHandle.self) }
 
     /// Optional variant of `route`.
-    var maybeRoute: RouteContext? { tryWatch(RouteContext.self) }
+    var maybeRoute: RouteHandle? { tryRead(RouteHandle.self) }
 }
 
-// MARK: - RouteContext
+// MARK: - RoutePhase
 
-/// Per-route environment installed into each mounted Route's subtree
-/// via `Provided<RouteContext>`. Descendants read it with
-/// `context.route`.
-///
-/// v1: just `canPop` — extends over time to cover dismiss, presentation
-/// progress, state (entering/entered/exiting/exited), etc.
-public struct RouteContext {
-    /// Whether this route can be popped. False for the first (bottom)
-    /// route in the Router's stack; true for anything above it.
-    public let canPop: Bool
+/// The lifecycle phase of a route in the stack.
+public enum RoutePhase: Equatable, Sendable {
+    /// Route is animating in (push). `progress` goes 0→1.
+    case entering
+    /// Route is fully visible and interactive.
+    case settled
+    /// Route is animating out (pop). `progress` goes 1→0.
+    case exiting
+}
+
+// MARK: - RouteHandle
+
+/// Per-route handle provided to each route's subtree. Exposes
+/// lifecycle state (phase, progress), position info (index, isTop,
+/// isBottom), and a dismiss method. Progress is settable for
+/// interactive gestures (e.g. swipe-to-dismiss).
+@MainActor public protocol RouteHandle: AnyObject {
+    var id: UUID { get }
+    var index: Int { get }
+    var phase: RoutePhase { get }
+    var progress: Double { get set }
+    var isTop: Bool { get }
+    var isBottom: Bool { get }
+    var canPop: Bool { get }
+    func dismiss(result: Any?, animated: Bool)
+}
+
+public extension RouteHandle {
+    func dismiss(animated: Bool = true) {
+        dismiss(result: nil, animated: animated)
+    }
+}
+
+// MARK: - RouteModel
+
+/// Per-route model conforming to RouteHandle. Created once per Route
+/// by ModelNode and preserved across rebuilds. Derives position info
+/// from the RouterModel's stack on demand.
+public final class RouteModel: ViewModel<Route>, RouteHandle {
+    public var phase: RoutePhase = .settled
+    public var progress: Double = 1.0
+
+    private var router: RouterModel? {
+        context.tryRead(RouterModel.self)
+    }
+
+    public var id: UUID { view.id }
+
+    public var index: Int {
+        router?.stack.firstIndex(where: { $0.id == view.id }) ?? 0
+    }
+
+    public var isTop: Bool {
+        router?.stack.last?.id == view.id
+    }
+
+    public var isBottom: Bool {
+        router?.stack.first?.id == view.id
+    }
+
+    public var canPop: Bool { index > 0 }
+
+    public func dismiss(result: Any? = nil, animated: Bool = true) {
+        let routeID = view.id
+        router?.remove(where: { $0.id == routeID })
+    }
+}
+
+// MARK: - RouteBuilder
+
+public final class RouteBuilder: ViewBuilder<RouteModel> {
+    public override func build(context: ViewContext) -> any View {
+        let route = model.view!
+        let router = context.tryRead(RouterModel.self)
+        let navItemObs = router?.navItem(for: route.id)
+
+        if let navItemObs {
+            return Provided(model as RouteHandle, navItemObs) {
+                route.content()
+            }
+        }
+        return Provided(model as RouteHandle) {
+            route.content()
+        }
+    }
 }
 
 // MARK: - UIKit-backed implementation
@@ -920,42 +484,31 @@ public struct Router: ModelView {
 
 // MARK: - RouterModel
 
-/// Framework-internal receiver for navigation ops. Implemented by
-/// `RouterHostView` — the UIKit-side that owns the
-/// `UINavigationController`. The Model calls these directly on every
-/// mutation so pushes/pops hit the native API (pushViewController,
-/// popToViewController, setViewControllers) without going through a
-/// full Forge rebuild cycle.
-@MainActor protocol RouterNavigator: AnyObject {
-    /// Top of the stack added. Host should `pushViewController(_:animated:)`.
-    func routerDidPush(_ route: Route)
-    /// Top `count` routes removed. Host should `popToViewController(_:animated:)`
-    /// to the VC now at `nav.viewControllers.count - count - 1`.
-    func routerDidPop(count: Int)
-    /// Stack structure changed in a way push/pop can't express —
-    /// insert in middle, remove in middle, replace, replaceTop, or a
-    /// parent-driven root refresh. Host does a full
-    /// `setViewControllers(...)` diff from the new stack.
-    func routerDidReset(to stack: [Route])
-}
-
 public final class RouterModel: ViewModel<Router>, RouterHandleDelegate {
     public let handle: RouterHandle
     public private(set) var stack: [Route] = []
+
+    /// Per-route nav item observables, keyed by route id.
+    var navItems: [UUID: Observable<NavigationItem>] = [:]
+
 
     /// Stable id for the initial first-route so the Router can keep
     /// its view controller across rebuilds AND so `didUpdate` can
     /// recognize whether the user has since replaced the first.
     let firstRouteID = UUID()
 
-    /// Host-side receiver for navigation ops. Set by `RouterHostView`
-    /// in its `attach(model:)`. Weak so the view isn't kept alive by
-    /// the model. Ops go through this instead of `rebuild {}` so we
-    /// skip the tree-reconciliation cycle on every push/pop.
-    weak var navigator: RouterNavigator?
 
     private var pendingResults: [UUID: (Any?) -> Void] = [:]
     private let deepLinks: DeepLinkMap
+
+    /// Get or create the nav item observable for a route.
+    func navItem(for routeID: UUID) -> Observable<NavigationItem> {
+        if let existing = navItems[routeID] { return existing }
+        let obs = Observable(NavigationItem())
+        navItems[routeID] = obs
+        return obs
+    }
+
 
     init(context: ViewContext, handle: RouterHandle, deeplinks: DeepLinkMap) {
         self.handle = handle
@@ -981,10 +534,6 @@ public final class RouterModel: ViewModel<Router>, RouterHandleDelegate {
         if !stack.isEmpty, stack[0].id == firstRouteID {
             let firstView = newView.root
             stack[0] = Route(id: firstRouteID) { firstView }
-            // Route kept its id → the cached VC at index 0 is reused,
-            // but its body capture changed. Ask the host to re-sync so
-            // the first VC picks up the new body.
-            navigator?.routerDidReset(to: stack)
         }
     }
 
@@ -995,102 +544,95 @@ public final class RouterModel: ViewModel<Router>, RouterHandleDelegate {
     // MARK: - RouterHandleDelegate — mutation ops dispatch direct
 
     public func push(_ route: Route) {
-        stack.append(route)
-        navigator?.routerDidPush(route)
+        rebuild { stack.append(route) }
     }
 
     public func pushForResult<R: Sendable>(_ route: Route) async -> R? {
         await withCheckedContinuation { (continuation: CheckedContinuation<R?, Never>) in
-            let resultKey = UUID()
-            var tagged = route
-            tagged.resultKey = resultKey
-            pendingResults[resultKey] = { any in
+            pendingResults[route.id] = { any in
                 continuation.resume(returning: any as? R)
             }
-            stack.append(tagged)
-            navigator?.routerDidPush(tagged)
+            rebuild { stack.append(route) }
         }
     }
 
     public func pop(result: Any? = nil) {
         guard stack.count > 1 else { return }
-        let popped = stack.removeLast()
-        resolveResult(for: popped, with: result)
-        navigator?.routerDidPop(count: 1)
+        rebuild {
+            let popped = stack.removeLast()
+            resolveResult(for: popped, with: result)
+        }
     }
 
     public func pop(until predicate: (Route) -> Bool) {
-        var popped = 0
-        while stack.count > 1, let top = stack.last, !predicate(top) {
-            let r = stack.removeLast()
-            resolveResult(for: r, with: nil)
-            popped += 1
-        }
-        if popped > 0 {
-            navigator?.routerDidPop(count: popped)
+        rebuild {
+            while stack.count > 1, let top = stack.last, !predicate(top) {
+                let r = stack.removeLast()
+                resolveResult(for: r, with: nil)
+            }
         }
     }
 
     public func popToFirst() {
-        let popCount = max(0, stack.count - 1)
-        guard popCount > 0 else { return }
-        while stack.count > 1 {
-            let r = stack.removeLast()
-            resolveResult(for: r, with: nil)
+        guard stack.count > 1 else { return }
+        rebuild {
+            while stack.count > 1 {
+                let r = stack.removeLast()
+                resolveResult(for: r, with: nil)
+            }
         }
-        navigator?.routerDidPop(count: popCount)
     }
 
     public func insert(at index: Int, route: Route) {
-        let clamped = max(0, min(index, stack.count))
-        stack.insert(route, at: clamped)
-        navigator?.routerDidReset(to: stack)
+        rebuild {
+            let clamped = max(0, min(index, stack.count))
+            stack.insert(route, at: clamped)
+        }
     }
 
     public func insert(below predicate: (Route) -> Bool, route: Route) {
         guard let idx = stack.lastIndex(where: predicate) else { return }
-        stack.insert(route, at: idx)
-        navigator?.routerDidReset(to: stack)
+        rebuild { stack.insert(route, at: idx) }
     }
 
     public func insert(above predicate: (Route) -> Bool, route: Route) {
         guard let idx = stack.lastIndex(where: predicate) else { return }
-        stack.insert(route, at: idx + 1)
-        navigator?.routerDidReset(to: stack)
+        rebuild { stack.insert(route, at: idx + 1) }
     }
 
     public func remove(where predicate: (Route) -> Bool) {
         guard let idx = stack.firstIndex(where: predicate),
               stack.count > 1 else { return }
-        let removed = stack.remove(at: idx)
-        resolveResult(for: removed, with: nil)
-        navigator?.routerDidReset(to: stack)
+        rebuild {
+            let removed = stack.remove(at: idx)
+            resolveResult(for: removed, with: nil)
+        }
     }
 
     public func remove(at index: Int) {
         guard stack.indices.contains(index), stack.count > 1 else { return }
-        let removed = stack.remove(at: index)
-        resolveResult(for: removed, with: nil)
-        navigator?.routerDidReset(to: stack)
+        rebuild {
+            let removed = stack.remove(at: index)
+            resolveResult(for: removed, with: nil)
+        }
     }
 
     public func replace(routes: [Route]) {
         guard !routes.isEmpty else { return }
-        for route in stack { resolveResult(for: route, with: nil) }
-        stack = routes
-        navigator?.routerDidReset(to: stack)
+        rebuild {
+            for route in stack { resolveResult(for: route, with: nil) }
+            stack = routes
+        }
     }
 
     public func replaceTop(_ route: Route) {
-        guard !stack.isEmpty else {
-            stack = [route]
-            navigator?.routerDidReset(to: stack)
-            return
+        rebuild {
+            if !stack.isEmpty {
+                let popped = stack.removeLast()
+                resolveResult(for: popped, with: nil)
+            }
+            stack.append(route)
         }
-        let popped = stack.removeLast()
-        resolveResult(for: popped, with: nil)
-        stack.append(route)
-        navigator?.routerDidReset(to: stack)
     }
 
     @discardableResult
@@ -1100,29 +642,8 @@ public final class RouterModel: ViewModel<Router>, RouterHandleDelegate {
         return true
     }
 
-    // MARK: - UIKit-initiated sync
-
-    /// Rewrite the stack to match an ordered list of Route ids (as
-    /// seen in the `UINavigationController`'s current `viewControllers`).
-    /// Called by `RouterHostView` after UIKit-initiated navigation
-    /// (back chevron, interactive swipe-back) so our stack doesn't
-    /// drift behind UIKit's truth. Drops routes no longer in the ids
-    /// list, resolving their `pushForResult` continuations with nil.
-    /// Does NOT fire an op — UIKit already did the animation; we're
-    /// just bringing the model into line with the truth on screen.
-    func syncStack(toIDs ids: [UUID]) {
-        let byID = Dictionary(uniqueKeysWithValues: stack.map { ($0.id, $0) })
-        let kept: [Route] = ids.compactMap { byID[$0] }
-        let keptIDs = Set(ids)
-        for route in stack where !keptIDs.contains(route.id) {
-            resolveResult(for: route, with: nil)
-        }
-        stack = kept
-    }
-
     private func resolveResult(for route: Route, with value: Any?) {
-        guard let key = route.resultKey,
-              let resolver = pendingResults.removeValue(forKey: key) else { return }
+        guard let resolver = pendingResults.removeValue(forKey: route.id) else { return }
         resolver(value)
     }
 }
@@ -1131,519 +652,43 @@ public final class RouterModel: ViewModel<Router>, RouterHandleDelegate {
 
 public final class RouterBuilder: ViewBuilder<RouterModel> {
     public override func build(context: ViewContext) -> any View {
-        // Make the handle available to descendants. Provided wraps the
-        // RouterHost so `context.router` inside any pushed route can
-        // reach this handle. (Each route's body is mounted inside the
-        // route's own Resolver — see RouteHostingController — so we
-        // separately re-install the handle there.)
-        Provided(model.handle) {
-            RouterHost(model: model)
-        }
-    }
-}
+        let stack = model.stack
+        let topID = stack.last?.id
+        let topNavItem: Observable<NavigationItem>? = topID.map { model.navItem(for: $0) }
 
-// MARK: - RouterHost (leaf wrapping the UINavigationController)
-
-struct RouterHost: LeafView {
-    let model: RouterModel
-
-    func makeRenderer() -> Renderer {
-        RouterHostRenderer(view: self)
-    }
-}
-
-final class RouterHostRenderer: Renderer {
-    private weak var routerHostView: RouterHostView?
-    private var view: RouterHost
-
-    init(view: RouterHost) {
-        self.view = view
-    }
-
-    func update(from newView: any View) {
-        guard let host = newView as? RouterHost, let routerHostView else { return }
-        view = host
-        routerHostView.attach(model: host.model)
-    }
-
-    func mount() -> PlatformView {
-        let v = RouterHostView()
-        self.routerHostView = v
-        v.attach(model: view.model)
-        return v
-    }
-}
-
-/// UIView wrapper that owns a UINavigationController and syncs its
-/// viewControllers array from the RouterModel's stack. Creates one
-/// `RouteHostingController` per route, reusing across rebuilds keyed
-/// by Route.id so pushed screens preserve their state.
-///
-/// VC containment: when this view moves to a window, it walks the
-/// responder chain to find its containing view controller and
-/// installs the navigation controller as its child. That's what
-/// makes swipe-back, status-bar style inheritance, keyboard
-/// appearance notifications, and rotation callbacks work —
-/// UIKit routes those through the VC hierarchy, not the view
-/// hierarchy.
-final class RouterHostView: UIView, UINavigationControllerDelegate, RouterNavigator {
-    private var navController: UINavigationController?
-    private weak var model: RouterModel?
-    private var hostsByRouteID: [UUID: RouteHostingController] = [:]
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        navController?.view.frame = bounds
-    }
-
-    override func didMoveToWindow() {
-        super.didMoveToWindow()
-        guard let nav = navController else { return }
-        if window != nil {
-            embedNavAsChildVC(nav)
-        } else {
-            detachNavFromParentVC(nav)
-        }
-    }
-
-    private func embedNavAsChildVC(_ nav: UINavigationController) {
-        guard nav.parent == nil else { return }
-        guard let parent = findParentViewController() else { return }
-        // addChild auto-fires willMove(toParent:) on the child.
-        parent.addChild(nav)
-        // The nav's view is already in our subview hierarchy from
-        // attach(model:); complete the containment handshake.
-        nav.didMove(toParent: parent)
-    }
-
-    private func detachNavFromParentVC(_ nav: UINavigationController) {
-        guard nav.parent != nil else { return }
-        nav.willMove(toParent: nil)
-        nav.removeFromParent()
-    }
-
-    /// Walk the responder chain to find the nearest enclosing
-    /// UIViewController. Start at `self.next` so the walk climbs
-    /// out of this view into whatever view controller owns it.
-    private func findParentViewController() -> UIViewController? {
-        var responder: UIResponder? = self.next
-        while let current = responder {
-            if let vc = current as? UIViewController {
-                return vc
-            }
-            responder = current.next
-        }
-        return nil
-    }
-
-    func attach(model: RouterModel) {
-        self.model = model
-        guard navController == nil else { return }
-        // First attach — create the nav controller, register as the
-        // model's op receiver, and seed the initial stack.
-        let nav = UINavigationController()
-        nav.delegate = self
-        navController = nav
-        addSubview(nav.view)
-
-        model.navigator = self
-        initialSync()
-
-        if window != nil {
-            embedNavAsChildVC(nav)
-        }
-    }
-
-    /// One-time setViewControllers at mount, without animation. From
-    /// here on, mutations flow as ops (routerDidPush / routerDidPop /
-    /// routerDidReset) that hit UIKit's native push/pop APIs.
-    private func initialSync() {
-        guard let nav = navController, let model else { return }
-        var vcs: [UIViewController] = []
-        for (index, route) in model.stack.enumerated() {
-            let vc = makeHost(for: route, handle: model.handle)
-            vc.update(route: route, context: RouteContext(canPop: index > 0))
-            hostsByRouteID[route.id] = vc
-            vcs.append(vc)
-        }
-        nav.setViewControllers(vcs, animated: false)
-    }
-
-    // MARK: - UINavigationControllerDelegate
-
-    /// Fires after any push or pop animation completes. If the user
-    /// popped via UIKit (system back chevron or interactive swipe)
-    /// without going through `handle.pop()`, the handle's stack is
-    /// now stale — longer than the nav's actual viewControllers.
-    /// We mirror the nav's current stack back into the handle so the
-    /// next programmatic push/pop operates on truth.
-    func navigationController(
-        _ navigationController: UINavigationController,
-        didShow viewController: UIViewController,
-        animated: Bool
-    ) {
-        syncHandleFromNav()
-    }
-
-    private func syncHandleFromNav() {
-        guard let nav = navController, let model else { return }
-        let currentIDs: [UUID] = nav.viewControllers.compactMap {
-            ($0 as? RouteHostingController)?.route.id
-        }
-        let modelIDs = model.stack.map { $0.id }
-        if currentIDs != modelIDs {
-            // Drop from our host cache any VCs that disappeared from the
-            // nav's live stack — their RouteHostingController's retained
-            // resolver + subscriptions release cleanly.
-            let currentSet = Set(currentIDs)
-            hostsByRouteID = hostsByRouteID.filter { currentSet.contains($0.key) }
-            model.syncStack(toIDs: currentIDs)
-        }
-    }
-
-    // MARK: - RouterNavigator
-
-    func routerDidPush(_ route: Route) {
-        guard let nav = navController, let model else { return }
-        let vc = makeHost(for: route, handle: model.handle)
-        vc.update(route: route, context: RouteContext(canPop: true))
-        hostsByRouteID[route.id] = vc
-        nav.pushViewController(vc, animated: true)
-    }
-
-    func routerDidPop(count: Int) {
-        guard let nav = navController, count > 0 else { return }
-        let newCount = nav.viewControllers.count - count
-        guard newCount > 0, newCount <= nav.viewControllers.count else { return }
-        let target = nav.viewControllers[newCount - 1]
-        nav.popToViewController(target, animated: true)
-        // The hosts cache is cleaned up by `didShow` reconciliation
-        // once UIKit's pop animation completes.
-    }
-
-    func routerDidReset(to stack: [Route]) {
-        guard let nav = navController, let model else { return }
-        // Diff-via-id: reuse cached VCs where route.id matches,
-        // create fresh ones for new routes, drop cache entries no
-        // longer referenced. setViewControllers lets UIKit figure out
-        // whatever transition fits the diff.
-        var targetVCs: [UIViewController] = []
-        var seenIDs: Set<UUID> = []
-        for (index, route) in stack.enumerated() {
-            seenIDs.insert(route.id)
-            let vc = hostsByRouteID[route.id] ?? makeHost(for: route, handle: model.handle)
-            vc.update(route: route, context: RouteContext(canPop: index > 0))
-            hostsByRouteID[route.id] = vc
-            targetVCs.append(vc)
-        }
-        hostsByRouteID = hostsByRouteID.filter { seenIDs.contains($0.key) }
-        nav.setViewControllers(targetVCs, animated: true)
-    }
-
-    private func makeHost(for route: Route, handle: RouterHandle) -> RouteHostingController {
-        let vc = RouteHostingController(route: route)
-        vc.attach(routerHandle: handle)
-        return vc
-    }
-}
-
-// MARK: - RouteHostingController
-
-/// UIViewController that hosts a single Route's body view and mirrors
-/// its `.navigation(_:)`-declared NavigationItem onto the native
-/// `UINavigationItem`. One controller per Route identity — reused
-/// across RouterHost syncs so the hosted view preserves its state.
-///
-/// View hierarchy owned by this controller:
-///
-///     self.view (container UIView)
-///       stack (UIStackView, vertical)
-///         bottomBridge?  — navItem.bottom (added/removed lazily)
-///         bodyBridge     — the route body subtree
-///
-/// Each Forge slot is a PlatformBridge (owns its own Resolver internally).
-final class RouteHostingController: UIViewController {
-    private(set) var route: Route
-    private var routeContext: RouteContext = RouteContext(canPop: false)
-
-    private var titleBridge: PlatformBridge?
-    private var leadingBridge: PlatformBridge?
-    private var trailingBridge: PlatformBridge?
-    private var bottomBridge: PlatformBridge?
-    private var bodyBridge: PlatformBridge!
-
-    private var stack: UIStackView!
-
-    private let navItemObservable = Observable<NavigationItem>(NavigationItem())
-    private var navItemSubscription: Subscription?
-    private var routerHandle: RouterHandle?
-
-    init(route: Route) {
-        self.route = route
-        super.init(nibName: nil, bundle: nil)
-    }
-
-    required init?(coder: NSCoder) { fatalError() }
-
-    override func loadView() {
-        let container = UIView()
-        container.backgroundColor = .systemBackground
-
-        stack = UIStackView()
-        stack.axis = .vertical
-        stack.alignment = .fill
-        stack.distribution = .fill
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(stack)
-
-        // bottomBridge is added lazily by syncBottom when needed.
-
-        bodyBridge = PlatformBridge(EmptyView())
-        stack.addArrangedSubview(bodyBridge)
-
-        NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            stack.topAnchor.constraint(equalTo: container.topAnchor),
-            stack.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-        ])
-
-        view = container
-
-        mountBody()
-
-        apply(navItem: navItemObservable.value)
-        navItemSubscription = navItemObservable.observe { [weak self] item in
-            self?.apply(navItem: item)
-        }
-    }
-
-    /// Called by RouterHostView on every sync. Updates the hosted
-    /// Route (body closure may have captured new props) AND its
-    /// RouteContext (stack position may have changed). Re-syncs the
-    /// body subtree in place, preserving Node state where possible.
-    func update(route: Route, context: RouteContext) {
-        self.route = route
-        self.routeContext = context
-        if isViewLoaded {
-            mountBody()
-        }
-    }
-
-    /// Installed by RouterHostView at creation time so we can re-
-    /// Provide it inside this controller's own Resolver tree.
-    func attach(routerHandle: RouterHandle) {
-        self.routerHandle = routerHandle
-    }
-
-    /// Build the body subtree and mount/update it in place inside
-    /// `bodyHost`. Uses `canUpdate` + `update(from:)` where possible
-    /// so Model state survives re-syncs; otherwise re-inflates.
-    private func mountBody() {
-        bodyBridge.updateView(wrappedBody())
-    }
-
-    /// Build the view subtree this controller mounts — wraps the
-    /// Route's body in three Provided layers: RouterHandle (so
-    /// descendants can call `ctx.router` from any pushed route's
-    /// isolated sub-Resolver tree), the navigation-item observable
-    /// (so `.navigation(_:)` can write into it), and the per-route
-    /// `RouteContext` (so descendants can read `ctx.route.canPop`).
-    private func wrappedBody() -> any View {
-        let handle = routerHandle
-        let body = route.body
-        let context = routeContext
-        return Buildable { _ in
-            var content: any View = body()
-            content = Provided(context) { content }
-            content = Provided(self.navItemObservable) { content }
-            if let handle {
-                content = Provided(handle) { content }
-            }
-            return content
-        }
-    }
-
-    private func apply(navItem: NavigationItem) {
-        self.title = navItem.title
-        self.navigationItem.hidesBackButton = navItem.hideImplicitBackButton
-
-        // Hide/show the nav bar for this route.
-        if let nav = self.navigationController {
-            nav.setNavigationBarHidden(navItem.hidden, animated: true)
+        // Each Route is a ModelView — its RouteModel (conforming to
+        // RouteHandle) is created once and preserved by the node tree.
+        // The model reads position/router from context, not from the struct.
+        let routeViews: [any View] = stack.map { route in
+            let isTop = route.id == topID
+            return Offstage(offstage: !isTop) {
+                Box(.fill) { route }
+            }.id(route.id)
         }
 
-        // Title view — `main` overrides `title` when set.
-        self.navigationItem.titleView = syncTitleView(navItem: navItem)
-
-        // Bar button items. BarButton gets a native UIBarButtonItem
-        // so it participates in the bar's glass container and morph;
-        // any other View is wrapped as customView.
-        self.navigationItem.leftBarButtonItem = makeLeftBarItem(navItem: navItem)
-        self.navigationItem.rightBarButtonItem = makeTrailingBarItem(view: navItem.trailing)
-
-        // Bottom accessory (rendered below the nav bar, above the body).
-        syncBottom(view: navItem.bottom)
-
-        // Per-route nav bar background Surface → UINavigationBarAppearance.
-        // `.idle` maps to scrollEdgeAppearance (no content behind),
-        // `.scrolledUnder` maps to standardAppearance (content under glass).
-        applyBackground(navItem.background)
-    }
-
-    /// Mount the `main` view as `navigationItem.titleView`, wrapped
-    /// in a Forge `Box` that applies `alignment` and `padding`. We
-    /// use Forge's own layout so the bar chrome composes from the
-    /// same primitives screens use — UIKit just gives us the slot;
-    /// Forge handles the placement inside it.
-    ///
-    /// UIKit sizes `titleView` via compressed-fit autolayout. A raw
-    /// Box has no intrinsic width to report (it wants to fill its
-    /// parent, but the nav bar never hands it a parent frame), so
-    /// UIKit collapses it and centers the result between the left
-    /// and right bar items — which is visibly off-center whenever
-    /// the two sides aren't symmetric. We wrap the mounted platform
-    /// view in a stretchy host whose `intrinsicContentSize` is
-    /// `layoutFittingExpandedSize`; UIKit's own bar layout then
-    /// clamps that to the full available bar width, giving the Box
-    /// a real frame to lay `main` out inside.
-    private func syncTitleView(navItem: NavigationItem) -> UIView? {
-        guard let main = navItem.main else {
-            titleBridge = nil
-            return nil
-        }
-        let wrapped: any View = Box(
-            BoxStyle(
-                .width(.fill()).height(.fix(44)),
-                padding: navItem.padding ?? .zero,
+        // NavigationBar driven by the topmost route's nav item.
+        let navbar: any View = Buildable { ctx in
+            guard let obs = topNavItem else { return EmptyView() }
+            let item = ctx.watch(obs)
+            if item.hidden { return EmptyView() }
+            return NavigationBar(
+                leading: item.leading,
+                main: item.main ?? item.title.map { Text($0) },
+                trailing: item.trailing,
+                bottom: item.bottom,
+                alignment: item.alignment,
+                padding: item.padding ?? .zero,
+                hidden: item.hidden
             )
-        ) { main }
-        if let bridge = titleBridge {
-            bridge.updateView(wrapped)
-        } else {
-            titleBridge = PlatformBridge(wrapped)
         }
-        return titleBridge
-    }
 
-    /// Build the leading bar-button item. Priority:
-    ///   1. `navItem.leading`, if it's a `BarButton` → native item
-    ///      (participates in the bar's glass container).
-    ///   2. `navItem.leading`, any other View → wrapped as customView.
-    ///   3. `navItem.onBack` → synthesize a native BarButton with a
-    ///      back-chevron icon.
-    ///   4. Otherwise nil (system back button unless suppressed).
-    private func makeLeftBarItem(navItem: NavigationItem) -> UIBarButtonItem? {
-        if let leadingView = navItem.leading {
-            return makeBarItem(bridge: &leadingBridge, view: leadingView)
-        }
-        leadingBridge = nil
-        if let onBack = navItem.onBack {
-            let backButton = BarButton(icon: "chevron.backward", onTap: onBack)
-            return backButton.makeBarButtonItem()
-        }
-        return nil
-    }
-
-    /// Build the trailing bar-button item from a user-supplied view.
-    /// Same priority as leading minus the onBack synthesis.
-    private func makeTrailingBarItem(view: (any View)?) -> UIBarButtonItem? {
-        guard let view else {
-            trailingBridge = nil
-            return nil
-        }
-        return makeBarItem(bridge: &trailingBridge, view: view)
-    }
-
-    /// Produce a `UIBarButtonItem` from an arbitrary Forge view.
-    /// BarButton gets the native path; anything else is mounted via
-    /// a PlatformBridge and wrapped as `customView`.
-    private func makeBarItem(bridge: inout PlatformBridge?, view: any View) -> UIBarButtonItem? {
-        if let native = view as? BarButton {
-            bridge = nil
-            return native.makeBarButtonItem()
-        }
-        if let existing = bridge {
-            existing.updateView(view)
-        } else {
-            bridge = PlatformBridge(view)
-        }
-        return UIBarButtonItem(customView: bridge!)
-    }
-
-    /// Apply `navItem.background` to the hosted route's
-    /// `UINavigationItem` appearances. Liquid-Glass Surfaces map to
-    /// `backgroundEffect`; solid-color Surfaces map to
-    /// `backgroundColor`. State split:
-    ///   - `.idle` → `scrollEdgeAppearance` (nothing behind the bar)
-    ///   - `.scrolledUnder` → `standardAppearance` (content underneath)
-    ///
-    /// Non-trivial Surfaces (gradients, composed layers) aren't yet
-    /// pulled through — they'd need a snapshot-to-UIImage step for
-    /// `backgroundImage`. Tracked for a follow-up.
-    private func applyBackground(_ property: StateProperty<Surface>?) {
-        guard let property else {
-            self.navigationItem.standardAppearance = nil
-            self.navigationItem.scrollEdgeAppearance = nil
-            return
-        }
-        self.navigationItem.standardAppearance = appearance(from: property(.scrolledUnder))
-        self.navigationItem.scrollEdgeAppearance = appearance(from: property(.idle))
-    }
-
-    private func appearance(from surface: Surface) -> UINavigationBarAppearance {
-        let appearance = UINavigationBarAppearance()
-        appearance.configureWithTransparentBackground()
-        if let glass = surface.glassStyle {
-            // `UINavigationBarAppearance.backgroundEffect` is typed as
-            // `UIBlurEffect?`. When the app is built against the iOS
-            // 26 SDK, UIKit automatically promotes these system
-            // materials to Liquid Glass; on older runtimes, they
-            // render as the traditional blur. We map our GlassStyle
-            // variants to the closest system material and let the OS
-            // do the upgrade.
-            appearance.backgroundEffect = blurEffect(for: glass)
-        }
-        if let color = surface.primaryColor {
-            appearance.backgroundColor = color.platformColor
-        }
-        return appearance
-    }
-
-    private func blurEffect(for style: GlassStyle) -> UIBlurEffect {
-        switch style {
-        case .regular:   return UIBlurEffect(style: .systemMaterial)
-        case .prominent: return UIBlurEffect(style: .systemThickMaterial)
-        case .clear:     return UIBlurEffect(style: .systemUltraThinMaterial)
-        }
-    }
-
-    /// Install `view` into `bottomSlotHost` (sized by its own intrinsic
-    /// size / layout), or hide the slot when nil.
-    private func syncBottom(view: (any View)?) {
-        guard let v = view else {
-            if let b = bottomBridge {
-                b.removeFromSuperview()
-                bottomBridge = nil
+        return Provided(model.handle, model) {
+            Column(alignment: .topCenter) {
+                navbar
+                Box(.fill, children: routeViews)
             }
-            return
-        }
-        if let bridge = bottomBridge {
-            bridge.updateView(v)
-        } else {
-            let bridge = PlatformBridge(v)
-            // Insert before bodyBridge so bottom sits above body in the stack.
-            let bodyIndex = stack.arrangedSubviews.firstIndex(of: bodyBridge) ?? 0
-            stack.insertArrangedSubview(bridge, at: bodyIndex)
-            bottomBridge = bridge
         }
     }
-
-
-    // Subscription is released alongside `self` when the hosting
-    // controller deinits — no explicit cancel needed (and it would
-    // trip Swift 6 strict concurrency anyway, since `cancel()` is
-    // @MainActor-isolated but `deinit` is nonisolated).
 }
 
 #endif

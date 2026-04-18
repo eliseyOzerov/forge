@@ -128,42 +128,38 @@ final class ImageTests: XCTestCase {
         let img1 = testImage(color: .red)
         let img2 = testImage(color: .blue)
 
-        let renderer1 = UIKitImageRenderer(image: img1, style: ImageStyle())
-        let view = renderer1.mount() as! UIImageView
+        let renderer = UIKitImageRenderer(view: Image(img1, style: ImageStyle()))
+        let view = renderer.mount() as! UIImageView
         XCTAssertEqual(view.image?.size, img1.size)
 
-        let renderer2 = UIKitImageRenderer(image: img2, style: ImageStyle())
-        renderer2.update(view)
+        renderer.update(from: Image(img2, style: ImageStyle()))
         XCTAssertEqual(view.image?.size, img2.size)
     }
 
     func testUpdateChangesContentMode() {
-        let renderer1 = UIKitImageRenderer(image: testImage(), style: ImageStyle(fit: .aspectFit))
-        let view = renderer1.mount() as! UIImageView
+        let renderer = UIKitImageRenderer(view: Image(testImage(), style: ImageStyle(fit: .aspectFit)))
+        let view = renderer.mount() as! UIImageView
         XCTAssertEqual(view.contentMode, .scaleAspectFit)
 
-        let renderer2 = UIKitImageRenderer(image: testImage(), style: ImageStyle(fit: .fill))
-        renderer2.update(view)
+        renderer.update(from: Image(testImage(), style: ImageStyle(fit: .fill)))
         XCTAssertEqual(view.contentMode, .scaleToFill)
     }
 
     func testUpdateChangesCornerRadius() {
-        let renderer1 = UIKitImageRenderer(image: testImage(), style: ImageStyle(cornerRadius: 0))
-        let view = renderer1.mount() as! UIImageView
+        let renderer = UIKitImageRenderer(view: Image(testImage(), style: ImageStyle(cornerRadius: 0)))
+        let view = renderer.mount() as! UIImageView
         XCTAssertEqual(view.layer.cornerRadius, 0)
 
-        let renderer2 = UIKitImageRenderer(image: testImage(), style: ImageStyle(cornerRadius: 20))
-        renderer2.update(view)
+        renderer.update(from: Image(testImage(), style: ImageStyle(cornerRadius: 20)))
         XCTAssertEqual(view.layer.cornerRadius, 20)
     }
 
     func testUpdateChangesToTinted() {
-        let renderer1 = UIKitImageRenderer(image: testImage(), style: ImageStyle())
-        let view = renderer1.mount() as! UIImageView
+        let renderer = UIKitImageRenderer(view: Image(testImage(), style: ImageStyle()))
+        let view = renderer.mount() as! UIImageView
         XCTAssertNotEqual(view.image?.renderingMode, .alwaysTemplate)
 
-        let renderer2 = UIKitImageRenderer(image: testImage(), style: ImageStyle(tintColor: .green))
-        renderer2.update(view)
+        renderer.update(from: Image(testImage(), style: ImageStyle(tintColor: .green)))
         XCTAssertEqual(view.image?.renderingMode, .alwaysTemplate)
         XCTAssertEqual(view.tintColor, Color.green.platformColor)
     }

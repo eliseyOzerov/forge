@@ -287,63 +287,57 @@ final class TextTests: XCTestCase {
     // MARK: - 3. Update
 
     func testUpdateChangesText() {
-        let renderer1 = UIKitTextRenderer(content: "Hello", style: TextStyle())
-        let label = renderer1.mount() as! UILabel
+        let renderer = UIKitTextRenderer(view: Text("Hello", style: TextStyle()))
+        let label = renderer.mount() as! UILabel
         XCTAssertEqual(label.attributedText?.string, "Hello")
 
-        let renderer2 = UIKitTextRenderer(content: "World", style: TextStyle())
-        renderer2.update(label)
+        renderer.update(from: Text("World", style: TextStyle()))
         XCTAssertEqual(label.attributedText?.string, "World")
     }
 
     func testUpdateChangesColor() {
-        let renderer1 = UIKitTextRenderer(content: "Hi", style: TextStyle(color: .red))
-        let label = renderer1.mount() as! UILabel
+        let renderer = UIKitTextRenderer(view: Text("Hi", style: TextStyle(color: .red)))
+        let label = renderer.mount() as! UILabel
 
-        let renderer2 = UIKitTextRenderer(content: "Hi", style: TextStyle(color: .blue))
-        renderer2.update(label)
+        renderer.update(from: Text("Hi", style: TextStyle(color: .blue)))
         let color = attributes(of: label)[.foregroundColor] as? UIColor
-        XCTAssertEqual(color, .blue)
+        XCTAssertEqual(color, Color.blue.platformColor)
     }
 
     func testUpdateChangesMaxLines() {
-        let renderer1 = UIKitTextRenderer(content: "Hi", style: TextStyle(maxLines: 1))
-        let label = renderer1.mount() as! UILabel
+        let renderer = UIKitTextRenderer(view: Text("Hi", style: TextStyle(maxLines: 1)))
+        let label = renderer.mount() as! UILabel
         XCTAssertEqual(label.numberOfLines, 1)
 
-        let renderer2 = UIKitTextRenderer(content: "Hi", style: TextStyle(maxLines: 5))
-        renderer2.update(label)
+        renderer.update(from: Text("Hi", style: TextStyle(maxLines: 5)))
         XCTAssertEqual(label.numberOfLines, 5)
     }
 
     func testUpdateChangesAlignment() {
-        let renderer1 = UIKitTextRenderer(content: "Hi", style: TextStyle(align: .leading))
-        let label = renderer1.mount() as! UILabel
+        let renderer = UIKitTextRenderer(view: Text("Hi", style: TextStyle(align: .leading)))
+        let label = renderer.mount() as! UILabel
 
-        let renderer2 = UIKitTextRenderer(content: "Hi", style: TextStyle(align: .center))
-        renderer2.update(label)
+        renderer.update(from: Text("Hi", style: TextStyle(align: .center)))
         XCTAssertEqual(paragraphStyle(of: label)?.alignment, .center)
     }
 
     func testUpdateAddsDecoration() {
-        let renderer1 = UIKitTextRenderer(content: "Hi", style: TextStyle())
-        let label = renderer1.mount() as! UILabel
+        let renderer = UIKitTextRenderer(view: Text("Hi", style: TextStyle()))
+        let label = renderer.mount() as! UILabel
         XCTAssertNil(attributes(of: label)[.underlineStyle])
 
         let decoration = TextDecoration(line: TextLineConfig(position: .underline))
-        let renderer2 = UIKitTextRenderer(content: "Hi", style: TextStyle(decoration: decoration))
-        renderer2.update(label)
+        renderer.update(from: Text("Hi", style: TextStyle(decoration: decoration)))
         XCTAssertNotNil(attributes(of: label)[.underlineStyle])
     }
 
     func testUpdateRemovesDecoration() {
         let decoration = TextDecoration(line: TextLineConfig(position: .underline))
-        let renderer1 = UIKitTextRenderer(content: "Hi", style: TextStyle(decoration: decoration))
-        let label = renderer1.mount() as! UILabel
+        let renderer = UIKitTextRenderer(view: Text("Hi", style: TextStyle(decoration: decoration)))
+        let label = renderer.mount() as! UILabel
         XCTAssertNotNil(attributes(of: label)[.underlineStyle])
 
-        let renderer2 = UIKitTextRenderer(content: "Hi", style: TextStyle())
-        renderer2.update(label)
+        renderer.update(from: Text("Hi", style: TextStyle()))
         XCTAssertNil(attributes(of: label)[.underlineStyle])
     }
 

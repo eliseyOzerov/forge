@@ -101,12 +101,11 @@ final class LoaderTests: XCTestCase {
     // MARK: - Update
 
     func testUpdateChangesStyle() {
-        let renderer1 = LoaderRenderer(style: .circular, color: .red, size: 32)
-        let view = renderer1.mount() as! LoaderView
+        let renderer = LoaderRenderer(view: Loader(.circular, color: .red, size: 32))
+        let view = renderer.mount() as! LoaderView
         XCTAssertEqual(view.duration, LoaderStyle.circular.duration)
 
-        let renderer2 = LoaderRenderer(style: .dots, color: .blue, size: 48)
-        renderer2.update(view)
+        renderer.update(from: Loader(.dots, color: .blue, size: 48))
         XCTAssertEqual(view.duration, LoaderStyle.dots.duration)
         XCTAssertEqual(view.loaderSize, 48)
     }

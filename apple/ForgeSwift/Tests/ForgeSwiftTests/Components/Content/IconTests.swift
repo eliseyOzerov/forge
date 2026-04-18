@@ -79,22 +79,20 @@ final class IconTests: XCTestCase {
     // MARK: - Update
 
     func testUpdateChangesImage() {
-        let renderer1 = UIKitIconRenderer(name: "star", style: IconStyle())
-        let view = renderer1.mount()
+        let renderer = UIKitIconRenderer(view: Icon("star", style: IconStyle()))
+        let view = renderer.mount()
 
-        let renderer2 = UIKitIconRenderer(name: "heart", style: IconStyle())
-        renderer2.update(view)
+        renderer.update(from: Icon("heart", style: IconStyle()))
 
         let imageView = view as! UIImageView
         XCTAssertNotNil(imageView.image)
     }
 
     func testUpdateChangesColor() {
-        let renderer1 = UIKitIconRenderer(name: "star", style: IconStyle(color: .red))
-        let view = renderer1.mount()
+        let renderer = UIKitIconRenderer(view: Icon("star", style: IconStyle(color: .red)))
+        let view = renderer.mount()
 
-        let renderer2 = UIKitIconRenderer(name: "star", style: IconStyle(color: .blue))
-        renderer2.update(view)
+        renderer.update(from: Icon("star", style: IconStyle(color: .blue)))
 
         let imageView = view as! UIImageView
         XCTAssertEqual(imageView.tintColor, Color.blue.platformColor)

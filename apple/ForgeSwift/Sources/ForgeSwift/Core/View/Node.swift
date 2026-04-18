@@ -358,6 +358,109 @@ public final class BuiltNode: Node {
     }
 }
 
+// MARK: - OffstageNode
+
+/// Backs `Offstage`. Mounts the child once and keeps it alive in the
+/// tree, but when offstage: hides the platform view, reports zero
+/// size, and skips child updates. When the view transitions from
+/// offstage to onstage (or vice versa), the child is shown/hidden
+/// without remounting.
+public final class OffstageNode: Node {
+    public var child: Node?
+    private var isOffstage: Bool = true
+
+    public override init() {
+        super.init()
+        self.platformView = OffstageView()
+    }
+
+    override func setup(from view: any View) {
+        super.setup(from: view)
+        guard let offstage = self.view as? Offstage else {
+            fatalError("OffstageNode.setup called with non-Offstage")
+        }
+        isOffstage = offstage.offstage
+
+        let childNode = Node.inflate(offstage.child, parent: self)
+        self.child = childNode
+        if let childPlatform = childNode.platformView,
+           let wrapper = self.platformView {
+            wrapper.addSubview(childPlatform)
+        }
+
+        applyOffstage()
+    }
+
+    override func update(from view: any View) {
+        super.update(from: view)
+        guard let offstage = self.view as? Offstage else {
+            fatalError("OffstageNode.update called with non-Offstage")
+        }
+        let wasOffstage = isOffstage
+        isOffstage = offstage.offstage
+
+        // Only update the child when onstage.
+        if !isOffstage {
+            if let existing = child, existing.canUpdate(to: offstage.child) {
+                existing.update(from: offstage.child)
+            } else {
+                child?.unmount()
+                let newChild = Node.inflate(offstage.child, parent: self)
+                self.child = newChild
+                if let childPlatform = newChild.platformView,
+                   let wrapper = self.platformView {
+                    wrapper.addSubview(childPlatform)
+                }
+            }
+        }
+
+        if wasOffstage != isOffstage {
+            applyOffstage()
+        }
+    }
+
+    override func unmountChildren() {
+        child?.unmount()
+        child = nil
+    }
+
+    private func applyOffstage() {
+        (platformView as? OffstageView)?.isOffstage = isOffstage
+    }
+}
+
+#if canImport(UIKit)
+/// Platform view that reports zero size when offstage and hides
+/// its content. When onstage, passes through to the child's size.
+final class OffstageView: UIView {
+    var isOffstage: Bool = true {
+        didSet {
+            guard isOffstage != oldValue else { return }
+            isHidden = isOffstage
+            superview?.setNeedsLayout()
+        }
+    }
+
+    override func sizeThatFits(_ size: CGSize) -> CGSize {
+        if isOffstage { return .zero }
+        return subviews.first?.sizeThatFits(size) ?? .zero
+    }
+
+    override var intrinsicContentSize: CGSize {
+        if isOffstage {
+            return CGSize(width: UIView.noIntrinsicMetric, height: UIView.noIntrinsicMetric)
+        }
+        return subviews.first?.intrinsicContentSize
+            ?? CGSize(width: UIView.noIntrinsicMetric, height: UIView.noIntrinsicMetric)
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        subviews.first?.frame = bounds
+    }
+}
+#endif
+
 // MARK: - ModelNode
 
 /// Backs stateful composites (ModelView). Owns the Model (created

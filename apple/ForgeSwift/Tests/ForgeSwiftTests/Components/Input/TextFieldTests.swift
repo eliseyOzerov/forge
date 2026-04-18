@@ -254,7 +254,7 @@ final class TextFieldTests: XCTestCase {
         let context = BuiltNode()
         let model = TextFieldModel<String>(context: context)
         model.didInit(view: field)
-        let renderer = UIKitTextFieldRenderer(model: model, style: style)
+        let renderer = UIKitTextFieldRenderer(view: TextFieldLeaf(model: model, style: style))
         return renderer.mount() as! TextFieldWrapperView<String>
     }
 
