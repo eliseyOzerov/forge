@@ -6,6 +6,13 @@ public struct Screen: BuiltView, Route {
     public let key: AnyHashable?
     public let content: @MainActor () -> any View
 
+    public var cover: (@MainActor (any View, RouteHandle) -> any View)? {
+        { view, handle in
+            let t = handle.progress
+            return view.effect { $0.offset(-0.3 * t, fractional: true).opacity(1 - 0.15 * t) }
+        }
+    }
+
     public init(
         key: AnyHashable? = nil,
         @ChildBuilder body: @escaping @MainActor () -> any View
@@ -14,7 +21,34 @@ public struct Screen: BuiltView, Route {
         self.content = body
     }
 
-    public func build(context: ViewContext) -> any View { content() }
+    public func build(context: ViewContext) -> any View {
+        let route = context.route
+
+        // Dismiss progress is inverse of route progress: dismiss 0 = route 1 (shown), dismiss 1 = route 0 (gone)
+        let dismissValue = Binding<Double>(
+            get: { 1 - route.progress },
+            set: { route.scrub(to: 1 - $0) }
+        )
+        
+        print("build Screen, dismissValue = \(dismissValue.value)")
+        
+        return Dismissible(
+            value: dismissValue,
+            edge: .trailing,
+            threshold: DismissThreshold(distance: 0.4, velocity: 1000),
+            onUpdate: { value, phase in
+                print("value = \(value), phase = \(phase)")
+                if phase == .dismissed {
+                    Task { await route.dismiss(animated: false) }
+                }
+            }
+        ) { ctx, dismissProgress in
+            print("dismissProgress = \(dismissProgress)")
+            // dismissProgress 0 = fully shown, 1 = fully offscreen right
+            return content()
+                .effect { $0.offset(dismissProgress, fractional: true) }
+        }
+    }
 }
 
 // MARK: - Modal

@@ -33,30 +33,40 @@ public struct DismissThreshold {
 /// receives progress every frame and decides how to render the child.
 ///
 /// ```swift
-/// Dismissible(edge: .trailing, threshold: DismissThreshold(distance: 0.4)) { ctx, progress in
+/// Dismissible(
+///     value: $progress,
+///     edge: .trailing,
+///     threshold: DismissThreshold(distance: 0.4),
+///     onUpdate: { value, phase in print(value, phase) }
+/// ) { ctx, progress in
 ///     MyListItem()
-///         .offset(x: progress * ctx.size.width)
-///         .opacity(1 - progress)
+///         .effect { $0.offset(progress, fractional: true) }
 /// }
 /// ```
 public struct Dismissible: ModelView {
+    public let value: Binding<Double>
     public let edge: Edge?
     public let duration: Double
     public let threshold: DismissThreshold
     public let curve: Curve
+    public let onUpdate: (@MainActor (Double, DismissPhase) -> Void)?
     public let builder: @MainActor (ViewContext, Double) -> any View
 
     public init(
+        value: Binding<Double>,
         edge: Edge? = nil,
         duration: Double = 0.35,
         threshold: DismissThreshold = DismissThreshold(),
         curve: Curve = .easeOut,
+        onUpdate: (@MainActor (Double, DismissPhase) -> Void)? = nil,
         builder: @escaping @MainActor (ViewContext, Double) -> any View
     ) {
+        self.value = value
         self.edge = edge
         self.duration = duration
         self.threshold = threshold
         self.curve = curve
+        self.onUpdate = onUpdate
         self.builder = builder
     }
 
@@ -67,13 +77,12 @@ public struct Dismissible: ModelView {
 // MARK: - Model
 
 public final class DismissibleModel: ViewModel<Dismissible> {
-    public let phase = Observable<DismissPhase>(.idle)
-    public let progress = Observable<Double>(0)
+    private(set) var phase: DismissPhase = .idle
 
     private let driver = MotionDriver(duration: Duration(0.35))
     private var animFrom: Double = 0
     private var animTo: Double = 0
-    private var containerSize: Size = .zero
+    var containerSize: Size = .zero
     private var dragStart: Vec2 = .zero
     private var dragAxis: Edge?
 
@@ -81,7 +90,6 @@ public final class DismissibleModel: ViewModel<Dismissible> {
         super.didInit(view: view)
         driver.duration = Duration(view.duration)
         watch(driver)
-        watch(progress)
     }
 
     /// Current visual progress, accounting for animation.
@@ -90,21 +98,25 @@ public final class DismissibleModel: ViewModel<Dismissible> {
             let eased = view.curve(driver.value)
             return animFrom + (animTo - animFrom) * eased
         }
-        return progress.value
+        return view.value.value
     }
 
     // MARK: - Gesture
 
     func handleDragStart(at position: Vec2) {
-        guard phase.value == .idle else { return }
+        guard phase == .idle else { return }
         dragStart = position
         dragAxis = nil
-        phase.value = .dragging
+        setPhase(.dragging)
     }
 
     func handleDragUpdate(at position: Vec2) {
-        guard phase.value == .dragging else { return }
+        guard phase == .dragging else {
+            print("[Dismissible] update skipped — phase: \(phase)")
+            return
+        }
         let delta = position - dragStart
+        print("[Dismissible] delta: \(delta), edge: \(String(describing: view.edge))")
 
         // Resolve axis on first significant move if edge is nil
         if dragAxis == nil {
@@ -122,20 +134,27 @@ public final class DismissibleModel: ViewModel<Dismissible> {
             }
         }
 
-        guard let axis = dragAxis else { return }
+        guard let axis = dragAxis else {
+            print("[Dismissible] no axis resolved yet")
+            return
+        }
         let raw = rawProgress(for: delta, axis: axis)
         let clamped = min(max(raw, 0), 1)
-        rebuild { progress.value = clamped }
+        print("[Dismissible] axis: \(axis), raw: \(raw), clamped: \(clamped), containerSize: \(containerSize)")
+        rebuild {
+            view.value.value = clamped
+        }
+        fireUpdate(clamped)
     }
 
     func handleDragEnd(velocity: Vec2) {
-        guard phase.value == .dragging, let axis = dragAxis else {
+        guard phase == .dragging, let axis = dragAxis else {
             snapBack()
             return
         }
 
         let vel = axisVelocity(velocity, axis: axis)
-        let shouldDismiss = progress.value >= view.threshold.distance || vel >= view.threshold.velocity
+        let shouldDismiss = view.value.value >= view.threshold.distance || vel >= view.threshold.velocity
 
         if shouldDismiss {
             animateTo(1)
@@ -148,40 +167,45 @@ public final class DismissibleModel: ViewModel<Dismissible> {
         snapBack()
     }
 
-    func updateSize(_ size: Size) {
-        containerSize = size
-    }
-
     // MARK: - Animation
 
     private func animateTo(_ target: Double) {
-        let remaining = abs(target - progress.value)
+        let remaining = abs(target - view.value.value)
         let scaledDuration = view.duration * remaining
         driver.duration = Duration(max(scaledDuration, 0.1))
 
-        animFrom = progress.value
+        animFrom = view.value.value
         animTo = target
         driver.seek(to: 0)
 
         let isDismissing = target >= 1
-        if isDismissing { phase.value = .dismissing }
+        if isDismissing { setPhase(.dismissing) }
 
         Task { [weak self] in
             guard let self else { return }
             await driver.forward()
             rebuild {
-                progress.value = target
-                phase.value = isDismissing ? .dismissed : .idle
+                view.value.value = target
+                setPhase(isDismissing ? .dismissed : .idle)
             }
         }
     }
 
     private func snapBack() {
-        if progress.value > 0 {
+        if view.value.value > 0 {
             animateTo(0)
         } else {
-            phase.value = .idle
+            setPhase(.idle)
         }
+    }
+
+    private func setPhase(_ newPhase: DismissPhase) {
+        phase = newPhase
+        fireUpdate(displayProgress)
+    }
+
+    private func fireUpdate(_ value: Double) {
+        view.onUpdate?(value, phase)
     }
 
     // MARK: - Helpers
@@ -220,106 +244,29 @@ public final class DismissibleBuilder: ViewBuilder<DismissibleModel> {
         let model = self.model
         let progress = model.displayProgress
         let content = model.view.builder(context, progress)
-        return Provided(model.phase, model.progress) {
-            DismissibleLeaf(model: model, content: content)
-        }
-    }
-}
 
-// MARK: - Leaf
+        return LayoutReader { [weak model] size in
+            guard let model else { return EmptyView() }
+            model.containerSize = Size(Double(size.width), Double(size.height))
 
-struct DismissibleLeaf: LeafView {
-    let model: DismissibleModel
-    let content: any View
-    func makeRenderer() -> Renderer { DismissibleRenderer(view: self) }
-}
-
-// MARK: - UIKit
-
-#if canImport(UIKit)
-import UIKit
-
-final class DismissibleRenderer: Renderer {
-    private weak var dismissView: DismissibleView?
-    private var view: DismissibleLeaf
-    private var childNode: Node?
-
-    init(view: DismissibleLeaf) { self.view = view }
-
-    func update(from newView: any View) {
-        guard let leaf = newView as? DismissibleLeaf, let dismissView else { return }
-        view = leaf
-        dismissView.model = leaf.model
-
-        if let existing = childNode, existing.canUpdate(to: leaf.content) {
-            existing.update(from: leaf.content)
-        } else {
-            childNode?.platformView?.removeFromSuperview()
-            let node = Node.inflate(leaf.content)
-            childNode = node
-            if let pv = node.platformView {
-                dismissView.addSubview(pv)
+            return Gesture(
+                drag: DragConfig(
+                    onStart: { [weak model] e in
+                        model?.handleDragStart(at: e.position.local)
+                    },
+                    onUpdate: { [weak model] e in
+                        model?.handleDragUpdate(at: e.position.local)
+                    },
+                    onEnd: { [weak model] e in
+                        model?.handleDragEnd(velocity: e.velocity)
+                    },
+                    onCancel: { [weak model] in
+                        model?.handleDragCancel()
+                    }
+                )
+            ) {
+                content
             }
         }
     }
-
-    func mount() -> PlatformView {
-        let v = DismissibleView()
-        self.dismissView = v
-        v.model = view.model
-
-        let node = Node.inflate(view.content)
-        childNode = node
-        if let pv = node.platformView {
-            v.addSubview(pv)
-        }
-        return v
-    }
 }
-
-final class DismissibleView: UIView {
-    weak var model: DismissibleModel?
-    private var panGesture: UIPanGestureRecognizer!
-
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        panGesture = UIPanGestureRecognizer(target: self, action: #selector(handlePan))
-        addGestureRecognizer(panGesture)
-    }
-
-    required init?(coder: NSCoder) { fatalError() }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        model?.updateSize(Size(Double(bounds.width), Double(bounds.height)))
-        for child in subviews {
-            child.frame = bounds
-        }
-    }
-
-    @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
-        let location = gesture.location(in: self)
-        let pos = Vec2(Double(location.x), Double(location.y))
-
-        switch gesture.state {
-        case .began:
-            model?.handleDragStart(at: pos)
-        case .changed:
-            model?.handleDragUpdate(at: pos)
-        case .ended:
-            let vel = gesture.velocity(in: self)
-            model?.handleDragEnd(velocity: Vec2(Double(vel.x), Double(vel.y)))
-        case .cancelled, .failed:
-            model?.handleDragCancel()
-        default: break
-        }
-    }
-
-    override func removeFromSuperview() {
-        model?.progress.value = 0
-        model?.phase.value = .idle
-        super.removeFromSuperview()
-    }
-}
-
-#endif

@@ -107,7 +107,9 @@ public final class RouterModel: ViewModel<Router>, RouterHandle {
         super.didInit(view: view)
         if entries.isEmpty {
             let firstView = view.root
-            entries = [makeEntry(Screen { firstView })]
+            let root = makeEntry(Screen { firstView })
+            root.settle()
+            entries = [root]
         }
     }
 
@@ -307,11 +309,9 @@ public final class RouterBuilder: ViewBuilder<RouterModel> {
             )
         }
 
-        return Provided(model as RouterHandle, model) {
-            Column(alignment: .topCenter) {
-                navbar
-                Box(.fill, children: routeViews)
-            }
+        let handle: any RouterHandle = model
+        return Provided(handle, model) {
+            Box(.fill, children: routeViews)
         }
     }
 }

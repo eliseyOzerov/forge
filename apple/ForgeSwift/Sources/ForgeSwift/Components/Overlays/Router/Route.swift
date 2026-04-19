@@ -45,6 +45,7 @@ public enum RoutePhase: Equatable, Sendable {
     var canPop: Bool { get }
 
     func transform(_ view: any View) -> any View
+    func scrub(to progress: Double)
     func show() async
     func hide() async
     func dismiss(result: Any?, animated: Bool) async
@@ -95,6 +96,20 @@ public final class RouteModel: Notifier, RouteHandle {
     public func transform(_ view: any View) -> any View {
         guard let coverFn = route.cover else { return view }
         return coverFn(view, self)
+    }
+
+    // MARK: - Interactive scrub
+
+    public func scrub(to value: Double) {
+        progress = min(max(value, 0), 1)
+        notify()
+    }
+
+    /// Immediately set to fully shown, no animation.
+    func settle() {
+        progress = 1
+        phase = .settled
+        notify()
     }
 
     // MARK: - Show / Hide / Dismiss

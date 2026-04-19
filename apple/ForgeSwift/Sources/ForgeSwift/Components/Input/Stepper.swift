@@ -14,7 +14,7 @@ public struct LongPressConfig {
     nonisolated(unsafe) public static let `default` = LongPressConfig()
 }
 
-public struct DragConfig {
+public struct StepperDragConfig {
     public var sensitivity: Double
     public var axis: Axis
     public var enabled: Bool
@@ -23,7 +23,7 @@ public struct DragConfig {
         self.sensitivity = sensitivity; self.axis = axis; self.enabled = enabled
     }
 
-    nonisolated(unsafe) public static let `default` = DragConfig()
+    nonisolated(unsafe) public static let `default` = StepperDragConfig()
 }
 
 public enum TransitionDirection { case up, down, fade }
@@ -63,7 +63,7 @@ public struct StepperStyle<T> {
     public var spacing: Double
     public var formatter: TextFormatter<T>?
     public var longPress: LongPressConfig
-    public var drag: DragConfig
+    public var drag: StepperDragConfig
     public var haptic: HapticStyle
     public var transition: ValueTransition
 
@@ -76,7 +76,7 @@ public struct StepperStyle<T> {
         spacing: Double = 4,
         formatter: TextFormatter<T>? = nil,
         longPress: LongPressConfig = .default,
-        drag: DragConfig = .default,
+        drag: StepperDragConfig = .default,
         haptic: HapticStyle = .light,
         transition: ValueTransition = .default
     ) {

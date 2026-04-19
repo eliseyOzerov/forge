@@ -501,8 +501,8 @@ public extension View {
         Box(overflow: .scroll(config)) { self }
     }
 
-    func debug(_ color: UIColor = .red, label: String? = nil) -> DebugOverlay {
-        DebugOverlay(child: self, color: Color(platform: color), label: label)
+    func debug(_ color: Color = .red, label: String? = nil) -> DebugOverlay {
+        DebugOverlay(child: self, color: Color(platform: color.platformColor), label: label)
     }
 }
 
