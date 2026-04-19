@@ -10,27 +10,27 @@
 //          Box(.fix(size.width * 0.5, size.height)) { ... }
 //      }
 //
-//  Paired with RectReporter (post-layout rect of individual children)
-//  for cases where you need to know exact child positions — snap
-//  targets for sliders, anchors for popovers, etc.
-//
 
 #if canImport(UIKit)
 import UIKit
 
-public struct LayoutReader: LeafView {
+public struct LayoutReader: ProxyView {
     public let content: @MainActor (Size) -> any View
 
     public init(_ content: @escaping @MainActor (Size) -> any View) {
         self.content = content
     }
 
-    public func makeRenderer() -> Renderer {
+    public var child: any View { content(.zero) }
+    public var deferred: Bool { true }
+
+    public func makeRenderer() -> ProxyRenderer {
         LayoutReaderRenderer(view: self)
     }
 }
 
-final class LayoutReaderRenderer: Renderer {
+final class LayoutReaderRenderer: ProxyRenderer {
+    weak var node: ProxyNode?
     private weak var readerView: LayoutReaderView?
     private var view: LayoutReader
 
@@ -39,25 +39,26 @@ final class LayoutReaderRenderer: Renderer {
     }
 
     func update(from newView: any View) {
-        guard let reader = newView as? LayoutReader, let readerView else { return }
+        guard let reader = newView as? LayoutReader else { return }
         view = reader
-
-        readerView.content = reader.content
-        readerView.rebuildIfSized()
+        readerView?.setNeedsLayout()
     }
 
     func mount() -> PlatformView {
         let rv = LayoutReaderView()
+        rv.onLayout = { [weak self] rect in self?.onRect(rect) }
         self.readerView = rv
-        rv.content = view.content
         return rv
+    }
+
+    private func onRect(_ rect: Rect) {
+        let child = view.content(rect.size)
+        node?.reconcileChild(child)
     }
 }
 
 final class LayoutReaderView: UIView {
-    var content: (@MainActor (Size) -> any View)?
-    private var childNode: Node?
-    private var lastSize: Size = Size(0, 0)
+    var onLayout: ((Rect) -> Void)?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -65,42 +66,12 @@ final class LayoutReaderView: UIView {
 
     required init?(coder: NSCoder) { fatalError() }
 
-    override func sizeThatFits(_ size: CGSize) -> CGSize {
-        // Take whatever the parent proposes; content sizes to bounds.
-        size
-    }
+    override func sizeThatFits(_ size: CGSize) -> CGSize { size }
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        let size = Size(Double(bounds.width), Double(bounds.height))
-        if size != lastSize {
-            lastSize = size
-            rebuild(for: size)
-        }
-        childNode?.platformView?.frame = bounds
-    }
-
-    /// Rebuild with the already-observed size (used on update paths
-    /// where the content closure changed but bounds didn't).
-    func rebuildIfSized() {
-        guard lastSize.width > 0 || lastSize.height > 0 else { return }
-        rebuild(for: lastSize)
-    }
-
-    private func rebuild(for size: Size) {
-        guard let content else { return }
-        let newView = content(size)
-        if let node = childNode, node.canUpdate(to: newView) {
-            node.update(from: newView)
-        } else {
-            childNode?.platformView?.removeFromSuperview()
-            let node = Node.inflate(newView)
-            childNode = node
-            if let pv = node.platformView {
-                addSubview(pv)
-                pv.frame = bounds
-            }
-        }
+        subviews.first?.frame = bounds
+        onLayout?(Rect(bounds))
     }
 }
 

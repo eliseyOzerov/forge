@@ -293,11 +293,11 @@ final class FlexView: UIView {
     /// Flex is normalized against max(1, totalFlex) so flex=0.5 means
     /// "half the space" even when it's the only fill child.
     /// Also computes the line's cross size (tallest child).
-    /// Get the fill flex value for a view on the main axis, unwrapping ProxyViews.
+    /// Get the fill flex value for a view on the main axis, unwrapping PassthroughViews.
     private func fillFlex(of view: UIView) -> Double? {
         let sizing: Frame?
         if let box = view as? BoxView { sizing = box.sizing }
-        else if let proxy = view as? ProxyView { sizing = proxy.innerSizing }
+        else if let proxy = view as? PassthroughView { sizing = proxy.innerSizing }
         else { return nil }
         guard let s = sizing else { return nil }
         if case .fill(let flex, _, _) = (isH ? s.width : s.height) { return flex }

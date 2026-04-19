@@ -293,9 +293,9 @@ class BoxView: UIView {
     override func didMoveToSuperview() {
         super.didMoveToSuperview()
         guard let superview else { return }
-        // Inside a ProxyView (ComposedNode wrapper), attach() pins
+        // Inside a PassthroughView (ComposedNode wrapper), attach() pins
         // to fill — don't add conflicting constraints.
-        guard !(superview is ProxyView) else { return }
+        guard !(superview is PassthroughView) else { return }
         constrain {
             switch sizing.width {
             case .fix(let w): widthAnchor.equal(w)

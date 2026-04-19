@@ -15,37 +15,36 @@
 #if canImport(UIKit)
 import UIKit
 
-public struct RectReporter: LeafView {
+public struct RectReporter: ProxyView {
     public let onRect: @MainActor (Rect) -> Void
-    public let content: any View
+    public let child: any View
 
     public init(
         onRect: @escaping @MainActor (Rect) -> Void,
         @ChildBuilder content: () -> any View
     ) {
         self.onRect = onRect
-        self.content = content()
+        self.child = content()
     }
 
     public init(onRect: @escaping @MainActor (Rect) -> Void, content: any View) {
         self.onRect = onRect
-        self.content = content
+        self.child = content
     }
 
-    public func makeRenderer() -> Renderer {
+    public func makeRenderer() -> ProxyRenderer {
         RectReporterRenderer(view: self)
     }
 }
 
 public extension View {
-    /// Observe this view's post-layout rect (in the parent's coord
-    /// space). Callback fires only when the rect changes.
     func onRect(_ perform: @escaping @MainActor (Rect) -> Void) -> RectReporter {
         RectReporter(onRect: perform, content: self)
     }
 }
 
-final class RectReporterRenderer: Renderer {
+final class RectReporterRenderer: ProxyRenderer {
+    weak var node: ProxyNode?
     private weak var reporterView: RectReporterView?
     private var view: RectReporter
 
@@ -56,23 +55,19 @@ final class RectReporterRenderer: Renderer {
     func update(from newView: any View) {
         guard let reporter = newView as? RectReporter, let reporterView else { return }
         view = reporter
-
         reporterView.onRect = reporter.onRect
-        reporterView.updateContent(reporter.content)
     }
 
     func mount() -> PlatformView {
         let rv = RectReporterView()
         self.reporterView = rv
         rv.onRect = view.onRect
-        rv.installContent(view.content)
         return rv
     }
 }
 
 final class RectReporterView: UIView {
     var onRect: (@MainActor (Rect) -> Void)?
-    private var childNode: Node?
     private var lastRect: Rect?
 
     override init(frame: CGRect) {
@@ -81,38 +76,18 @@ final class RectReporterView: UIView {
 
     required init?(coder: NSCoder) { fatalError() }
 
-    func installContent(_ view: any View) {
-        let node = Node.inflate(view)
-        childNode = node
-        if let pv = node.platformView { addSubview(pv) }
-    }
-
-    func updateContent(_ view: any View) {
-        if let node = childNode, node.canUpdate(to: view) {
-            node.update(from: view)
-        } else {
-            childNode?.platformView?.removeFromSuperview()
-            let node = Node.inflate(view)
-            childNode = node
-            if let pv = node.platformView {
-                addSubview(pv)
-                pv.frame = bounds
-            }
-        }
-    }
-
     override func sizeThatFits(_ size: CGSize) -> CGSize {
-        childNode?.platformView?.sizeThatFits(size) ?? .zero
+        subviews.first?.sizeThatFits(size) ?? .zero
     }
 
     override var intrinsicContentSize: CGSize {
-        childNode?.platformView?.intrinsicContentSize
+        subviews.first?.intrinsicContentSize
             ?? CGSize(width: UIView.noIntrinsicMetric, height: UIView.noIntrinsicMetric)
     }
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        childNode?.platformView?.frame = bounds
+        subviews.first?.frame = bounds
         reportRect()
     }
 

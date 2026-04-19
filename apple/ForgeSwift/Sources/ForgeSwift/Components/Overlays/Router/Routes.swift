@@ -22,29 +22,25 @@ public struct Screen: BuiltView, Route {
     }
 
     public func build(context: ViewContext) -> any View {
-        let route = context.route
+        let route = context.watch(RouteHandle.self)
 
-        // Dismiss progress is inverse of route progress: dismiss 0 = route 1 (shown), dismiss 1 = route 0 (gone)
+        guard !route.isBottom else { return content() }
+
         let dismissValue = Binding<Double>(
             get: { 1 - route.progress },
             set: { route.scrub(to: 1 - $0) }
         )
-        
-        print("build Screen, dismissValue = \(dismissValue.value)")
-        
+
         return Dismissible(
             value: dismissValue,
             edge: .trailing,
             threshold: DismissThreshold(distance: 0.4, velocity: 1000),
             onUpdate: { value, phase in
-                print("value = \(value), phase = \(phase)")
                 if phase == .dismissed {
                     Task { await route.dismiss(animated: false) }
                 }
             }
         ) { ctx, dismissProgress in
-            print("dismissProgress = \(dismissProgress)")
-            // dismissProgress 0 = fully shown, 1 = fully offscreen right
             return content()
                 .effect { $0.offset(dismissProgress, fractional: true) }
         }

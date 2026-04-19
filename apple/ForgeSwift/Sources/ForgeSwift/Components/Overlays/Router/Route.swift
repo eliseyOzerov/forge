@@ -70,6 +70,9 @@ public final class RouteModel: Notifier, RouteHandle {
     public private(set) var progress: Double = 0
     public private(set) var above: RouteHandle?
 
+    /// Async check called before dismiss. If it returns false, dismiss is cancelled.
+    public var dismissCheck: (@MainActor () async -> Bool)?
+
     private var coverSubscription: Subscription?
     private var driver: MotionDriver?
     private var progressSubscription: Subscription?
@@ -143,6 +146,15 @@ public final class RouteModel: Notifier, RouteHandle {
     }
 
     public func dismiss(result: Any? = nil, animated: Bool = true) async {
+        if let check = dismissCheck {
+            // Animate back to visible while waiting for the check
+            await animateProgress(to: 1)
+            phase = .settled
+            notify()
+
+            let allowed = await check()
+            if !allowed { return }
+        }
         if animated {
             await hide()
         } else {
@@ -208,4 +220,26 @@ public extension ViewContext {
     var maybeRouter: (any RouterHandle)? { tryRead((any RouterHandle).self) }
     var route: RouteHandle { read(RouteHandle.self) }
     var maybeRoute: RouteHandle? { tryRead(RouteHandle.self) }
+}
+
+// MARK: - onPop modifier
+
+/// Installs a dismiss check on the enclosing route. The check is
+/// called before the route is dismissed — return false to cancel.
+public struct PopGuard: BuiltView {
+    public let check: @MainActor () async -> Bool
+    public let child: any View
+
+    public func build(context: ViewContext) -> any View {
+        if let route = context.maybeRoute as? RouteModel {
+            route.dismissCheck = check
+        }
+        return child
+    }
+}
+
+public extension View {
+    func onPop(_ check: @escaping @MainActor () async -> Bool) -> PopGuard {
+        PopGuard(check: check, child: self)
+    }
 }

@@ -162,7 +162,7 @@ public struct Rotate: TransitionEffect {
 
 // MARK: - Transition view
 
-public struct Transition: LeafView {
+public struct Transition: ProxyView {
     public let show: Binding<Bool>
     public let effects: [any TransitionEffect]
     public let duration: Double
@@ -186,12 +186,13 @@ public struct Transition: LeafView {
         self.child = child()
     }
 
-    public func makeRenderer() -> Renderer {
+    public func makeRenderer() -> ProxyRenderer {
         TransitionRenderer(view: self)
     }
 }
 
-final class TransitionRenderer: Renderer {
+final class TransitionRenderer: ProxyRenderer {
+    weak var node: ProxyNode?
     private weak var transitionView: TransitionView?
     private var view: Transition
 
@@ -204,7 +205,6 @@ final class TransitionRenderer: Renderer {
         view = transition
         guard let transitionView else { return }
         transitionView.configure(
-            child: transition.child,
             effects: transition.effects,
             duration: transition.duration,
             curve: transition.curve,
@@ -217,7 +217,6 @@ final class TransitionRenderer: Renderer {
         let v = TransitionView()
         self.transitionView = v
         v.configure(
-            child: view.child,
             effects: view.effects,
             duration: view.duration,
             curve: view.curve,
@@ -229,7 +228,6 @@ final class TransitionRenderer: Renderer {
 }
 
 final class TransitionView: UIView {
-    private var childNode: Node?
     private var effects: [any TransitionEffect] = []
     private var motionCurve: Curve = .easeOut
     private var onStatus: ((TransitionStatus) -> Void)?
@@ -250,22 +248,21 @@ final class TransitionView: UIView {
     required init?(coder: NSCoder) { fatalError() }
 
     override func sizeThatFits(_ size: CGSize) -> CGSize {
-        childNode?.platformView?.sizeThatFits(size) ?? .zero
+        subviews.first?.sizeThatFits(size) ?? .zero
     }
 
     override var intrinsicContentSize: CGSize {
-        childNode?.platformView?.intrinsicContentSize
+        subviews.first?.intrinsicContentSize
             ?? CGSize(width: UIView.noIntrinsicMetric, height: UIView.noIntrinsicMetric)
     }
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        childNode?.platformView?.frame = bounds
+        subviews.first?.frame = bounds
         applyT()
     }
 
     func configure(
-        child: any View,
         effects: [any TransitionEffect],
         duration: Double,
         curve: Curve,
@@ -279,19 +276,6 @@ final class TransitionView: UIView {
         self.driver.duration = Duration(duration)
         self.motionCurve = curve
         self.onStatus = onStatus
-
-        // Mount or update child.
-        if let existing = childNode, existing.canUpdate(to: child) {
-            existing.update(from: child)
-        } else {
-            childNode?.platformView?.removeFromSuperview()
-            let node = Node.inflate(child)
-            childNode = node
-            if let pv = node.platformView {
-                addSubview(pv)
-                pv.frame = bounds
-            }
-        }
 
         if firstTime {
             applyT()
@@ -327,7 +311,7 @@ final class TransitionView: UIView {
     }
 
     private func applyT() {
-        guard let pv = childNode?.platformView else { return }
+        guard let pv = subviews.first else { return }
         let t = motionCurve(driver.value)
         var state = TransitionState()
         for effect in effects {

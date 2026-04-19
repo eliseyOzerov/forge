@@ -3,8 +3,8 @@ import UIKit
 
 // MARK: - Gesture
 
-/// A transparent container that attaches gesture recognizers to its
-/// platform view. Children are properly parented in the node tree,
+/// A transparent wrapper that attaches gesture recognizers to its
+/// platform view. The child is properly parented in the node tree,
 /// and gestures coexist with child interactions (buttons, etc.)
 /// through UIKit's normal gesture arbitration.
 ///
@@ -19,8 +19,8 @@ import UIKit
 ///     MyContent()
 /// }
 /// ```
-public struct Gesture: ContainerView {
-    public let children: [any View]
+public struct Gesture: ProxyView {
+    public let child: any View
     public let tap: TapConfig?
     public let doubleTap: DoubleTapConfig?
     public let press: PressConfig?
@@ -35,37 +35,23 @@ public struct Gesture: ContainerView {
         hold: HoldConfig? = nil,
         drag: DragConfig? = nil,
         pan: PanConfig? = nil,
-        @ChildrenBuilder content: () -> [any View]
+        @ChildBuilder child: () -> any View
     ) {
         self.tap = tap; self.doubleTap = doubleTap
         self.press = press; self.hold = hold
         self.drag = drag; self.pan = pan
-        self.children = content()
+        self.child = child()
     }
 
-    public init(
-        tap: TapConfig? = nil,
-        doubleTap: DoubleTapConfig? = nil,
-        press: PressConfig? = nil,
-        hold: HoldConfig? = nil,
-        drag: DragConfig? = nil,
-        pan: PanConfig? = nil,
-        children: [any View]
-    ) {
-        self.tap = tap; self.doubleTap = doubleTap
-        self.press = press; self.hold = hold
-        self.drag = drag; self.pan = pan
-        self.children = children
-    }
-
-    public func makeRenderer() -> ContainerRenderer {
+    public func makeRenderer() -> ProxyRenderer {
         GestureRenderer(view: self)
     }
 }
 
 // MARK: - Renderer
 
-final class GestureRenderer: ContainerRenderer {
+final class GestureRenderer: ProxyRenderer {
+    weak var node: ProxyNode?
     private weak var gestureView: GestureView?
     private var view: Gesture
 
@@ -82,22 +68,6 @@ final class GestureRenderer: ContainerRenderer {
         self.gestureView = v
         v.configure(view)
         return v
-    }
-
-    func insert(_ platformView: PlatformView, at index: Int, into container: PlatformView) {
-        if index >= container.subviews.count {
-            container.addSubview(platformView)
-        } else {
-            container.insertSubview(platformView, at: index)
-        }
-    }
-
-    func remove(_ platformView: PlatformView, from container: PlatformView) {
-        platformView.removeFromSuperview()
-    }
-
-    func index(of platformView: PlatformView, in container: PlatformView) -> Int? {
-        container.subviews.firstIndex(of: platformView)
     }
 }
 
@@ -138,7 +108,14 @@ final class GestureView: UIView {
 
     required init?(coder: NSCoder) { fatalError() }
 
-    override func sizeThatFits(_ size: CGSize) -> CGSize { size }
+    override func sizeThatFits(_ size: CGSize) -> CGSize {
+        subviews.first?.sizeThatFits(size) ?? size
+    }
+
+    override var intrinsicContentSize: CGSize {
+        subviews.first?.intrinsicContentSize
+            ?? CGSize(width: UIView.noIntrinsicMetric, height: UIView.noIntrinsicMetric)
+    }
 
     override func layoutSubviews() {
         super.layoutSubviews()
@@ -188,7 +165,6 @@ final class GestureView: UIView {
                 r.numberOfTapsRequired = 2
                 addGestureRecognizer(r)
                 doubleTapRecognizer = r
-                // Make single tap wait for double tap to fail
                 tapRecognizer?.require(toFail: r)
             }
         } else if let r = doubleTapRecognizer {
@@ -266,7 +242,6 @@ final class GestureView: UIView {
                 panRecognizer = r
             }
         } else if panConfig == nil, let r = panRecognizer {
-            // Only remove if pan config also doesn't need it
             removeGestureRecognizer(r)
             panRecognizer = nil
         }
@@ -322,7 +297,6 @@ final class GestureView: UIView {
                 addGestureRecognizer(r)
                 rotationRecognizer = r
             }
-            // Allow simultaneous recognition
             pinchRecognizer?.delegate = self
             rotationRecognizer?.delegate = self
         } else {
@@ -418,7 +392,6 @@ extension GestureView: UIGestureRecognizerDelegate {
         _ gestureRecognizer: UIGestureRecognizer,
         shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer
     ) -> Bool {
-        // Allow pinch + rotation to work simultaneously
         let isPinchOrRotation = gestureRecognizer is UIPinchGestureRecognizer || gestureRecognizer is UIRotationGestureRecognizer
         let otherIsPinchOrRotation = other is UIPinchGestureRecognizer || other is UIRotationGestureRecognizer
         return isPinchOrRotation && otherIsPinchOrRotation

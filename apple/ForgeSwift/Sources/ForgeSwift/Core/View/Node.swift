@@ -8,7 +8,7 @@
 //  Lifecycle methods live here and are overridden by subclasses —
 //  LeafNode, BuiltNode, ModelNode, and ContainerNode each know how
 //  to set themselves up, update in place, reconcile children, and
-//  tear down. The Resolver is just an entry point + retention root.
+//  tear down. The Root is just an entry point + retention root.
 //
 //  BuiltNode vs ModelNode split: BuiltNode backs stateless composites
 //  (BuiltView) and has no Model/Builder slot. ModelNode backs
@@ -36,7 +36,7 @@ import AppKit
 /// Transparent wrapper view used by BuiltNode and ModelNode.
 /// Delegates sizing to its single child and pins that child to fill.
 #if canImport(UIKit)
-class ProxyView: UIView {
+class PassthroughView: UIView {
     override func sizeThatFits(_ size: CGSize) -> CGSize {
         subviews.first?.sizeThatFits(size) ?? .zero
     }
@@ -58,12 +58,12 @@ class ProxyView: UIView {
     /// Unwrap through proxies to find the innermost BoxView's sizing.
     var innerSizing: Frame? {
         if let box = subviews.first as? BoxView { return box.sizing }
-        if let proxy = subviews.first as? ProxyView { return proxy.innerSizing }
+        if let proxy = subviews.first as? PassthroughView { return proxy.innerSizing }
         return nil
     }
 }
 #elseif canImport(AppKit)
-class ProxyView: NSView {
+class PassthroughView: NSView {
     override var intrinsicContentSize: NSSize {
         subviews.first?.intrinsicContentSize ?? NSSize(width: NSView.noIntrinsicMetric, height: NSView.noIntrinsicMetric)
     }
@@ -307,7 +307,7 @@ public final class BuiltNode: Node {
 
     public override init() {
         super.init()
-        self.platformView = ProxyView()
+        self.platformView = PassthroughView()
     }
 
     override func setup(from view: any View) {
@@ -473,6 +473,63 @@ final class OffstageView: UIView {
 
 // MARK: - ModelNode
 
+// MARK: - ProxyNode
+
+/// Backs ProxyView — a single-child wrapper with a custom platform
+/// view. The child is properly parented in the node tree.
+public final class ProxyNode: Node {
+    public var renderer: ProxyRenderer?
+    public var childNode: Node?
+
+    override func setup(from view: any View) {
+        super.setup(from: view)
+        guard let proxy = self.view as? any ProxyView else {
+            fatalError("ProxyNode.setup called with non-ProxyView: \(type(of: self.view!))")
+        }
+        let renderer = proxy.makeRenderer()
+        renderer.node = self
+        self.renderer = renderer
+        self.platformView = renderer.mount()
+
+        inflateChild(proxy.child)
+    }
+
+    override func update(from view: any View) {
+        super.update(from: view)
+        guard let proxy = self.view as? any ProxyView else {
+            fatalError("ProxyNode.update called with non-ProxyView: \(type(of: self.view!))")
+        }
+        renderer?.update(from: proxy)
+        if !proxy.deferred {
+            reconcileChild(proxy.child)
+        }
+    }
+
+    /// Re-inflate or update the child. Called by renderers that
+    /// manage the child lifecycle (e.g. LayoutReader on size change).
+    public func reconcileChild(_ newChild: any View) {
+        if let existing = childNode, existing.canUpdate(to: newChild) {
+            existing.update(from: newChild)
+        } else {
+            childNode?.unmount()
+            inflateChild(newChild)
+        }
+    }
+
+    private func inflateChild(_ child: any View) {
+        let node = Node.inflate(child, parent: self)
+        self.childNode = node
+        if let childPlatform = node.platformView, let container = self.platformView {
+            container.addSubview(childPlatform)
+        }
+    }
+
+    override func unmountChildren() {
+        childNode?.unmount()
+        childNode = nil
+    }
+}
+
 /// Backs stateful composites (ModelView). Owns the Model (created
 /// once at mount via `model(context:)`) and produces a fresh Builder
 /// each render via `builder(model:)`. Dispatches lifecycle hooks
@@ -487,7 +544,7 @@ public final class ModelNode: Node {
 
     public override init() {
         super.init()
-        self.platformView = ProxyView()
+        self.platformView = PassthroughView()
     }
 
     override func setup(from view: any View) {

@@ -108,16 +108,12 @@ public final class DismissibleModel: ViewModel<Dismissible> {
         dragStart = position
         dragAxis = nil
         setPhase(.dragging)
+        print("[Dismissible] START pos=\(position)")
     }
 
     func handleDragUpdate(at position: Vec2) {
-        guard phase == .dragging else {
-            print("[Dismissible] update skipped — phase: \(phase)")
-            return
-        }
+        guard phase == .dragging else { return }
         let delta = position - dragStart
-        print("[Dismissible] delta: \(delta), edge: \(String(describing: view.edge))")
-
         // Resolve axis on first significant move if edge is nil
         if dragAxis == nil {
             if let edge = view.edge {
@@ -134,13 +130,10 @@ public final class DismissibleModel: ViewModel<Dismissible> {
             }
         }
 
-        guard let axis = dragAxis else {
-            print("[Dismissible] no axis resolved yet")
-            return
-        }
+        guard let axis = dragAxis else { return }
         let raw = rawProgress(for: delta, axis: axis)
         let clamped = min(max(raw, 0), 1)
-        print("[Dismissible] axis: \(axis), raw: \(raw), clamped: \(clamped), containerSize: \(containerSize)")
+        print("[Dismissible] UPDATE delta=\(delta) axis=\(axis) raw=\(raw) clamped=\(clamped) containerSize=\(containerSize)")
         rebuild {
             view.value.value = clamped
         }
@@ -149,12 +142,14 @@ public final class DismissibleModel: ViewModel<Dismissible> {
 
     func handleDragEnd(velocity: Vec2) {
         guard phase == .dragging, let axis = dragAxis else {
+            print("[Dismissible] END skipped phase=\(phase) axis=\(String(describing: dragAxis))")
             snapBack()
             return
         }
 
         let vel = axisVelocity(velocity, axis: axis)
         let shouldDismiss = view.value.value >= view.threshold.distance || vel >= view.threshold.velocity
+        print("[Dismissible] END vel=\(vel) value=\(view.value.value) threshold=\(view.threshold.distance) shouldDismiss=\(shouldDismiss)")
 
         if shouldDismiss {
             animateTo(1)
@@ -164,6 +159,7 @@ public final class DismissibleModel: ViewModel<Dismissible> {
     }
 
     func handleDragCancel() {
+        print("[Dismissible] CANCEL")
         snapBack()
     }
 

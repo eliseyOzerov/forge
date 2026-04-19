@@ -90,18 +90,19 @@ enum EffectOp {
 
 // MARK: - EffectView
 
-struct EffectView: LeafView {
+struct EffectView: ProxyView {
     let child: any View
     let effect: Effect
 
-    func makeRenderer() -> Renderer {
+    func makeRenderer() -> ProxyRenderer {
         EffectRenderer(view: self)
     }
 }
 
 // MARK: - EffectRenderer
 
-final class EffectRenderer: Renderer {
+final class EffectRenderer: ProxyRenderer {
+    weak var node: ProxyNode?
     private weak var hostView: EffectHostView?
     private var view: EffectView
 
@@ -113,33 +114,17 @@ final class EffectRenderer: Renderer {
         let host = EffectHostView()
         self.hostView = host
         host.clipsToBounds = false
-
-        let childPlatform = host.resolver.mount(view.child)
-        host.childPlatform = childPlatform
-        host.addSubview(childPlatform)
         host.operations = view.effect.operations
         return host
     }
 
     func update(from newView: any View) {
         guard let ev = newView as? EffectView, let host = hostView else { return }
+        let oldOps = view.effect.operations
         view = ev
 
-        var childChanged = false
-        if let existing = host.resolver.rootNode, existing.canUpdate(to: ev.child) {
-            existing.update(from: ev.child)
-            childChanged = true
-        } else {
-            host.subviews.forEach { $0.removeFromSuperview() }
-            let childPlatform = host.resolver.mount(ev.child)
-            host.childPlatform = childPlatform
-            host.addSubview(childPlatform)
-            childChanged = true
-        }
-
-        if childChanged {
-            host.invalidateSnapshot()
-        }
+        host.childPlatform = host.subviews.first
+        host.invalidateSnapshot()
         host.operations = ev.effect.operations
     }
 }
@@ -159,7 +144,6 @@ final class EffectRenderer: Renderer {
 /// When no filters are active, transforms go on the child's layer
 /// (no snapshot needed).
 final class EffectHostView: UIView {
-    let resolver = Resolver()
     weak var childPlatform: UIView?
 
     private var outputLayer: CALayer?
@@ -185,16 +169,17 @@ final class EffectHostView: UIView {
     }
 
     override func sizeThatFits(_ size: CGSize) -> CGSize {
-        childPlatform?.sizeThatFits(size) ?? .zero
+        (childPlatform ?? subviews.first)?.sizeThatFits(size) ?? .zero
     }
 
     override var intrinsicContentSize: CGSize {
-        childPlatform?.intrinsicContentSize
+        (childPlatform ?? subviews.first)?.intrinsicContentSize
             ?? CGSize(width: UIView.noIntrinsicMetric, height: UIView.noIntrinsicMetric)
     }
 
     override func layoutSubviews() {
         super.layoutSubviews()
+        if childPlatform == nil { childPlatform = subviews.first }
         guard let child = childPlatform else { return }
 
         // Reset

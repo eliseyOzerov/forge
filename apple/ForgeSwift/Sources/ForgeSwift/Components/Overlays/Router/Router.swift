@@ -142,10 +142,12 @@ public final class RouterModel: ViewModel<Router>, RouterHandle {
     // MARK: - RouterHandle
 
     public func push(_ route: any Route) {
+        let entry = makeEntry(route)
         rebuild {
-            entries.append(makeEntry(route))
+            entries.append(entry)
             updateCoverState()
         }
+        Task { await entry.show() }
     }
 
     public func pushForResult<R: Sendable>(_ route: any Route) async -> R? {
@@ -158,17 +160,13 @@ public final class RouterModel: ViewModel<Router>, RouterHandle {
                 entries.append(entry)
                 updateCoverState()
             }
+            Task { await entry.show() }
         }
     }
 
     public func pop(result: Any? = nil) {
-        guard entries.count > 1 else { return }
-        rebuild {
-            let popped = entries.removeLast()
-            popped.dispose()
-            resolveResult(for: popped.id, with: result)
-            updateCoverState()
-        }
+        guard entries.count > 1, let top = entries.last else { return }
+        Task { await top.dismiss(result: result) }
     }
 
     public func pop(until predicate: (any Route) -> Bool) {
@@ -278,16 +276,41 @@ public final class RouterModel: ViewModel<Router>, RouterHandle {
 
 // MARK: - RouterBuilder
 
+fileprivate struct CoverTransform: BuiltView {
+    let child: any View
+
+    init(@ChildBuilder child: () -> any View) {
+        self.child = child()
+    }
+
+    func build(context: ViewContext) -> any View {
+        if let route = context.tryRead(RouteHandle.self),
+           let above = route.above {
+            return above.transform(child)
+        }
+        return child
+    }
+}
+
 public final class RouterBuilder: ViewBuilder<RouterModel> {
     public override func build(context: ViewContext) -> any View {
         let entries = model.entries
         let topID = entries.last?.id
         let topNavItem: Observable<NavigationItem>? = topID.map { model.navItem(for: $0) }
 
-        let routeViews: [any View] = entries.map { entry in
-            let isTop = entry.id == topID
+        // Find the lowest opaque + settled route — everything below it is offstage
+        var lowestVisible = 0
+        for i in stride(from: entries.count - 1, through: 0, by: -1) {
+            let entry = entries[i]
+            if entry.route.opaque && entry.phase == .settled {
+                lowestVisible = i
+                break
+            }
+        }
+
+        let routeViews: [any View] = entries.enumerated().map { (i, entry) in
             let navItemObs = model.navItem(for: entry.id)
-            return Offstage(offstage: !isTop) {
+            return Offstage(offstage: i < lowestVisible) {
                 Provided(entry as RouteHandle, navItemObs) {
                     Box(.fill) { entry.route }
                 }
@@ -379,3 +402,4 @@ public struct DeepLinkMap {
         return URLParams(values: params)
     }
 }
+

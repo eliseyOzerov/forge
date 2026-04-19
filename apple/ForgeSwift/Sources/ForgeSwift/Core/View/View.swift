@@ -349,6 +349,34 @@ public struct Offstage: View {
     public func makeNode() -> Node { OffstageNode() }
 }
 
+// MARK: - Proxy
+
+/// A single-child wrapper with a custom platform view. Like
+/// ContainerView but for exactly one child — no insert/remove/move.
+/// The child is properly parented in the node tree.
+@MainActor public protocol ProxyView: View {
+    var child: any View { get }
+    /// When true, ProxyNode skips child reconciliation in update —
+    /// the renderer manages the child lifecycle via reconcileChild().
+    var deferred: Bool { get }
+    func makeRenderer() -> ProxyRenderer
+}
+
+public extension ProxyView {
+    var deferred: Bool { false }
+}
+
+public extension ProxyView {
+    func makeNode() -> Node { ProxyNode() }
+}
+
+/// Renderer for ProxyView. Has a weak reference back to its owning
+/// ProxyNode so platform views can trigger child re-inflation
+/// (e.g. LayoutReader on size change).
+@MainActor public protocol ProxyRenderer: Renderer {
+    var node: ProxyNode? { get set }
+}
+
 // MARK: - Container
 
 /// A View with a fixed list of child views and a native container
@@ -446,6 +474,21 @@ private final class EmptyRenderer: Renderer {
 @MainActor public protocol Identified {
     var id: AnyHashable { get }
     var child: any View { get }
+}
+
+// MARK: - AnyView
+
+/// Type-erased View. Forwards `makeNode()` to the wrapped view.
+public struct AnyView: View {
+    public let wrapped: any View
+
+    public init(_ view: any View) {
+        self.wrapped = view
+    }
+
+    public func makeNode() -> Node {
+        wrapped.makeNode()
+    }
 }
 
 public struct IdentifiedView<Inner: View>: View, Identified {

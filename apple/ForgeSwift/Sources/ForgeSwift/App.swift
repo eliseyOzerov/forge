@@ -5,7 +5,7 @@ import UIKit
 open class App: UIResponder, UIApplicationDelegate, UISceneDelegate {
 
     public var window: UIWindow?
-    public var resolver: Resolver?
+    public var resolver: Root?
 
     open var body: any View {
         fatalError("Must override body property in your App subclass")
@@ -47,7 +47,7 @@ open class App: UIResponder, UIApplicationDelegate, UISceneDelegate {
         let window = UIWindow(windowScene: windowScene)
         self.window = window
 
-        let resolver = Resolver()
+        let resolver = Root()
         self.resolver = resolver
         let rootPlatformView = resolver.mount(body)
 
@@ -74,7 +74,7 @@ import AppKit
 open class App: NSObject, NSApplicationDelegate {
 
     public var window: NSWindow?
-    public var resolver: Resolver?
+    public var resolver: Root?
 
     open var body: any View {
         fatalError("Must override body property in your App subclass")
@@ -92,7 +92,7 @@ open class App: NSObject, NSApplicationDelegate {
         window.center()
         self.window = window
 
-        let resolver = Resolver()
+        let resolver = Root()
         self.resolver = resolver
         let rootPlatformView = resolver.mount(body)
 
