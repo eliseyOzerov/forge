@@ -77,17 +77,20 @@ public struct Segmented<T: Hashable>: ModelView {
 
 public final class SegmentedModel<T: Hashable>: ViewModel<Segmented<T>> {
     var isPressed = false
-    var motion: Motion = Motion(duration: 0.25, tracks: [Track()])
+    let driver = MotionDriver(duration: Duration(0.25))
+    var curve: Curve = .easeInOut
+    private var animFrom: Double = 0
+    private var animTo: Double = 0
 
     public override func didInit(view: Segmented<T>) {
         super.didInit(view: view)
         let idx = Double(selectedIndex)
         let style = view.style(.idle)
-        motion = Motion(
-            duration: style.animation.duration,
-            curve: style.animation.curve,
-            tracks: [Track(from: idx, to: idx)]
-        )
+        driver.duration = Duration(style.animation.duration)
+        curve = style.animation.curve
+        animFrom = idx
+        animTo = idx
+        watch(driver)
     }
 
     var isDisabled: Bool { view.states.contains(.disabled) }
@@ -108,7 +111,11 @@ public final class SegmentedModel<T: Hashable>: ViewModel<Segmented<T>> {
     /// Visual position as a float index (0..count-1), possibly between
     /// segments during animation or drag.
     var displayIndex: Double {
-        motion.isRunning ? motion.values[0] : Double(selectedIndex)
+        if driver.isRunning {
+            let eased = curve(driver.value)
+            return animFrom + (animTo - animFrom) * eased
+        }
+        return Double(selectedIndex)
     }
 
     func itemState(at index: Int) -> State {
@@ -134,7 +141,9 @@ public final class SegmentedModel<T: Hashable>: ViewModel<Segmented<T>> {
         rebuild {
             let clamped = min(max(normalized, 0), 1)
             let idx = clamped * Double(itemCount - 1)
-            motion = Motion(duration: 0, tracks: [Track(from: idx, to: idx)])
+            animFrom = idx
+            animTo = idx
+            driver.seek(to: 1)
             // Update value when crossing midpoint
             let nearest = Int(idx.rounded())
             if (0..<itemCount).contains(nearest) {
@@ -160,13 +169,13 @@ public final class SegmentedModel<T: Hashable>: ViewModel<Segmented<T>> {
                 fireHaptic()
             }
             let style = view.style(currentState)
-            motion = Motion(
-                duration: style.animation.duration,
-                curve: style.animation.curve,
-                tracks: [Track(from: displayIndex, to: Double(index))]
-            )
-            motion.forward()
+            driver.duration = Duration(style.animation.duration)
+            curve = style.animation.curve
+            animFrom = displayIndex
+            animTo = Double(index)
+            driver.seek(to: 0)
         }
+        Task { [weak self] in await self?.driver.forward() }
     }
 
     private func fireHaptic() {

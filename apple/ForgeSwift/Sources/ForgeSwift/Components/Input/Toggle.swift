@@ -60,24 +60,24 @@ public struct Toggle: ModelView {
 
 public final class ToggleModel: ViewModel<Toggle> {
     var isPressed = false
-    lazy var motion: Motion = Motion(duration: 0.2, tracks: [Track(from: 0, to: 1)])
+    let driver = MotionDriver(duration: Duration(0.2))
+    var curve: Curve = .easeInOut
 
     public override func didInit(view: Toggle) {
         super.didInit(view: view)
         let style = resolveStyle()
-        motion = Motion(duration: style.animation.duration, curve: style.animation.curve, tracks: [Track(from: 0, to: 1)])
+        driver.duration = Duration(style.animation.duration)
+        curve = style.animation.curve
         if view.value.value {
-            motion.target([1])
-            motion.tick()
-            while motion.isRunning { motion.tick() }
+            driver.seek(to: 1)
         }
     }
 
     var isOn: Bool { view.value.value }
     var isDisabled: Bool { view.states.contains(.disabled) }
     var isLoading: Bool { view.states.contains(.loading) }
-    var animationProgress: Double { motion.values[0] }
-    var isAnimating: Bool { motion.isRunning }
+    var animationProgress: Double { curve(driver.value) }
+    var isAnimating: Bool { driver.isRunning }
 
     var currentState: State {
         var state = view.states
@@ -94,8 +94,8 @@ public final class ToggleModel: ViewModel<Toggle> {
     func handlePress() {
         guard !isDisabled, !isLoading else { return }
         let style = resolveStyle()
-        motion.duration = style.animation.duration
-        motion.curve = style.animation.curve
+        driver.duration = Duration(style.animation.duration)
+        curve = style.animation.curve
         rebuild { isPressed = true }
         fireHaptic(style.haptic)
     }
@@ -103,8 +103,8 @@ public final class ToggleModel: ViewModel<Toggle> {
     func handleRelease(inside: Bool) {
         let wasPressed = isPressed
         let style = resolveStyle()
-        motion.duration = style.animation.duration
-        motion.curve = style.animation.curve
+        driver.duration = Duration(style.animation.duration)
+        curve = style.animation.curve
         rebuild { isPressed = false }
         if inside && wasPressed { toggle() }
     }
@@ -113,9 +113,16 @@ public final class ToggleModel: ViewModel<Toggle> {
         rebuild {
             view.value.value.toggle()
             let style = resolveStyle()
-            motion.duration = style.animation.duration
-            motion.curve = style.animation.curve
-            motion.target([view.value.value ? 1 : 0])
+            driver.duration = Duration(style.animation.duration)
+            curve = style.animation.curve
+        }
+        Task { [weak self] in
+            guard let self else { return }
+            if isOn {
+                await driver.forward()
+            } else {
+                await driver.reverse()
+            }
         }
     }
 
@@ -170,7 +177,6 @@ final class ToggleRenderer: Renderer {
             toggleView.invalidateIntrinsicContentSize()
             toggleView.superview?.setNeedsLayout()
         }
-        if leaf.model.isAnimating { toggleView.startAnimation() }
         toggleView.setNeedsDisplay()
     }
 
@@ -183,7 +189,7 @@ final class ToggleRenderer: Renderer {
         tv.isOpaque = false
         tv.backgroundColor = .clear
         tv.invalidateIntrinsicContentSize()
-        if view.model.isAnimating { tv.startAnimation() }
+        tv.wireDriver()
         return tv
     }
 }
@@ -193,15 +199,15 @@ final class ToggleRenderer: Renderer {
 final class ToggleView: UIView {
     weak var model: ToggleModel?
     var toggleSize: Size = Size(24, 24)
-    private let driver = DisplayLinkDriver()
+    private var progressSub: Subscription?
 
     override var intrinsicContentSize: CGSize { toggleSize.cgSize }
     override func sizeThatFits(_ size: CGSize) -> CGSize { toggleSize.cgSize }
 
-    func startAnimation() {
-        driver.motion = model?.motion
-        driver.attach(to: self)
-        driver.start()
+    func wireDriver() {
+        progressSub = model?.driver.listen { [weak self] in
+            self?.setNeedsDisplay()
+        }
     }
 
     override func draw(_ rect: CGRect) {
@@ -235,7 +241,7 @@ final class ToggleView: UIView {
     override var accessibilityValue: String? { get { model?.isOn == true ? "on" : "off" } set {} }
     override func accessibilityActivate() -> Bool { model?.toggle(); return true }
 
-    override func removeFromSuperview() { driver.stop(); super.removeFromSuperview() }
+    override func removeFromSuperview() { progressSub?.cancel(); model?.driver.reset(); super.removeFromSuperview() }
 }
 
 // MARK: - Preset: Checkbox

@@ -151,8 +151,8 @@ class ProxyView: NSView {
     /// Type-erased subscribe-and-mark-dirty. Used by Provided/consumer
     /// machinery to subscribe to an Observable whose element type the
     /// caller doesn't know statically.
-    public func watchAny(_ observable: AnyObservable) {
-        let sub = observable.observeChange { [weak self] in
+    public func watchAny(_ listenable: Listenable) {
+        let sub = listenable.listen { [weak self] in
             self?.markDirty()
         }
         subscriptions.append(sub)
@@ -237,7 +237,7 @@ extension Node: ViewContext {
     }
 
     /// Subscribing read. Registers this build pass on slot replacement
-    /// AND — if the value is `AnyObservable` — on the value's own
+    /// AND — if the value is `Listenable` — on the value's own
     /// in-place mutations.
     public func watch<T>(_ type: T.Type) -> T {
         guard let slot = findSlot(type) else {
@@ -246,7 +246,7 @@ extension Node: ViewContext {
                        "or use maybeWatch(\(T.self).self) for optional access.")
         }
         let value = watch(slot.observable)
-        if let observable = value as? AnyObservable {
+        if let observable = value as? Listenable {
             watchAny(observable)
         }
         return value
@@ -256,7 +256,7 @@ extension Node: ViewContext {
     public func tryWatch<T>(_ type: T.Type) -> T? {
         guard let slot = findSlot(type) else { return nil }
         let value = watch(slot.observable)
-        if let observable = value as? AnyObservable {
+        if let observable = value as? Listenable {
             watchAny(observable)
         }
         return value

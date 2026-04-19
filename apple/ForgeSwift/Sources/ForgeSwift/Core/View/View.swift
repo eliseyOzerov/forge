@@ -157,8 +157,8 @@ public extension ViewLifecycle {
     private func autoWatchObservables() {
         let mirror = Mirror(reflecting: self)
         for child in mirror.children {
-            if let observable = child.value as? AnyObservable {
-                let sub = observable.observeChange { [weak self] in
+            if let listenable = child.value as? Listenable {
+                let sub = listenable.listen { [weak self] in
                     self?.rebuild {}
                 }
                 subscriptions.append(sub)
@@ -188,7 +188,7 @@ public extension ViewLifecycle {
     /// Subscribe to an observable and rebuild automatically when it
     /// changes. The subscription is cancelled on dispose.
     public func watch<T>(_ observable: Observable<T>) {
-        let sub = observable.observeChange { [weak self] in
+        let sub = observable.listen { [weak self] in
             self?.rebuild {}
         }
         subscriptions.append(sub)
@@ -249,7 +249,7 @@ public extension ViewLifecycle {
 ///   loop.
 /// - `watch(_:)` / `maybeWatch(_:)` — subscribes the current build
 ///   pass to slot replacement and, if the value conforms to
-///   `AnyObservable`, to its in-place mutations. Use when the
+///   `Listenable`, to its in-place mutations. Use when the
 ///   screen should rebuild when the value changes.
 @MainActor public protocol ViewContext {
     /// Read an Observable's current value and subscribe this build
@@ -271,7 +271,7 @@ public extension ViewLifecycle {
     func tryRead<T>(_ type: T.Type) -> T?
 
     /// Read the nearest `Provided<T>` and subscribe this build pass
-    /// to slot replacement AND (if the value is `AnyObservable`) to
+    /// to slot replacement AND (if the value is `Listenable`) to
     /// its in-place mutations. Fatal if no provider is found.
     func watch<T>(_ type: T.Type) -> T
 

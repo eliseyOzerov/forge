@@ -63,17 +63,10 @@ public final class PlaneModel: ViewModel<Plane> {
     var isPressed = false
     var anchorOffset: Vec2 = .zero
     var containerSize: Size = .zero
-    var motion: Motion = Motion(duration: 0.3, tracks: [Track(), Track()])
-
-    public override func didInit(view: Plane) {
-        super.didInit(view: view)
-        motion = Motion(
-            duration: view.animation.duration,
-            curve: view.animation.curve,
-            tracks: [Track(from: view.offset.value.x, to: view.offset.value.x),
-                     Track(from: view.offset.value.y, to: view.offset.value.y)]
-        )
-    }
+    let driver = MotionDriver(duration: Duration(0.3))
+    var curve: Curve = .easeOut
+    private var animFrom: Vec2 = .zero
+    private var animTo: Vec2 = .zero
 
     var isDisabled: Bool { view.states.contains(.disabled) }
 
@@ -84,8 +77,12 @@ public final class PlaneModel: ViewModel<Plane> {
     }
 
     var currentOffset: Vec2 {
-        if motion.isRunning {
-            return Vec2(motion.values[0], motion.values[1])
+        if driver.isRunning {
+            let eased = curve(driver.value)
+            return Vec2(
+                animFrom.x + (animTo.x - animFrom.x) * eased,
+                animFrom.y + (animTo.y - animFrom.y) * eased
+            )
         }
         return view.offset.value
     }
@@ -127,26 +124,22 @@ public final class PlaneModel: ViewModel<Plane> {
         rebuild {
             isPressed = false
             if final != view.offset.value {
-                // Animate to snap target
-                motion.duration = view.animation.duration
-                motion.curve = view.animation.curve
-                motion = Motion(
-                    duration: view.animation.duration,
-                    curve: view.animation.curve,
-                    tracks: [Track(from: view.offset.value.x, to: final.x),
-                             Track(from: view.offset.value.y, to: final.y)]
-                )
-                motion.onTick = { [weak self] in
-                    guard let self else { return }
-                    rebuild { view.offset.value = Vec2(motion.values[0], motion.values[1]) }
-                }
-                motion.onComplete = { [weak self] in
-                    guard let self else { return }
-                    view.offset.value = final
-                }
-                motion.forward()
+                driver.duration = Duration(view.animation.duration)
+                curve = view.animation.curve
+                animFrom = view.offset.value
+                animTo = final
+                driver.seek(to: 0)
             }
         }
+
+        if animFrom != animTo {
+            Task { [weak self] in
+                guard let self else { return }
+                await driver.forward()
+                view.offset.value = final
+            }
+        }
+
         view.onEnd?(final)
     }
 
@@ -198,13 +191,14 @@ final class PlaneRenderer: Renderer {
         view = leaf
 
         planeView.model = leaf.model
-        if leaf.model.motion.isRunning { planeView.startAnimation() }
+        planeView.wireDriver()
     }
 
     func mount() -> PlatformView {
         let v = PlaneView()
         self.planeView = v
         v.model = view.model
+        v.wireDriver()
         return v
     }
 }
@@ -212,7 +206,7 @@ final class PlaneRenderer: Renderer {
 final class PlaneView: UIView {
     weak var model: PlaneModel?
     private var panGesture: UIPanGestureRecognizer!
-    private let driver = DisplayLinkDriver()
+    private var progressSub: Subscription?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -222,10 +216,10 @@ final class PlaneView: UIView {
 
     required init?(coder: NSCoder) { fatalError() }
 
-    func startAnimation() {
-        driver.motion = model?.motion
-        driver.attach(to: self)
-        driver.start()
+    func wireDriver() {
+        progressSub = model?.driver.listen { [weak self] in
+            self?.setNeedsLayout()
+        }
     }
 
     override func layoutSubviews() {
@@ -262,7 +256,8 @@ final class PlaneView: UIView {
     override var accessibilityTraits: UIAccessibilityTraits { get { .adjustable } set {} }
 
     override func removeFromSuperview() {
-        driver.stop()
+        progressSub?.cancel()
+        model?.driver.reset()
         super.removeFromSuperview()
     }
 }

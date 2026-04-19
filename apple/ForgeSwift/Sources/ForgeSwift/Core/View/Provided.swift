@@ -9,7 +9,7 @@
 //  table. Descendants read it via BuildContext.read / .watch, which
 //  walk the parent chain to find the nearest provider and subscribe
 //  to slot changes (and, for .watch, to the value's own observations
-//  if the value itself conforms to AnyObservable — e.g. a store).
+//  if the value itself conforms to Listenable — e.g. a store).
 //
 //  Subscriptions live on the consumer's Node and are auto-cancelled
 //  on the next build pass, same as Node.watch(observable).

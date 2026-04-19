@@ -2,13 +2,13 @@
 //  Ref.swift
 //  ForgeSwift
 //
-//  External reference to a mounted view's node and model.
-//  Keyed by view type — `Ref<Router>` will only be populated by a
-//  Router node, not by any other view in the subtree.
+//  General-purpose reference. When typed by a View, the node system
+//  auto-populates it on mount. Conditional extensions add .context
+//  and .model for View and ModelView types respectively.
 //
 //  Usage:
 //
-//      let router = Ref<Router>()
+//      @Ref<Router> var router
 //
 //      Router { HomeView() }.ref(router)
 //
@@ -18,12 +18,14 @@
 
 // MARK: - Ref
 
+@propertyWrapper
 @MainActor
 public class Ref<V: View> {
-    /// The node backing the referenced view. Set automatically by the
-    /// node system on mount; nils out when the node is deallocated
-    /// (weak reference).
+    /// Node backing, populated by the node system on mount.
     public internal(set) weak var node: Node?
+
+    public var wrappedValue: Ref<V> { self }
+    public var projectedValue: Ref<V> { self }
 
     public init() {}
 
@@ -31,7 +33,7 @@ public class Ref<V: View> {
     public var context: ViewContext? { node }
 }
 
-// MARK: - Model access for ModelView
+// MARK: - Model access
 
 public extension Ref where V: ModelView {
     /// Typed access to the view's model, if mounted.
@@ -43,10 +45,9 @@ public extension Ref where V: ModelView {
 // MARK: - View modifier
 
 public extension View {
-    /// Attach a Ref so the nearest descendant node matching the Ref's
-    /// view type will populate it on mount. Internally wraps the view
-    /// in a Provided so the ref travels down the tree.
-    func ref<R: View>(_ ref: Ref<R>) -> any View {
+    /// Provide a Ref into the subtree. The node system auto-populates
+    /// View-typed refs when a matching node mounts.
+    func ref<V: View>(_ ref: Ref<V>) -> any View {
         Provided(ref) { self }
     }
 }

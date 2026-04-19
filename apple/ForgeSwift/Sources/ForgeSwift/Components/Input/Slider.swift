@@ -134,12 +134,10 @@ public struct Slider: ModelView {
 
 public final class SliderModel: ViewModel<Slider> {
     var isPressed = false
-    var motion: Motion = Motion(duration: 0.2, tracks: [Track()])
-
-    public override func didInit(view: Slider) {
-        super.didInit(view: view)
-        motion = Motion(duration: 0.2, curve: .easeOut, tracks: [Track(from: normalized, to: normalized)])
-    }
+    let driver = MotionDriver(duration: Duration(0.2))
+    var curve: Curve = .easeOut
+    private var animFrom: Double = 0
+    private var animTo: Double = 0
 
     var isDisabled: Bool { view.states.contains(.disabled) }
 
@@ -158,7 +156,11 @@ public final class SliderModel: ViewModel<Slider> {
 
     /// Current visual position (may differ during animation).
     var displayNormalized: Double {
-        motion.isRunning ? motion.values[0] : normalized
+        if driver.isRunning {
+            let eased = curve(driver.value)
+            return animFrom + (animTo - animFrom) * eased
+        }
+        return normalized
     }
 
     func setNormalized(_ n: Double, animated: Bool = false) {
@@ -182,8 +184,12 @@ public final class SliderModel: ViewModel<Slider> {
 
             if animated {
                 let style = resolveStyle()
-                motion = Motion(duration: style.animation.duration, curve: style.animation.curve, tracks: [Track(from: displayNormalized, to: self.normalized)])
-                motion.forward()
+                driver.duration = Duration(style.animation.duration)
+                curve = style.animation.curve
+                animFrom = displayNormalized
+                animTo = self.normalized
+                driver.seek(to: 0)
+                Task { [weak self] in await self?.driver.forward() }
             }
 
             fireHaptic()
@@ -248,7 +254,7 @@ final class SliderRenderer: Renderer {
         view = leaf
 
         sliderView.model = leaf.model
-        if leaf.model.motion.isRunning { sliderView.startAnimation() }
+        sliderView.wireDriver()
         sliderView.setNeedsDisplay()
     }
 
@@ -258,7 +264,7 @@ final class SliderRenderer: Renderer {
         sv.model = view.model
         sv.isOpaque = false
         sv.backgroundColor = .clear
-        if view.model.motion.isRunning { sv.startAnimation() }
+        sv.wireDriver()
         return sv
     }
 }
@@ -267,7 +273,7 @@ final class SliderRenderer: Renderer {
 
 final class SliderView: UIView {
     weak var model: SliderModel?
-    private let driver = DisplayLinkDriver()
+    private var progressSub: Subscription?
     private var panGesture: UIPanGestureRecognizer!
 
     override init(frame: CGRect) {
@@ -281,10 +287,10 @@ final class SliderView: UIView {
 
     required init?(coder: NSCoder) { fatalError() }
 
-    func startAnimation() {
-        driver.motion = model?.motion
-        driver.attach(to: self)
-        driver.start()
+    func wireDriver() {
+        progressSub = model?.driver.listen { [weak self] in
+            self?.setNeedsDisplay()
+        }
     }
 
     override var intrinsicContentSize: CGSize {
@@ -412,7 +418,8 @@ final class SliderView: UIView {
     }
 
     override func removeFromSuperview() {
-        driver.stop()
+        progressSub?.cancel()
+        model?.driver.reset()
         super.removeFromSuperview()
     }
 }

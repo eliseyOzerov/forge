@@ -1,4 +1,5 @@
 import Foundation
+import QuartzCore
 
 // MARK: - Curve
 
@@ -260,50 +261,189 @@ public final class Motion {
 
 // MARK: - MotionDriver
 
-/// Platform-agnostic protocol for driving Motion updates.
+/// A tick source that runs for a given duration and exposes linear progress (0→1).
+/// Subclass of Observable<Double> — observe it to get progress values directly.
+///
+/// ```swift
+/// let driver = MotionDriver(duration: Duration(0.3))
+/// driver.observe { progress in /* 0...1 */ }
+/// driver.forward()   // value: 0 → 1
+/// driver.reverse()   // value: 1 → 0
+/// driver.seek(to: 0.5) // jump to midpoint
+/// ```
 @MainActor
-public protocol MotionDriver: AnyObject {
-    func start()
-    func stop()
-    var motion: Motion? { get set }
-}
+public final class MotionDriver: Observable<Double> {
 
-// MARK: - CADisplayLink Driver (iOS)
+    /// Duration of a full forward or reverse run.
+    public var duration: Duration
 
-#if canImport(UIKit)
-import UIKit
+    public private(set) var state: State = .idle
 
-@MainActor
-public final class DisplayLinkDriver: MotionDriver {
-    public weak var motion: Motion?
-    private var displayLink: CADisplayLink?
-    private var view: UIView?
-
-    public init() {}
-
-    /// Attach to a view so display link triggers redraws.
-    public func attach(to view: UIView) {
-        self.view = view
+    public enum State: Equatable, Sendable {
+        case idle
+        case forward
+        case reverse
+        case paused(direction: Direction)
     }
 
-    public func start() {
+    public enum Direction: Equatable, Sendable {
+        case forward, reverse
+    }
+
+    private var startTime: CFTimeInterval = 0
+    private var startProgress: Double = 0
+    private var continuation: CheckedContinuation<Bool, Never>?
+
+    public init(duration: Duration = Duration(0.3)) {
+        self.duration = duration
+        super.init(0)
+    }
+
+    // MARK: - Controls
+
+    /// Animate progress from current value to 1.
+    @discardableResult
+    public func forward() async -> Bool {
+        await run(direction: .forward)
+    }
+
+    /// Animate progress from current value to 0.
+    @discardableResult
+    public func reverse() async -> Bool {
+        await run(direction: .reverse)
+    }
+
+    /// Pause a running animation. Resume with `resume()`.
+    public func pause() {
+        switch state {
+        case .forward:
+            state = .paused(direction: .forward)
+            stopTicker()
+        case .reverse:
+            state = .paused(direction: .reverse)
+            stopTicker()
+        default: break
+        }
+    }
+
+    /// Resume a paused animation.
+    public func resume() {
+        guard case .paused(let direction) = state else { return }
+        startProgress = value
+        startTime = CACurrentMediaTime()
+        state = direction == .forward ? .forward : .reverse
+        startTicker()
+    }
+
+    /// Stop and reset to 0.
+    public func reset() {
+        cancel()
+        value = 0
+    }
+
+    /// Jump to a specific progress value. Cancels any running animation.
+    public func seek(to target: Double) {
+        cancel()
+        value = min(max(target, 0), 1)
+    }
+
+    public var isRunning: Bool {
+        state == .forward || state == .reverse
+    }
+
+    // MARK: - Internal
+
+    private func run(direction: Direction) async -> Bool {
+        cancel()
+
+        let target: Double = direction == .forward ? 1 : 0
+        guard value != target else { return true }
+
+        let distance = abs(target - value)
+        let effectiveSeconds = duration.seconds * distance
+        guard effectiveSeconds > 0 else {
+            value = target
+            return true
+        }
+
+        startProgress = value
+        startTime = CACurrentMediaTime()
+        state = direction == .forward ? .forward : .reverse
+
+        startTicker()
+
+        return await withCheckedContinuation { cont in
+            self.continuation = cont
+        }
+    }
+
+    private func tick() {
+        let elapsed = CACurrentMediaTime() - startTime
+        let target: Double
+        let direction: Direction
+
+        switch state {
+        case .forward: target = 1; direction = .forward
+        case .reverse: target = 0; direction = .reverse
+        default: return
+        }
+
+        let distance = abs(target - startProgress)
+        let effectiveSeconds = duration.seconds * distance
+        let linearT = min(elapsed / effectiveSeconds, 1)
+
+        if direction == .forward {
+            value = min(startProgress + distance * linearT, 1)
+        } else {
+            value = max(startProgress - distance * linearT, 0)
+        }
+
+        if linearT >= 1 {
+            value = target
+            finish(completed: true)
+        }
+    }
+
+    private func cancel() {
+        guard state != .idle else { return }
+        stopTicker()
+        state = .idle
+        if let cont = continuation {
+            continuation = nil
+            cont.resume(returning: false)
+        }
+    }
+
+    private func finish(completed: Bool) {
+        stopTicker()
+        state = .idle
+        let cont = continuation
+        continuation = nil
+        cont?.resume(returning: completed)
+    }
+
+    // MARK: - Platform ticker
+
+    #if canImport(UIKit)
+    private var displayLink: CADisplayLink?
+
+    private func startTicker() {
         guard displayLink == nil else { return }
-        let link = CADisplayLink(target: self, selector: #selector(tick))
+        let link = CADisplayLink(target: self, selector: #selector(displayLinkFired))
         link.add(to: .main, forMode: .common)
         displayLink = link
     }
 
-    public func stop() {
+    private func stopTicker() {
         displayLink?.invalidate()
         displayLink = nil
     }
 
-    @objc private func tick() {
-        guard let motion else { stop(); return }
-        motion.tick()
-        view?.setNeedsDisplay()
-        if !motion.isRunning { stop() }
+    @objc private func displayLinkFired() {
+        tick()
     }
+    #else
+    private func startTicker() {}
+    private func stopTicker() {}
+    #endif
 }
-
-#endif

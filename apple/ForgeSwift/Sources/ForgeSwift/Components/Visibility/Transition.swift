@@ -231,18 +231,20 @@ final class TransitionRenderer: Renderer {
 final class TransitionView: UIView {
     private var childNode: Node?
     private var effects: [any TransitionEffect] = []
-    private var duration: Double = 0.3
     private var motionCurve: Curve = .easeOut
     private var onStatus: ((TransitionStatus) -> Void)?
     private var showValue: Bool = false
     private var initialized = false
 
-    private var motion: Motion?
-    private let driver = DisplayLinkDriver()
+    private let driver = MotionDriver()
+    private var progressSub: Subscription?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
-        driver.attach(to: self)
+        progressSub = driver.listen { [weak self] in
+            self?.applyT()
+            self?.setNeedsLayout()
+        }
     }
 
     required init?(coder: NSCoder) { fatalError() }
@@ -274,7 +276,7 @@ final class TransitionView: UIView {
         initialized = true
 
         self.effects = effects
-        self.duration = duration
+        self.driver.duration = Duration(duration)
         self.motionCurve = curve
         self.onStatus = onStatus
 
@@ -292,36 +294,15 @@ final class TransitionView: UIView {
         }
 
         if firstTime {
-            let m = Motion(
-                duration: duration,
-                curve: curve,
-                tracks: [Track(from: 0, to: 1)]
-            )
-            m.onTick = { [weak self] in
-                self?.applyT()
-                self?.setNeedsLayout()
-            }
-            m.onComplete = { [weak self] in
-                guard let self else { return }
-                self.onStatus?(self.showValue ? .entered : .exited)
-            }
-            motion = m
-            driver.motion = m
             applyT()
-        } else {
-            motion?.duration = duration
-            motion?.curve = curve
-        }
-
-        guard let motion else { return }
-        if firstTime {
-            // Initial mount: if show is true, play enter. Otherwise sit at 0
-            // (Motion's initial values mirror track.from = 0, so nothing to do).
             if show {
                 showValue = true
                 onStatus?(.entering)
-                motion.target([1])
-                driver.start()
+                Task { [weak self] in
+                    guard let self else { return }
+                    await driver.forward()
+                    self.onStatus?(self.showValue ? .entered : .exited)
+                }
             } else {
                 showValue = false
                 applyT()
@@ -330,18 +311,24 @@ final class TransitionView: UIView {
             showValue = show
             if show {
                 onStatus?(.entering)
-                motion.target([1])
             } else {
                 onStatus?(.exiting)
-                motion.target([0])
             }
-            driver.start()
+            Task { [weak self] in
+                guard let self else { return }
+                if show {
+                    await driver.forward()
+                } else {
+                    await driver.reverse()
+                }
+                self.onStatus?(self.showValue ? .entered : .exited)
+            }
         }
     }
 
     private func applyT() {
-        guard let motion, let pv = childNode?.platformView else { return }
-        let t = motion.values[0]
+        guard let pv = childNode?.platformView else { return }
+        let t = motionCurve(driver.value)
         var state = TransitionState()
         for effect in effects {
             effect.contribute(to: &state, t: t)
@@ -351,6 +338,12 @@ final class TransitionView: UIView {
             .translatedBy(x: CGFloat(state.translationX), y: CGFloat(state.translationY))
             .scaledBy(x: CGFloat(state.scaleX), y: CGFloat(state.scaleY))
             .rotated(by: CGFloat(state.rotation))
+    }
+
+    override func removeFromSuperview() {
+        progressSub?.cancel()
+        driver.reset()
+        super.removeFromSuperview()
     }
 }
 
