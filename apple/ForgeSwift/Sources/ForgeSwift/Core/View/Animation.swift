@@ -27,6 +27,12 @@ extension Int: Lerpable {
     }
 }
 
+/// Lerp two optional Lerpable values. If both present, lerp. Otherwise snap.
+public func lerpOptional<T: Lerpable>(_ a: T?, _ b: T?, t: Double) -> T? {
+    guard let a, let b else { return t < 0.5 ? a : b }
+    return a.lerp(to: b, t: t)
+}
+
 // MARK: - Mergeable
 
 /// A type whose instances can be merged, with `self`'s non-nil fields

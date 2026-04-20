@@ -58,18 +58,18 @@ final class TextTests: XCTestCase {
     }
 
     func testResolvedLineSpacingHeightOne() {
-        let font = Font(lineHeight: 1.0)
+        let font = Font(height: 1.0)
         XCTAssertEqual(font.resolvedLineSpacing, 0)
     }
 
     func testResolvedLineSpacingBelowOne() {
-        let font = Font(lineHeight: 0.8)
+        let font = Font(height: 0.8)
         // max(0, (0.8 - 1.0) * 17) = max(0, -3.4) = 0
         XCTAssertEqual(font.resolvedLineSpacing, 0)
     }
 
     func testResolvedLineSpacingLarge() {
-        let font = Font(size: 20, lineHeight: 2.0)
+        let font = Font(size: 20, height: 2.0)
         // (2.0 - 1.0) * 20 = 20
         XCTAssertEqual(font.resolvedLineSpacing, 20, accuracy: 0.001)
     }
@@ -214,7 +214,7 @@ final class TextTests: XCTestCase {
     }
 
     func testMountLineSpacing() throws {
-        let font = Font(size: 20, lineHeight: 1.5)
+        let font = Font(size: 20, height: 1.5)
         let label = mount(Text("Hi", style: TextStyle(font: font)))
         // (1.5 - 1.0) * 20 = 10
         let lineSpacing = try XCTUnwrap(paragraphStyle(of: label)?.lineSpacing)

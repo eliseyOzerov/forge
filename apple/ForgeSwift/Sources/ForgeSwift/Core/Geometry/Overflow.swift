@@ -6,29 +6,14 @@ public enum Overflow {
 }
 
 /// Configuration for scroll overflow behavior.
+@Init @Copy
 public struct ScrollConfig {
     public var axis: Axis?
     public var state: ScrollState?
-    public var showsIndicators: Bool
-    public var bounces: Bool
-    public var paging: Bool
-    public var safeArea: Bool
-
-    public init(
-        axis: Axis? = nil,
-        state: ScrollState? = nil,
-        showsIndicators: Bool = true,
-        bounces: Bool = true,
-        paging: Bool = false,
-        safeArea: Bool = false
-    ) {
-        self.axis = axis
-        self.state = state
-        self.showsIndicators = showsIndicators
-        self.bounces = bounces
-        self.paging = paging
-        self.safeArea = safeArea
-    }
+    public var showsIndicators: Bool = true
+    public var bounces: Bool = true
+    public var paging: Bool = false
+    public var safeArea: Bool = false
 }
 
 /// Observable scroll state for programmatic control.

@@ -252,26 +252,14 @@ public enum BlendMode: Sendable {
 
 // MARK: - Stroke
 
-public struct Stroke: Sendable, Equatable, Lerpable {
-    public var width: Double
-    public var cap: StrokeCap
-    public var join: StrokeJoin
-    public var alignment: Double
-    public var miterLimit: Double
-    public var dash: Dash?
-
-    public init(width: Double = 1, cap: StrokeCap = .round, join: StrokeJoin = .round, alignment: Double = 0.5, miterLimit: Double = 10, dash: Dash? = nil) {
-        self.width = width; self.cap = cap; self.join = join; self.alignment = alignment; self.miterLimit = miterLimit; self.dash = dash
-    }
-
-    public func lerp(to other: Stroke, t: Double) -> Stroke {
-        Stroke(width: width.lerp(to: other.width, t: t),
-               cap: t < 0.5 ? cap : other.cap,
-               join: t < 0.5 ? join : other.join,
-               alignment: alignment.lerp(to: other.alignment, t: t),
-               miterLimit: miterLimit.lerp(to: other.miterLimit, t: t),
-               dash: t < 0.5 ? dash : other.dash)
-    }
+@Init @Copy @Lerp
+public struct Stroke: Sendable, Equatable {
+    public var width: Double = 1
+    @Snap public var cap: StrokeCap = .round
+    @Snap public var join: StrokeJoin = .round
+    public var alignment: Double = 0.5
+    public var miterLimit: Double = 10
+    @Snap public var dash: Dash?
 }
 
 public enum StrokeCap: Sendable, Equatable {
@@ -402,25 +390,17 @@ public struct StrokeLayer: Layer, Equatable, Lerpable {
     }
 }
 
-public struct ShadowLayer: Layer, Equatable, Lerpable {
-    public var color: Color
-    public var offset: Vec2
-    public var blur: Double
-    public init(color: Color = Color(0, 0, 0, 0.3), offset: Vec2 = Vec2(0, 4), blur: Double = 8) {
-        self.color = color; self.offset = offset; self.blur = blur
-    }
+@Init @Copy @Lerp
+public struct ShadowLayer: Layer, Equatable {
+    public var color: Color = Color(0, 0, 0, 0.3)
+    public var offset: Vec2 = Vec2(0, 4)
+    public var blur: Double = 8
 
     public func render(in context: SurfaceContext) {
         context.canvas.save()
         context.canvas.filter(.shadow(color: color, offset: offset, blur: blur))
         context.canvas.draw(context.path, with: .color(color))
         context.canvas.restore()
-    }
-
-    public func lerp(to other: ShadowLayer, t: Double) -> ShadowLayer {
-        ShadowLayer(color: color.lerp(to: other.color, t: t),
-                     offset: offset.lerp(to: other.offset, t: t),
-                     blur: blur.lerp(to: other.blur, t: t))
     }
 }
 
@@ -463,9 +443,9 @@ public struct TransformLayer: Layer, Equatable, Lerpable {
 }
 
 public struct ClipLayer: Layer, Equatable, Lerpable {
-    public var clipShape: any Shape
+    public var clipShape: AnyShape
     public var children: [any Layer]
-    public init(clipShape: any Shape, children: [any Layer]) {
+    public init(clipShape: AnyShape, children: [any Layer]) {
         self.clipShape = clipShape; self.children = children
     }
 
@@ -477,7 +457,7 @@ public struct ClipLayer: Layer, Equatable, Lerpable {
     }
 
     public static func ==(lhs: ClipLayer, rhs: ClipLayer) -> Bool {
-        lhs.clipShape.isEqual(to: rhs.clipShape) && layersEqual(lhs.children, rhs.children)
+        lhs.clipShape == rhs.clipShape && layersEqual(lhs.children, rhs.children)
     }
 
     public func lerp(to other: ClipLayer, t: Double) -> ClipLayer {
@@ -627,7 +607,7 @@ public struct Surface {
 
     // MARK: - Transforms (wrap prior layers)
 
-    public func clip(_ clipShape: any Shape) -> Surface {
+    public func clip(_ clipShape: AnyShape) -> Surface {
         var copy = Surface()
         copy.primaryColor = primaryColor; copy.glassStyle = glassStyle
         copy.layers = [ClipLayer(clipShape: clipShape, children: layers)]
@@ -692,10 +672,10 @@ public struct Surface {
 
 public struct SurfaceRenderer {
     public let surface: Surface
-    public let shape: any Shape
+    public let shape: AnyShape
     public let bounds: Rect
 
-    public init(surface: Surface, shape: any Shape, bounds: Rect) {
+    public init(surface: Surface, shape: AnyShape, bounds: Rect) {
         self.surface = surface
         self.shape = shape
         self.bounds = bounds

@@ -6,102 +6,28 @@ import AppKit
 import CoreText
 #endif
 
-public struct TextStyle: Sendable, Equatable, Lerpable, Mergeable {
+@Style
+public struct TextStyle: Sendable, Equatable {
     public var font: Font?
     public var color: Color?
-    public var maxLines: Int?
-    public var align: TextAlign?
-    public var textCase: TextCase?
-    public var overflow: TextOverflow?
-    public var decoration: TextDecoration?
-
-    public init(
-        font: Font? = nil,
-        color: Color? = nil,
-        maxLines: Int? = nil,
-        align: TextAlign? = nil,
-        textCase: TextCase? = nil,
-        overflow: TextOverflow? = nil,
-        decoration: TextDecoration? = nil
-    ) {
-        self.font = font
-        self.color = color
-        self.maxLines = maxLines
-        self.align = align
-        self.textCase = textCase
-        self.overflow = overflow
-        self.decoration = decoration
-    }
-
-    public func merge(_ other: TextStyle) -> TextStyle {
-        TextStyle(
-            font: font ?? other.font,
-            color: color ?? other.color,
-            maxLines: maxLines ?? other.maxLines,
-            align: align ?? other.align,
-            textCase: textCase ?? other.textCase,
-            overflow: overflow ?? other.overflow,
-            decoration: decoration ?? other.decoration
-        )
-    }
-
-    public func lerp(to other: TextStyle, t: Double) -> TextStyle {
-        TextStyle(
-            font: lerpOptional(font, other.font, t: t),
-            color: lerpOptional(color, other.color, t: t),
-            maxLines: t < 0.5 ? maxLines : other.maxLines,
-            align: t < 0.5 ? align : other.align,
-            textCase: t < 0.5 ? textCase : other.textCase,
-            overflow: t < 0.5 ? overflow : other.overflow,
-            decoration: t < 0.5 ? decoration : other.decoration
-        )
-    }
-}
-
-/// Lerp two optional Lerpable values. If both present, lerp. Otherwise snap.
-private func lerpOptional<T: Lerpable>(_ a: T?, _ b: T?, t: Double) -> T? {
-    guard let a, let b else { return t < 0.5 ? a : b }
-    return a.lerp(to: b, t: t)
+    @Snap public var maxLines: Int?
+    @Snap public var align: TextAlign?
+    @Snap public var textCase: TextCase?
+    @Snap public var overflow: TextOverflow?
+    @Snap public var decoration: TextDecoration?
 }
 
 // MARK: - FontConfig
 
-public struct Font: Sendable, Equatable, Lerpable {
-    public var family: String?
-    public var size: Double
-    public var height: Double
-    public var tracking: Double
-    public var weight: Double
-    public var italic: Bool
-    public var features: FontFeatures?
-
-    public init(
-        family: String? = nil,
-        size: Double = 17,
-        lineHeight: Double = 1.2,
-        tracking: Double = 0,
-        weight: Double = 400,
-        italic: Bool = false,
-        features: FontFeatures? = nil
-    ) {
-        self.family = family
-        self.size = size
-        self.height = lineHeight
-        self.tracking = tracking
-        self.weight = weight
-        self.italic = italic
-        self.features = features
-    }
-
-    public func lerp(to other: Font, t: Double) -> Font {
-        Font(family: t < 0.5 ? family : other.family,
-             size: size.lerp(to: other.size, t: t),
-             lineHeight: height.lerp(to: other.height, t: t),
-             tracking: tracking.lerp(to: other.tracking, t: t),
-             weight: weight.lerp(to: other.weight, t: t),
-             italic: t < 0.5 ? italic : other.italic,
-             features: t < 0.5 ? features : other.features)
-    }
+@Init @Copy @Lerp
+public struct Font: Sendable, Equatable {
+    @Snap public var family: String?
+    public var size: Double = 17
+    public var height: Double = 1.2
+    public var tracking: Double = 0
+    public var weight: Double = 400
+    @Snap public var italic: Bool = false
+    @Snap public var features: FontFeatures?
 
     public var resolvedLineSpacing: Double {
         max(0, (height - 1.0) * size)

@@ -464,7 +464,7 @@ public struct SVGPainter {
         case .rect(let data):
             let r = Rect(x: data.x, y: data.y, width: data.width, height: data.height)
             let path = data.rx > 0 || data.ry > 0
-                ? RoundedModifiedShape(base: RectShape(), radii: [data.rx > 0 ? data.rx : data.ry], smooth: 0).path(in: r)
+                ? RoundedModifiedShape(base: RectShape().erased, radii: [data.rx > 0 ? data.rx : data.ry], smooth: 0).path(in: r)
                 : RectShape().path(in: r)
             paintDrawn(path, attributes: data.attributes, id: data.id, on: canvas)
 

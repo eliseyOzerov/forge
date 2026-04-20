@@ -2,16 +2,12 @@ import CoreGraphics
 import Foundation
 
 /// A 2D extent (width x height).
-public struct Size: Lerpable {
+@Init @Copy @Lerp
+public struct Size {
     public var width: Double
     public var height: Double
 
     public init(_ width: Double, _ height: Double) {
-        self.width = width
-        self.height = height
-    }
-
-    public init(width: Double, height: Double) {
         self.width = width
         self.height = height
     }
@@ -43,9 +39,6 @@ public struct Size: Lerpable {
         Size(width * sx, height * (sy ?? sx))
     }
 
-    public func lerp(to other: Size, t: Double) -> Size {
-        Size(width + (other.width - width) * t, height + (other.height - height) * t)
-    }
 
     public func toVec2() -> Vec2 { Vec2(width, height) }
 }

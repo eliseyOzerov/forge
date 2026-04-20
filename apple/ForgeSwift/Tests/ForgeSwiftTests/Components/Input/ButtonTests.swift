@@ -210,9 +210,9 @@ final class ButtonTests: XCTestCase {
     func testStyleResolvesForDifferentStates() {
         let style = StateProperty<ButtonStyle> { state in
             if state.contains(.pressed) {
-                return ButtonStyle(BoxStyle(.fixed(100, 50)))
+                return ButtonStyle(box: BoxStyle(.fixed(100, 50)))
             }
-            return ButtonStyle(BoxStyle(.fixed(200, 50)))
+            return ButtonStyle(box: BoxStyle(.fixed(200, 50)))
         }
         let idle = style(.idle)
         let pressed = style(.pressed)

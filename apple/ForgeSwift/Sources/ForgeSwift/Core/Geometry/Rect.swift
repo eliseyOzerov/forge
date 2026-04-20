@@ -2,18 +2,12 @@ import CoreGraphics
 import Foundation
 
 /// An axis-aligned rectangle.
-public struct Rect: Lerpable {
+@Init @Copy @Lerp
+public struct Rect {
     public var x: Double
     public var y: Double
     public var width: Double
     public var height: Double
-
-    public init(x: Double, y: Double, width: Double, height: Double) {
-        self.x = x
-        self.y = y
-        self.width = width
-        self.height = height
-    }
 
     public static let zero = Rect(x: 0, y: 0, width: 0, height: 0)
 
@@ -154,16 +148,6 @@ public struct Rect: Lerpable {
         return Vec2(x + width * nx, y + height * ny)
     }
 
-    // MARK: - Interpolation
-
-    public func lerp(to other: Rect, t: Double) -> Rect {
-        Rect(
-            x: x + (other.x - x) * t,
-            y: y + (other.y - y) * t,
-            width: width + (other.width - width) * t,
-            height: height + (other.height - height) * t
-        )
-    }
 }
 
 extension Rect: Equatable, Hashable, Sendable {}

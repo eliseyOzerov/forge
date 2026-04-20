@@ -3,33 +3,15 @@ import UIKit
 
 // MARK: - ButtonStyle
 
-public struct ButtonStyle: Equatable, Lerpable {
-    public var box: BoxStyle
-    public var textStyle: TextStyle
-    public var haptic: HapticStyle
-    public var animation: Animation?
-
-    public init(
-        _ box: BoxStyle = BoxStyle(),
-        textStyle: TextStyle = TextStyle(),
-        haptic: HapticStyle = .light,
-        animation: Animation? = .default
-    ) {
-        self.box = box
-        self.textStyle = textStyle
-        self.haptic = haptic
-        self.animation = animation
-    }
+@Init @Copy @Lerp
+public struct ButtonStyle: Equatable {
+    public var box: BoxStyle = BoxStyle()
+    public var textStyle: TextStyle = TextStyle()
+    @Snap public var haptic: HapticStyle = .light
+    @Snap public var animation: Animation? = .default
 
     public static func ==(lhs: ButtonStyle, rhs: ButtonStyle) -> Bool {
         lhs.box.isEqual(to: rhs.box) && lhs.textStyle == rhs.textStyle && lhs.haptic == rhs.haptic
-    }
-
-    public func lerp(to other: ButtonStyle, t: Double) -> ButtonStyle {
-        ButtonStyle(box.lerp(to: other.box, t: t),
-                    textStyle: textStyle.lerp(to: other.textStyle, t: t),
-                    haptic: t < 0.5 ? haptic : other.haptic,
-                    animation: t < 0.5 ? animation : other.animation)
     }
 }
 

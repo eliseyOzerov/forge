@@ -21,7 +21,7 @@ import UIKit
 public struct BoxStyle: Lerpable {
     public var frame: Frame
     public var surface: Surface?
-    public var shape: (any Shape)?
+    public var shape: AnyShape?
     public var padding: Padding
     public var alignment: Alignment
     public var clip: Bool
@@ -30,7 +30,7 @@ public struct BoxStyle: Lerpable {
     public init(
         _ frame: Frame = .hug,
         _ surface: Surface? = nil,
-        _ shape: (any Shape)? = nil,
+        _ shape: AnyShape? = nil,
         padding: Padding = .zero,
         alignment: Alignment = .center,
         clip: Bool = true,
@@ -87,15 +87,11 @@ private func lerpSurface(_ a: Surface?, _ b: Surface?, t: Double) -> Surface? {
     return a.lerp(to: b, t: t)
 }
 
-private func shapeEqual(_ a: (any Shape)?, _ b: (any Shape)?) -> Bool {
-    switch (a, b) {
-    case (.none, .none): return true
-    case let (.some(a), .some(b)): return a.isEqual(to: b)
-    default: return false
-    }
+private func shapeEqual(_ a: AnyShape?, _ b: AnyShape?) -> Bool {
+    a == b
 }
 
-private func lerpShape(_ a: (any Shape)?, _ b: (any Shape)?, t: Double) -> (any Shape)? {
+private func lerpShape(_ a: AnyShape?, _ b: AnyShape?, t: Double) -> AnyShape? {
     guard let a, let b else { return t < 0.5 ? a : b }
     return a.lerp(to: b, t: t)
 }
@@ -104,7 +100,7 @@ private func lerpShape(_ a: (any Shape)?, _ b: (any Shape)?, t: Double) -> (any 
 
 public struct Box: ContainerView {
     public let frame: Frame
-    public let shape: (any Shape)?
+    public let shape: AnyShape?
     public let surface: Surface?
     public let padding: Padding
     public let alignment: Alignment
@@ -115,7 +111,7 @@ public struct Box: ContainerView {
     public init(
         _ frame: Frame = .hug,
         _ surface: Surface? = nil,
-        _ shape: (any Shape)? = nil,
+        _ shape: AnyShape? = nil,
         padding: Padding = .zero,
         alignment: Alignment = .center,
         clip: Bool = true,
@@ -145,7 +141,7 @@ public struct Box: ContainerView {
     public init(
         _ frame: Frame = .hug,
         _ surface: Surface? = nil,
-        _ shape: (any Shape)? = nil,
+        _ shape: AnyShape? = nil,
         padding: Padding = .zero,
         alignment: Alignment = .center,
         clip: Bool = true,
@@ -279,7 +275,7 @@ final class BoxRenderer: ContainerRenderer {
 /// (alignment-based positioning), frame constraints, shape clipping,
 /// and optional scroll overflow.
 class BoxView: UIView {
-    var shape: (any Shape)?
+    var shape: AnyShape?
     var surface: Surface? { didSet { surfaceView.surface = surface; layoutSurfaceView() } }
     var clip: Bool = true
     var sizing: Frame = .hug
@@ -315,7 +311,7 @@ class BoxView: UIView {
             return
         }
 
-        let resolvedShape: any Shape = shape ?? RectShape()
+        let resolvedShape: AnyShape = shape ?? RectShape()
         let viewRect = Rect(bounds)
         let path = resolvedShape.path(in: viewRect)
         let pathRect = path.boundingBox
@@ -476,7 +472,7 @@ class BoxView: UIView {
     /// Apply shape mask for clipping.
     private func applyShapeClip() {
         if clip {
-            let resolvedShape: any Shape = shape ?? RectShape()
+            let resolvedShape: AnyShape = shape ?? RectShape()
             let maskLayer = CAShapeLayer()
             maskLayer.path = resolvedShape.path(in: Rect(bounds)).cgPath
             layer.mask = maskLayer

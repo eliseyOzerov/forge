@@ -57,7 +57,7 @@ public final class Effect {
     }
 
     @discardableResult
-    public func clip(_ shape: any Shape) -> Effect {
+    public func clip(_ shape: AnyShape) -> Effect {
         operations.append(.clip(shape)); return self
     }
 }
@@ -71,7 +71,7 @@ enum EffectOp {
     case offset(x: Double, y: Double, fractional: Bool)
     case blur(Double)
     case filter(@MainActor (CIImage) -> CIImage?)
-    case clip(any Shape)
+    case clip(AnyShape)
 
     var isFilter: Bool {
         switch self {
@@ -326,14 +326,14 @@ final class EffectHostView: UIView {
         transform: CATransform3D,
         anchor: CGPoint,
         opacity: Double?,
-        clip: (any Shape)?
+        clip: AnyShape?
     ) {
         var scaleRotate = CATransform3DIdentity
         var anchor = CGPoint(x: 0.5, y: 0.5)
         var offsetX = 0.0
         var offsetY = 0.0
         var opacity: Double?
-        var clipShape: (any Shape)?
+        var clipShape: AnyShape?
 
         for op in operations {
             switch op {

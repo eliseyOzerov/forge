@@ -1,11 +1,9 @@
 import Foundation
 
 /// Alignment within a container. Backed by Vec2 with values -1 (start) to 1 (end).
-public struct Alignment: Equatable, Hashable, Sendable, Lerpable {
+@Init @Copy @Lerp
+public struct Alignment: Equatable, Hashable, Sendable {
     public var value: Vec2
-
-    public var x: Double { value.x }
-    public var y: Double { value.y }
 
     public init(_ x: Double, _ y: Double) {
         self.value = Vec2(x, y)
@@ -14,6 +12,9 @@ public struct Alignment: Equatable, Hashable, Sendable, Lerpable {
     public init(_ value: Vec2) {
         self.value = value
     }
+
+    public var x: Double { value.x }
+    public var y: Double { value.y }
 
     // MARK: - Named Constants
 
@@ -35,10 +36,4 @@ public struct Alignment: Equatable, Hashable, Sendable, Lerpable {
     // MARK: - Queries
 
     public var isCenter: Bool { x == 0 && y == 0 }
-
-    // MARK: - Interpolation
-
-    public func lerp(to other: Alignment, t: Double) -> Alignment {
-        Alignment(value.lerp(to: other.value, t: t))
-    }
 }
