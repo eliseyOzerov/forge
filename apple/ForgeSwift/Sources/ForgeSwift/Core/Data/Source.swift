@@ -68,7 +68,9 @@ public final class AssetSource<T>: Source {
     }
 
     private func loadFromBundle() throws -> Data {
+        #if canImport(UIKit)
         if let asset = NSDataAsset(name: name) { return asset.data }
+        #endif
         if let url = Bundle.main.url(forResource: name, withExtension: ext) {
             return try Data(contentsOf: url)
         }

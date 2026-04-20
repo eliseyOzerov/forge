@@ -7,10 +7,14 @@ public struct Screen: BuiltView, Route {
     public let content: @MainActor () -> any View
 
     public var cover: (@MainActor (any View, RouteHandle) -> any View)? {
+        #if canImport(UIKit)
         { view, handle in
             let t = handle.progress
             return view.effect { $0.offset(-0.3 * t, fractional: true).opacity(1 - 0.15 * t) }
         }
+        #else
+        nil
+        #endif
     }
 
     public init(
@@ -26,6 +30,7 @@ public struct Screen: BuiltView, Route {
 
         guard !route.isBottom else { return content() }
 
+        #if canImport(UIKit)
         let dismissValue = Binding<Double>(
             get: { 1 - route.progress },
             set: { route.scrub(to: 1 - $0) }
@@ -44,6 +49,9 @@ public struct Screen: BuiltView, Route {
             return content()
                 .effect { $0.offset(dismissProgress, fractional: true) }
         }
+        #else
+        return content()
+        #endif
     }
 }
 

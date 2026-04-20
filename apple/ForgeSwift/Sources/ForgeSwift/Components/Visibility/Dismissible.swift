@@ -43,6 +43,7 @@ public struct DismissThreshold {
 ///         .effect { $0.offset(progress, fractional: true) }
 /// }
 /// ```
+#if canImport(UIKit)
 public struct Dismissible: ModelView {
     public let value: Binding<Double>
     public let edge: Edge?
@@ -266,3 +267,4 @@ public final class DismissibleBuilder: ViewBuilder<DismissibleModel> {
         }
     }
 }
+#endif

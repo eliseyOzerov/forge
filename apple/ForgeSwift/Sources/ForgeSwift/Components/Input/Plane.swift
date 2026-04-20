@@ -172,7 +172,13 @@ public final class PlaneBuilder: ViewBuilder<PlaneModel> {
 
 struct PlaneLeaf: LeafView {
     let model: PlaneModel
-    func makeRenderer() -> Renderer { PlaneRenderer(view: self) }
+    func makeRenderer() -> Renderer {
+        #if canImport(UIKit)
+        PlaneRenderer(view: self)
+        #else
+        fatalError("Plane not yet implemented for this platform")
+        #endif
+    }
 }
 
 // MARK: - UIKit Renderer

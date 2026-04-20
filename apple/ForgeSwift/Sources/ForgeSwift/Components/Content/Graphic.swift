@@ -783,7 +783,7 @@ final class GraphicView: UIView {
 
 public struct Graphic: BuiltView {
     public init() {}
-    public func build(context: BuildContext) -> any View { Text("TODO: Graphic") }
+    public func build(context: ViewContext) -> any View { Text("TODO: Graphic") }
 }
 
 #endif

@@ -59,17 +59,17 @@ public extension Curve {
 
     // MARK: Standard curves
 
-    nonisolated(unsafe) static let linear = Curve { $0 }
-    nonisolated(unsafe) static let easeIn = Curve { $0 * $0 }
-    nonisolated(unsafe) static let easeOut = Curve { 1 - (1 - $0) * (1 - $0) }
-    nonisolated(unsafe) static let easeInOut = Curve { t in
+    nonisolated(unsafe) static let linear = Curve("linear") { $0 }
+    nonisolated(unsafe) static let easeIn = Curve("easeIn") { $0 * $0 }
+    nonisolated(unsafe) static let easeOut = Curve("easeOut") { 1 - (1 - $0) * (1 - $0) }
+    nonisolated(unsafe) static let easeInOut = Curve("easeInOut") { t in
         t < 0.5 ? 2 * t * t : 1 - pow(-2 * t + 2, 2) / 2
     }
-    nonisolated(unsafe) static let overshoot = Curve { t in
+    nonisolated(unsafe) static let overshoot = Curve("overshoot") { t in
         let c = 1.70158
         return 1 + (c + 1) * pow(t - 1, 3) + c * pow(t - 1, 2)
     }
-    nonisolated(unsafe) static let bounce = Curve { t in
+    nonisolated(unsafe) static let bounce = Curve("bounce") { t in
         if t < 1 / 2.75 { return 7.5625 * t * t }
         if t < 2 / 2.75 { let t = t - 1.5 / 2.75; return 7.5625 * t * t + 0.75 }
         if t < 2.5 / 2.75 { let t = t - 2.25 / 2.75; return 7.5625 * t * t + 0.9375 }
@@ -160,10 +160,14 @@ private func cubicBezierSlope(_ t: Double, a: Double, b: Double) -> Double {
 // MARK: - Animation
 
 /// Duration + delay + curve for a single animated transition.
-public struct Animation {
+public struct Animation: Equatable {
     public var duration: Double
     public var delay: Double
     public var curve: Curve
+
+    public static func ==(lhs: Animation, rhs: Animation) -> Bool {
+        lhs.duration == rhs.duration && lhs.delay == rhs.delay && lhs.curve.id == rhs.curve.id
+    }
 
     public init(duration: Double = 0.2, delay: Double = 0, curve: Curve = .easeInOut) {
         self.duration = duration

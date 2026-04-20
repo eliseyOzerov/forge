@@ -1,3 +1,21 @@
+// MARK: - ImageStyle
+
+@Init @Copy
+public struct ImageStyle {
+    @Snap public var fit: ImageFit = .aspectFit
+    public var tintColor: Color? = nil
+    public var cornerRadius: Double = 0
+}
+
+public enum ImageFit: Sendable {
+    case aspectFit
+    case aspectFill
+    case fill
+    case center
+}
+
+// MARK: - Image
+
 #if canImport(UIKit)
 import UIKit
 
@@ -97,26 +115,7 @@ public struct AsyncImage: ModelView {
     }
 }
 
-// MARK: - ImageStyle
-
-public struct ImageStyle {
-    public var fit: ImageFit
-    public var tintColor: Color?
-    public var cornerRadius: Double
-
-    public init(fit: ImageFit = .aspectFit, tintColor: Color? = nil, cornerRadius: Double = 0) {
-        self.fit = fit
-        self.tintColor = tintColor
-        self.cornerRadius = cornerRadius
-    }
-}
-
-public enum ImageFit: Sendable {
-    case aspectFit
-    case aspectFill
-    case fill
-    case center
-
+extension ImageFit {
     var uiContentMode: UIView.ContentMode {
         switch self {
         case .aspectFit: .scaleAspectFit
@@ -222,13 +221,6 @@ final class UIKitImageRenderer: Renderer {
             imageView.image = view.image
         }
     }
-}
-
-#else
-
-public struct Image: BuiltView {
-    public init() {}
-    public func build(context: BuildContext) -> any View { Text("TODO: Image") }
 }
 
 #endif

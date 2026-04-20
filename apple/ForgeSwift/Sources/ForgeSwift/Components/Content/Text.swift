@@ -1,10 +1,6 @@
-#if canImport(UIKit)
-import UIKit
 import CoreText
-#elseif canImport(AppKit)
-import AppKit
-import CoreText
-#endif
+
+// MARK: - TextStyle
 
 @Style
 public struct TextStyle: Sendable, Equatable {
@@ -17,7 +13,7 @@ public struct TextStyle: Sendable, Equatable {
     @Snap public var decoration: TextDecoration?
 }
 
-// MARK: - FontConfig
+// MARK: - Font
 
 @Init @Copy @Lerp
 public struct Font: Sendable, Equatable {
@@ -33,119 +29,7 @@ public struct Font: Sendable, Equatable {
         max(0, (height - 1.0) * size)
     }
 
-    #if canImport(UIKit)
-    public var resolvedFont: UIFont {
-        var descriptor = baseDescriptor
-        descriptor = applyVariations(to: descriptor)
-        descriptor = applyFeatureSettings(to: descriptor)
-        if italic {
-            descriptor = descriptor.withSymbolicTraits(.traitItalic) ?? descriptor
-        }
-        return UIFont(descriptor: descriptor, size: size)
-    }
-
-    private var baseDescriptor: UIFontDescriptor {
-        if let family {
-            return UIFontDescriptor(fontAttributes: [.family: family])
-        } else {
-            return UIFont.systemFont(ofSize: size).fontDescriptor
-        }
-    }
-
-    private func applyVariations(to descriptor: UIFontDescriptor) -> UIFontDescriptor {
-        let info = FontInfo.query(family: family)
-        var variations: [Int: Double] = [:]
-
-        if info.hasWeightAxis {
-            variations[Self.tagToNumber("wght")] = weight
-        }
-
-        if let axes = features?.axes {
-            for (axis, value) in axes {
-                variations[Self.tagToNumber(axis.code)] = value
-            }
-        }
-
-        var result = descriptor
-
-        if !variations.isEmpty {
-            result = result.addingAttributes([
-                .init(rawValue: kCTFontVariationAttribute as String): variations
-            ])
-        }
-
-        if !info.hasWeightAxis {
-            let uiFontWeight = Self.uiFontWeight(from: weight)
-            result = result.addingAttributes([
-                .traits: [UIFontDescriptor.TraitKey.weight: uiFontWeight],
-            ])
-        }
-
-        return result
-    }
-
-    private func applyFeatureSettings(to descriptor: UIFontDescriptor) -> UIFontDescriptor {
-        guard let features else { return descriptor }
-        var settings: [[String: Any]] = []
-
-        for ss in features.stylisticSets where (1...20).contains(ss) {
-            let tag = String(format: "ss%02d", ss)
-            settings.append(featureEntry(tag: tag, value: 1))
-        }
-
-        for (index, value) in features.alternates where (1...99).contains(index) {
-            let tag = String(format: "cv%02d", index)
-            settings.append(featureEntry(tag: tag, value: value))
-        }
-
-        for tag in features.rawTags {
-            settings.append(featureEntry(tag: tag, value: 1))
-        }
-
-        guard !settings.isEmpty else { return descriptor }
-
-        return descriptor.addingAttributes([
-            .featureSettings: settings
-        ])
-    }
-
-    private func featureEntry(tag: String, value: Int) -> [String: Any] {
-        [
-            kCTFontOpenTypeFeatureTag as String: tag,
-            kCTFontOpenTypeFeatureValue as String: value,
-        ]
-    }
-
-    private static func uiFontWeight(from weight: Double) -> UIFont.Weight {
-        let stops: [(Double, CGFloat)] = [
-            (100, UIFont.Weight.ultraLight.rawValue),
-            (200, UIFont.Weight.thin.rawValue),
-            (300, UIFont.Weight.light.rawValue),
-            (400, UIFont.Weight.regular.rawValue),
-            (500, UIFont.Weight.medium.rawValue),
-            (600, UIFont.Weight.semibold.rawValue),
-            (700, UIFont.Weight.bold.rawValue),
-            (800, UIFont.Weight.heavy.rawValue),
-            (900, UIFont.Weight.black.rawValue),
-        ]
-
-        if weight <= stops.first!.0 { return UIFont.Weight(rawValue: stops.first!.1) }
-        if weight >= stops.last!.0 { return UIFont.Weight(rawValue: stops.last!.1) }
-
-        for i in 0..<stops.count - 1 {
-            let (w0, v0) = stops[i]
-            let (w1, v1) = stops[i + 1]
-            if weight >= w0 && weight <= w1 {
-                let t = (weight - w0) / (w1 - w0)
-                return UIFont.Weight(rawValue: v0 + t * (v1 - v0))
-            }
-        }
-
-        return .regular
-    }
-    #endif
-
-    private static func tagToNumber(_ tag: String) -> Int {
+    static func tagToNumber(_ tag: String) -> Int {
         let bytes = Array(tag.utf8)
         guard bytes.count == 4 else { return 0 }
         return Int(bytes[0]) << 24 | Int(bytes[1]) << 16 | Int(bytes[2]) << 8 | Int(bytes[3])
@@ -192,61 +76,6 @@ public enum FontAxis: String, CaseIterable, Sendable {
     public var code: String { rawValue }
 }
 
-// MARK: - FontInfo
-
-#if canImport(UIKit)
-struct FontInfo {
-    let variationAxes: [VariationAxisInfo]
-
-    var hasWeightAxis: Bool { variationAxes.contains { $0.tag == "wght" } }
-
-    static func query(family: String?) -> FontInfo {
-        let uiFont: UIFont
-        if let family {
-            let descriptor = UIFontDescriptor(fontAttributes: [.family: family])
-            uiFont = UIFont(descriptor: descriptor, size: 17)
-        } else {
-            uiFont = UIFont.systemFont(ofSize: 17)
-        }
-        let ctFont = uiFont as CTFont
-        guard let axesArray = CTFontCopyVariationAxes(ctFont) as? [[String: Any]] else {
-            return FontInfo(variationAxes: [])
-        }
-        let axes = axesArray.compactMap { dict -> VariationAxisInfo? in
-            guard
-                let identifier = dict[kCTFontVariationAxisIdentifierKey as String] as? Int,
-                let name = dict[kCTFontVariationAxisNameKey as String] as? String,
-                let minValue = dict[kCTFontVariationAxisMinimumValueKey as String] as? CGFloat,
-                let maxValue = dict[kCTFontVariationAxisMaximumValueKey as String] as? CGFloat,
-                let defaultValue = dict[kCTFontVariationAxisDefaultValueKey as String] as? CGFloat
-            else { return nil }
-            let tag = tagFromIdentifier(identifier)
-            return VariationAxisInfo(tag: tag, identifier: identifier, name: name, minValue: minValue, maxValue: maxValue, defaultValue: defaultValue)
-        }
-        return FontInfo(variationAxes: axes)
-    }
-
-    private static func tagFromIdentifier(_ id: Int) -> String {
-        let bytes: [UInt8] = [
-            UInt8((id >> 24) & 0xFF),
-            UInt8((id >> 16) & 0xFF),
-            UInt8((id >> 8) & 0xFF),
-            UInt8(id & 0xFF),
-        ]
-        return String(bytes: bytes, encoding: .ascii) ?? "????"
-    }
-}
-
-struct VariationAxisInfo {
-    let tag: String
-    let identifier: Int
-    let name: String
-    let minValue: CGFloat
-    let maxValue: CGFloat
-    let defaultValue: CGFloat
-}
-#endif
-
 // MARK: - TextAlign
 
 public enum TextAlign: String, Sendable {
@@ -254,17 +83,6 @@ public enum TextAlign: String, Sendable {
     case trailing
     case center
     case justify
-
-    #if canImport(UIKit)
-    var nsTextAlignment: NSTextAlignment {
-        switch self {
-        case .leading: .natural
-        case .trailing: .right
-        case .center: .center
-        case .justify: .justified
-        }
-    }
-    #endif
 }
 
 // MARK: - TextOverflow
@@ -273,16 +91,6 @@ public enum TextOverflow: String, Sendable {
     case clip
     case fade
     case ellipsis
-
-    #if canImport(UIKit)
-    var lineBreakMode: NSLineBreakMode {
-        switch self {
-        case .clip: .byClipping
-        case .fade: .byClipping
-        case .ellipsis: .byTruncatingTail
-        }
-    }
-    #endif
 }
 
 // MARK: - TextCase
@@ -356,6 +164,8 @@ public struct ShadowConfig: Sendable, Equatable {
     }
 }
 
+// MARK: - Text
+
 public struct Text: BuiltView {
     public let content: String
     public let style: TextStyle
@@ -378,131 +188,14 @@ struct TextLeaf: LeafView {
 
     func makeRenderer() -> Renderer {
         #if canImport(UIKit)
-        return UIKitTextRenderer(view: self)
+        UIKitTextRenderer(view: self)
         #elseif canImport(AppKit)
-        return AppKitTextRenderer(content: content)
+        AppKitTextRenderer(content: content)
+        #else
+        fatalError("Text not yet implemented for this platform")
         #endif
     }
 }
-
-// MARK: - UIKit
-
-#if canImport(UIKit)
-import UIKit
-
-final class UIKitTextRenderer: Renderer {
-    private weak var label: UILabel?
-    private var view: TextLeaf
-
-    init(view: TextLeaf) {
-        self.view = view
-    }
-
-    func mount() -> PlatformView {
-        let label = UILabel()
-        self.label = label
-        applyAttributedString()
-        return label
-    }
-
-    func update(from newView: any View) {
-        guard let text = newView as? TextLeaf, let label else { return }
-        let old = view
-        view = text
-
-        applyAttributedString()
-
-        let oldFont = old.style.font ?? Font()
-        let newFont = text.style.font ?? Font()
-        let needsLayout = old.content != text.content
-            || old.style.textCase != text.style.textCase
-            || old.style.maxLines != text.style.maxLines
-            || oldFont.size != newFont.size
-            || oldFont.weight != newFont.weight
-            || oldFont.family != newFont.family
-            || oldFont.italic != newFont.italic
-            || oldFont.tracking != newFont.tracking
-            || oldFont.height != newFont.height
-        if needsLayout { label.superview?.setNeedsLayout() }
-    }
-
-    private func applyAttributedString() {
-        guard let label else { return }
-        let style = view.style
-        let font = (style.font ?? Font()).resolvedFont
-        let align = style.align ?? .leading
-        let textCase = style.textCase ?? .none
-        let overflow = style.overflow ?? .ellipsis
-
-        let displayText = textCase.apply(to: view.content)
-        let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.alignment = align.nsTextAlignment
-        paragraphStyle.lineBreakMode = overflow.lineBreakMode
-        paragraphStyle.lineSpacing = (style.font ?? Font()).resolvedLineSpacing
-
-        var attributes: [NSAttributedString.Key: Any] = [
-            .font: font,
-            .paragraphStyle: paragraphStyle,
-            .kern: (style.font ?? Font()).tracking,
-        ]
-
-        attributes[.foregroundColor] = style.color?.platformColor ?? UIColor.label
-
-        if let decoration = style.decoration {
-            if let line = decoration.line {
-                switch line.position {
-                case .underline:
-                    attributes[.underlineStyle] = line.style
-                    if let color = line.color { attributes[.underlineColor] = color.platformColor }
-                case .strikethrough:
-                    attributes[.strikethroughStyle] = line.style
-                    if let color = line.color { attributes[.strikethroughColor] = color.platformColor }
-                }
-            }
-            if let shadow = decoration.shadow {
-                let nsShadow = NSShadow()
-                nsShadow.shadowColor = shadow.color.platformColor
-                nsShadow.shadowBlurRadius = shadow.radius
-                nsShadow.shadowOffset = CGSize(width: shadow.offset.width, height: shadow.offset.height)
-                attributes[.shadow] = nsShadow
-            }
-        }
-
-        label.attributedText = NSAttributedString(string: displayText, attributes: attributes)
-        label.numberOfLines = style.maxLines ?? 0
-    }
-}
-
-#endif
-
-// MARK: - AppKit
-
-#if canImport(AppKit)
-import AppKit
-
-final class AppKitTextRenderer: Renderer {
-    private weak var field: NSTextField?
-
-    var content: String {
-        didSet {
-            guard content != oldValue, let field else { return }
-            field.stringValue = content
-        }
-    }
-
-    init(content: String) {
-        self.content = content
-    }
-
-    func mount() -> PlatformView {
-        let field = NSTextField(labelWithString: content)
-        field.alignment = .center
-        self.field = field
-        return field
-    }
-}
-
-#endif
 
 // MARK: - TextSize
 
@@ -689,3 +382,308 @@ public extension Font {
         return copy
     }
 }
+
+// MARK: - UIKit
+
+#if canImport(UIKit)
+import UIKit
+
+extension Font {
+    public var resolvedFont: UIFont {
+        var descriptor = baseDescriptor
+        descriptor = applyVariations(to: descriptor)
+        descriptor = applyFeatureSettings(to: descriptor)
+        if italic {
+            descriptor = descriptor.withSymbolicTraits(.traitItalic) ?? descriptor
+        }
+        return UIFont(descriptor: descriptor, size: size)
+    }
+
+    private var baseDescriptor: UIFontDescriptor {
+        if let family {
+            return UIFontDescriptor(fontAttributes: [.family: family])
+        } else {
+            return UIFont.systemFont(ofSize: size).fontDescriptor
+        }
+    }
+
+    private func applyVariations(to descriptor: UIFontDescriptor) -> UIFontDescriptor {
+        let info = FontInfo.query(family: family)
+        var variations: [Int: Double] = [:]
+
+        if info.hasWeightAxis {
+            variations[Self.tagToNumber("wght")] = weight
+        }
+
+        if let axes = features?.axes {
+            for (axis, value) in axes {
+                variations[Self.tagToNumber(axis.code)] = value
+            }
+        }
+
+        var result = descriptor
+
+        if !variations.isEmpty {
+            result = result.addingAttributes([
+                .init(rawValue: kCTFontVariationAttribute as String): variations
+            ])
+        }
+
+        if !info.hasWeightAxis {
+            let uiFontWeight = Self.uiFontWeight(from: weight)
+            result = result.addingAttributes([
+                .traits: [UIFontDescriptor.TraitKey.weight: uiFontWeight],
+            ])
+        }
+
+        return result
+    }
+
+    private func applyFeatureSettings(to descriptor: UIFontDescriptor) -> UIFontDescriptor {
+        guard let features else { return descriptor }
+        var settings: [[String: Any]] = []
+
+        for ss in features.stylisticSets where (1...20).contains(ss) {
+            let tag = String(format: "ss%02d", ss)
+            settings.append(featureEntry(tag: tag, value: 1))
+        }
+
+        for (index, value) in features.alternates where (1...99).contains(index) {
+            let tag = String(format: "cv%02d", index)
+            settings.append(featureEntry(tag: tag, value: value))
+        }
+
+        for tag in features.rawTags {
+            settings.append(featureEntry(tag: tag, value: 1))
+        }
+
+        guard !settings.isEmpty else { return descriptor }
+
+        return descriptor.addingAttributes([
+            .featureSettings: settings
+        ])
+    }
+
+    private func featureEntry(tag: String, value: Int) -> [String: Any] {
+        [
+            kCTFontOpenTypeFeatureTag as String: tag,
+            kCTFontOpenTypeFeatureValue as String: value,
+        ]
+    }
+
+    private static func uiFontWeight(from weight: Double) -> UIFont.Weight {
+        let stops: [(Double, CGFloat)] = [
+            (100, UIFont.Weight.ultraLight.rawValue),
+            (200, UIFont.Weight.thin.rawValue),
+            (300, UIFont.Weight.light.rawValue),
+            (400, UIFont.Weight.regular.rawValue),
+            (500, UIFont.Weight.medium.rawValue),
+            (600, UIFont.Weight.semibold.rawValue),
+            (700, UIFont.Weight.bold.rawValue),
+            (800, UIFont.Weight.heavy.rawValue),
+            (900, UIFont.Weight.black.rawValue),
+        ]
+
+        if weight <= stops.first!.0 { return UIFont.Weight(rawValue: stops.first!.1) }
+        if weight >= stops.last!.0 { return UIFont.Weight(rawValue: stops.last!.1) }
+
+        for i in 0..<stops.count - 1 {
+            let (w0, v0) = stops[i]
+            let (w1, v1) = stops[i + 1]
+            if weight >= w0 && weight <= w1 {
+                let t = (weight - w0) / (w1 - w0)
+                return UIFont.Weight(rawValue: v0 + t * (v1 - v0))
+            }
+        }
+
+        return .regular
+    }
+}
+
+extension TextAlign {
+    var nsTextAlignment: NSTextAlignment {
+        switch self {
+        case .leading: .natural
+        case .trailing: .right
+        case .center: .center
+        case .justify: .justified
+        }
+    }
+}
+
+extension TextOverflow {
+    var lineBreakMode: NSLineBreakMode {
+        switch self {
+        case .clip: .byClipping
+        case .fade: .byClipping
+        case .ellipsis: .byTruncatingTail
+        }
+    }
+}
+
+struct FontInfo {
+    let variationAxes: [VariationAxisInfo]
+
+    var hasWeightAxis: Bool { variationAxes.contains { $0.tag == "wght" } }
+
+    static func query(family: String?) -> FontInfo {
+        let uiFont: UIFont
+        if let family {
+            let descriptor = UIFontDescriptor(fontAttributes: [.family: family])
+            uiFont = UIFont(descriptor: descriptor, size: 17)
+        } else {
+            uiFont = UIFont.systemFont(ofSize: 17)
+        }
+        let ctFont = uiFont as CTFont
+        guard let axesArray = CTFontCopyVariationAxes(ctFont) as? [[String: Any]] else {
+            return FontInfo(variationAxes: [])
+        }
+        let axes = axesArray.compactMap { dict -> VariationAxisInfo? in
+            guard
+                let identifier = dict[kCTFontVariationAxisIdentifierKey as String] as? Int,
+                let name = dict[kCTFontVariationAxisNameKey as String] as? String,
+                let minValue = dict[kCTFontVariationAxisMinimumValueKey as String] as? CGFloat,
+                let maxValue = dict[kCTFontVariationAxisMaximumValueKey as String] as? CGFloat,
+                let defaultValue = dict[kCTFontVariationAxisDefaultValueKey as String] as? CGFloat
+            else { return nil }
+            let tag = tagFromIdentifier(identifier)
+            return VariationAxisInfo(tag: tag, identifier: identifier, name: name, minValue: minValue, maxValue: maxValue, defaultValue: defaultValue)
+        }
+        return FontInfo(variationAxes: axes)
+    }
+
+    private static func tagFromIdentifier(_ id: Int) -> String {
+        let bytes: [UInt8] = [
+            UInt8((id >> 24) & 0xFF),
+            UInt8((id >> 16) & 0xFF),
+            UInt8((id >> 8) & 0xFF),
+            UInt8(id & 0xFF),
+        ]
+        return String(bytes: bytes, encoding: .ascii) ?? "????"
+    }
+}
+
+struct VariationAxisInfo {
+    let tag: String
+    let identifier: Int
+    let name: String
+    let minValue: CGFloat
+    let maxValue: CGFloat
+    let defaultValue: CGFloat
+}
+
+// MARK: - UIKit Renderer
+
+final class UIKitTextRenderer: Renderer {
+    private weak var label: UILabel?
+    private var view: TextLeaf
+
+    init(view: TextLeaf) {
+        self.view = view
+    }
+
+    func mount() -> PlatformView {
+        let label = UILabel()
+        self.label = label
+        applyAttributedString()
+        return label
+    }
+
+    func update(from newView: any View) {
+        guard let text = newView as? TextLeaf, let label else { return }
+        let old = view
+        view = text
+
+        applyAttributedString()
+
+        let oldFont = old.style.font ?? Font()
+        let newFont = text.style.font ?? Font()
+        let needsLayout = old.content != text.content
+            || old.style.textCase != text.style.textCase
+            || old.style.maxLines != text.style.maxLines
+            || oldFont.size != newFont.size
+            || oldFont.weight != newFont.weight
+            || oldFont.family != newFont.family
+            || oldFont.italic != newFont.italic
+            || oldFont.tracking != newFont.tracking
+            || oldFont.height != newFont.height
+        if needsLayout { label.superview?.setNeedsLayout() }
+    }
+
+    private func applyAttributedString() {
+        guard let label else { return }
+        let style = view.style
+        let font = (style.font ?? Font()).resolvedFont
+        let align = style.align ?? .leading
+        let textCase = style.textCase ?? .none
+        let overflow = style.overflow ?? .ellipsis
+
+        let displayText = textCase.apply(to: view.content)
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = align.nsTextAlignment
+        paragraphStyle.lineBreakMode = overflow.lineBreakMode
+        paragraphStyle.lineSpacing = (style.font ?? Font()).resolvedLineSpacing
+
+        var attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .paragraphStyle: paragraphStyle,
+            .kern: (style.font ?? Font()).tracking,
+        ]
+
+        attributes[.foregroundColor] = style.color?.platformColor ?? UIColor.label
+
+        if let decoration = style.decoration {
+            if let line = decoration.line {
+                switch line.position {
+                case .underline:
+                    attributes[.underlineStyle] = line.style
+                    if let color = line.color { attributes[.underlineColor] = color.platformColor }
+                case .strikethrough:
+                    attributes[.strikethroughStyle] = line.style
+                    if let color = line.color { attributes[.strikethroughColor] = color.platformColor }
+                }
+            }
+            if let shadow = decoration.shadow {
+                let nsShadow = NSShadow()
+                nsShadow.shadowColor = shadow.color.platformColor
+                nsShadow.shadowBlurRadius = shadow.radius
+                nsShadow.shadowOffset = CGSize(width: shadow.offset.width, height: shadow.offset.height)
+                attributes[.shadow] = nsShadow
+            }
+        }
+
+        label.attributedText = NSAttributedString(string: displayText, attributes: attributes)
+        label.numberOfLines = style.maxLines ?? 0
+    }
+}
+
+#endif
+
+// MARK: - AppKit
+
+#if canImport(AppKit)
+import AppKit
+
+final class AppKitTextRenderer: Renderer {
+    private weak var field: NSTextField?
+
+    var content: String {
+        didSet {
+            guard content != oldValue, let field else { return }
+            field.stringValue = content
+        }
+    }
+
+    init(content: String) {
+        self.content = content
+    }
+
+    func mount() -> PlatformView {
+        let field = NSTextField(labelWithString: content)
+        field.alignment = .center
+        self.field = field
+        return field
+    }
+}
+
+#endif

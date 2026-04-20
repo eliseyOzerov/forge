@@ -346,7 +346,13 @@ public struct Offstage: View {
         self.child = child()
     }
 
-    public func makeNode() -> Node { OffstageNode() }
+    public func makeNode() -> Node {
+        #if canImport(UIKit)
+        OffstageNode()
+        #else
+        fatalError("Offstage not yet implemented for this platform")
+        #endif
+    }
 }
 
 // MARK: - Proxy

@@ -34,13 +34,18 @@ public typealias ValueHandler<T> = (T) -> Void
 
 /// Maps a value from an input type. Generic function wrapper.
 public struct Mapper<T, K> {
+    public let id: String?
     public let map: (T) -> K
-    public init(_ map: @escaping (T) -> K) { self.map = map }
+    public init(_ map: @escaping (T) -> K) { self.id = nil; self.map = map }
+    public init(_ id: String, _ map: @escaping (T) -> K) { self.id = id; self.map = map }
     public func callAsFunction(_ input: T) -> K { map(input) }
 }
 
 /// Resolves a value based on the current UI state.
 public typealias StateProperty<T> = Mapper<State, T>
+
+/// Formats a value of type `T` into a display string.
+public typealias TextFormatter<T> = Mapper<T, String>
 
 public extension StateProperty {
     /// Constant value regardless of state.

@@ -312,7 +312,7 @@ public final class RouterBuilder: ViewBuilder<RouterModel> {
             let navItemObs = model.navItem(for: entry.id)
             return Offstage(offstage: i < lowestVisible) {
                 Provided(entry as RouteHandle, navItemObs) {
-                    Box(.fill) { entry.route }
+                    Box(frame: .fill) { entry.route }
                 }
             }.id(entry.id)
         }
@@ -334,7 +334,7 @@ public final class RouterBuilder: ViewBuilder<RouterModel> {
 
         let handle: any RouterHandle = model
         return Provided(handle, model) {
-            Box(.fill, children: routeViews)
+            Box(frame: .fill, children: routeViews)
         }
     }
 }

@@ -9,8 +9,8 @@ public struct TrackStyle {
     public var divisions: TrackDivisions?
 
     public init(
-        inactive: BoxStyle = BoxStyle(.fillWidth.height(.fix(4)), .color(Color(0.85, 0.85, 0.85)), .capsule()),
-        active: BoxStyle = BoxStyle(.fillWidth.height(.fix(4)), .color(Color(0.2, 0.5, 1.0)), .capsule()),
+        inactive: BoxStyle = BoxStyle(frame: .fillWidth.height(.fix(4)), surface: .color(Color(0.85, 0.85, 0.85)), shape: .capsule()),
+        active: BoxStyle = BoxStyle(frame: .fillWidth.height(.fix(4)), surface: .color(Color(0.2, 0.5, 1.0)), shape: .capsule()),
         mark: BoxStyle? = nil,
         divisions: TrackDivisions? = nil
     ) {
@@ -57,7 +57,7 @@ public struct ThumbStyle {
     public var label: ThumbLabelStyle?
 
     public init(
-        box: BoxStyle = BoxStyle(.square(24), .color(.white).shadow(blur: 4), .circle()),
+        box: BoxStyle = BoxStyle(frame: .square(24), surface: .color(.white).shadow(blur: 4), shape: .circle()),
         label: ThumbLabelStyle? = nil
     ) {
         self.box = box; self.label = label
@@ -72,7 +72,7 @@ public struct ThumbLabelStyle {
 
     public init(
         text: TextStyle = TextStyle(font: Font(size: 12, weight: 600), color: .white),
-        box: BoxStyle = BoxStyle(.hug, .color(Color(0.2, 0.2, 0.2)), .capsule(), padding: Padding(horizontal: 8, vertical: 4)),
+        box: BoxStyle = BoxStyle(surface: .color(Color(0.2, 0.2, 0.2)), shape: .capsule(), padding: Padding(horizontal: 8, vertical: 4)),
         visible: Bool = false,
         formatter: TextFormatter<Double>? = nil
     ) {

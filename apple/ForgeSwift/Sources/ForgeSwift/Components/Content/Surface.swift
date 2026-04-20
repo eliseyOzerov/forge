@@ -1,9 +1,3 @@
-#if canImport(UIKit)
-import UIKit
-#elseif canImport(AppKit)
-import AppKit
-#endif
-
 // MARK: - Fill Protocol
 
 /// What to fill a shape with. Each Fill type knows how to draw itself
@@ -217,21 +211,6 @@ public enum BlendMode: Sendable {
     case sourceIn, sourceOut, sourceAtop
     case destinationOver, destinationIn, destinationOut, destinationAtop
     case xor
-
-    #if canImport(CoreGraphics)
-    public var cgBlendMode: CGBlendMode {
-        switch self {
-        case .normal: .normal; case .multiply: .multiply; case .screen: .screen; case .overlay: .overlay
-        case .darken: .darken; case .lighten: .lighten; case .colorDodge: .colorDodge; case .colorBurn: .colorBurn
-        case .softLight: .softLight; case .hardLight: .hardLight; case .difference: .difference; case .exclusion: .exclusion
-        case .hue: .hue; case .saturation: .saturation; case .color: .color; case .luminosity: .luminosity
-        case .clear: .clear; case .copy: .copy
-        case .sourceIn: .sourceIn; case .sourceOut: .sourceOut; case .sourceAtop: .sourceAtop
-        case .destinationOver: .destinationOver; case .destinationIn: .destinationIn; case .destinationOut: .destinationOut; case .destinationAtop: .destinationAtop
-        case .xor: .xor
-        }
-    }
-    #endif
 }
 
 // MARK: - Stroke
@@ -248,16 +227,10 @@ public struct Stroke: Sendable, Equatable {
 
 public enum StrokeCap: Sendable, Equatable {
     case butt, round, square
-    #if canImport(CoreGraphics)
-    public var cgLineCap: CGLineCap { switch self { case .butt: .butt; case .round: .round; case .square: .square } }
-    #endif
 }
 
 public enum StrokeJoin: Sendable, Equatable {
     case miter, round, bevel
-    #if canImport(CoreGraphics)
-    public var cgLineJoin: CGLineJoin { switch self { case .miter: .miter; case .round: .round; case .bevel: .bevel } }
-    #endif
 }
 
 public struct Dash: Sendable, Equatable {
@@ -287,11 +260,6 @@ public struct Transform2D: Sendable {
             tx: tx * other.a + ty * other.c + other.tx, ty: tx * other.b + ty * other.d + other.ty
         )
     }
-
-    #if canImport(CoreGraphics)
-    public var cgAffineTransform: CGAffineTransform { CGAffineTransform(a: a, b: b, c: c, d: d, tx: tx, ty: ty) }
-    public init(_ cg: CGAffineTransform) { self.a = cg.a; self.b = cg.b; self.c = cg.c; self.d = cg.d; self.tx = cg.tx; self.ty = cg.ty }
-    #endif
 }
 
 public enum RotationAxis: Sendable { case x, y, z }
@@ -472,7 +440,7 @@ private func lerpLayers(_ a: [AnyLayer], _ b: [AnyLayer], t: Double) -> [AnyLaye
 ///     .shadow(color: .black, blur: 8)
 ///     .border(.gray)
 /// ```
-public struct Surface: Equatable {
+public struct Surface: Equatable, Lerpable {
     public var layers: [AnyLayer]
     public private(set) var primaryColor: Color?
     public private(set) var glassStyle: GlassStyle?
@@ -618,3 +586,46 @@ public struct SurfaceRenderer {
         }
     }
 }
+
+// MARK: - CoreGraphics Bridges
+
+#if canImport(CoreGraphics)
+import CoreGraphics
+
+extension BlendMode {
+    public var cgBlendMode: CGBlendMode {
+        switch self {
+        case .normal: .normal; case .multiply: .multiply; case .screen: .screen; case .overlay: .overlay
+        case .darken: .darken; case .lighten: .lighten; case .colorDodge: .colorDodge; case .colorBurn: .colorBurn
+        case .softLight: .softLight; case .hardLight: .hardLight; case .difference: .difference; case .exclusion: .exclusion
+        case .hue: .hue; case .saturation: .saturation; case .color: .color; case .luminosity: .luminosity
+        case .clear: .clear; case .copy: .copy
+        case .sourceIn: .sourceIn; case .sourceOut: .sourceOut; case .sourceAtop: .sourceAtop
+        case .destinationOver: .destinationOver; case .destinationIn: .destinationIn; case .destinationOut: .destinationOut; case .destinationAtop: .destinationAtop
+        case .xor: .xor
+        }
+    }
+}
+
+extension StrokeCap {
+    public var cgLineCap: CGLineCap { switch self { case .butt: .butt; case .round: .round; case .square: .square } }
+}
+
+extension StrokeJoin {
+    public var cgLineJoin: CGLineJoin { switch self { case .miter: .miter; case .round: .round; case .bevel: .bevel } }
+}
+
+extension Transform2D {
+    public var cgAffineTransform: CGAffineTransform { CGAffineTransform(a: a, b: b, c: c, d: d, tx: tx, ty: ty) }
+    public init(_ cg: CGAffineTransform) { self.a = cg.a; self.b = cg.b; self.c = cg.c; self.d = cg.d; self.tx = cg.tx; self.ty = cg.ty }
+}
+
+#endif
+
+// MARK: - UIKit / AppKit Imports
+
+#if canImport(UIKit)
+import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif

@@ -24,6 +24,18 @@ public extension Shape {
     }
 }
 
+// MARK: - AnyShape factories (for use in non-generic contexts like BoxStyle)
+
+public extension AnyShape {
+    static func rect() -> AnyShape { RectShape().erased }
+    static func roundedRect(radius: Double, smooth: Double = 0.6) -> AnyShape {
+        RoundedModifiedShape(base: RectShape().erased, radii: [radius], smooth: smooth).erased
+    }
+    static func ellipse() -> AnyShape { EllipseShape().erased }
+    static func circle() -> AnyShape { CircleShape().erased }
+    static func capsule() -> AnyShape { CapsuleShape().erased }
+}
+
 // MARK: - Static factories (enables `.capsule()` dot syntax in generic contexts)
 
 public extension Shape where Self == RectShape {

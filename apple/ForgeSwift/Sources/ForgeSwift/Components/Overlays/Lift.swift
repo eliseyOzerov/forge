@@ -47,11 +47,11 @@ struct LiftOverlay: BuiltView, Route {
     func build(context: ViewContext) -> any View {
         let rect = context.watch(slotRect)
         return Box(BoxStyle(
-            .fill,
+            frame: .fill,
             padding: Padding(top: rect.y, leading: rect.x),
             alignment: .topLeft
         )) {
-            Box(.fixed(rect.width, rect.height)) {
+            Box(frame: .fixed(rect.width, rect.height)) {
                 content()
             }
         }

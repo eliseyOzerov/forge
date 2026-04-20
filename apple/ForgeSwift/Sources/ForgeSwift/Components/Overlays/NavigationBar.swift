@@ -162,7 +162,11 @@ public struct NavBarContentRow: ContainerView {
     }
 
     public func makeRenderer() -> ContainerRenderer {
+        #if canImport(UIKit)
         NavBarContentRowRenderer(view: self)
+        #else
+        fatalError("NavBarContentRow not yet implemented for this platform")
+        #endif
     }
 }
 
@@ -175,6 +179,8 @@ public enum NavBarCenterMode: Equatable, Sendable {
 }
 
 // MARK: - NavBarContentRowRenderer
+
+#if canImport(UIKit)
 
 final class NavBarContentRowRenderer: ContainerRenderer {
     private weak var rowView: NavBarContentRowView?
@@ -229,10 +235,9 @@ final class NavBarContentRowRenderer: ContainerRenderer {
     }
 }
 
-// MARK: - NavBarContentRowView
-
-#if canImport(UIKit)
 import UIKit
+
+// MARK: - NavBarContentRowView
 
 final class NavBarContentRowView: UIView {
     var mainAlignment: Alignment = .center
@@ -379,26 +384,32 @@ public struct NavigationBar: BuiltView {
         )
 
         let contentRow = Box(
-            BoxStyle(.height(.fix(height)), padding: padding)
+            BoxStyle(frame: .height(.fix(height)), padding: padding)
         ) { row }
 
+        #if canImport(UIKit)
         // SafeArea top inset pushes content below the status bar.
         // The surface extends edge-to-edge behind the status bar.
         var body: any View = SafeArea(edges: .top) { contentRow }
+        #else
+        var body: any View = contentRow
+        #endif
 
         if !includeBottomInSurface, let surface {
-            body = Box(.hug, surface) { body }
+            body = Box(surface: surface) { body }
         }
 
+        #if canImport(UIKit)
         if let bottom {
             body = Column {
                 body
                 bottom
             }
         }
+        #endif
 
         if includeBottomInSurface, let surface {
-            return Box(.hug, surface) { body }
+            return Box(surface: surface) { body }
         }
 
         return body

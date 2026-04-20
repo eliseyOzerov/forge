@@ -47,7 +47,7 @@ public struct StepperButton {
     public var view: (any View)?
 
     public init(
-        style: ButtonStyle = ButtonStyle(box: BoxStyle(.square(36), .color(Color(0.9, 0.9, 0.9)), .roundedRect(radius: 6)), textStyle: TextStyle(font: Font(size: 18, weight: 600))),
+        style: ButtonStyle = ButtonStyle(box: BoxStyle(frame: .square(36), surface: .color(Color(0.9, 0.9, 0.9)), shape: .roundedRect(radius: 6)), textStyle: TextStyle(font: Font(size: 18, weight: 600))),
         view: (any View)? = nil
     ) {
         self.style = style; self.view = view
@@ -69,7 +69,7 @@ public struct StepperStyle<T> {
 
     public init(
         container: BoxStyle = BoxStyle(padding: .zero),
-        field: BoxStyle = BoxStyle(.hug, .color(Color(0.95, 0.95, 0.95)), .roundedRect(radius: 6), padding: Padding(horizontal: 8, vertical: 4)),
+        field: BoxStyle = BoxStyle(surface: .color(Color(0.95, 0.95, 0.95)), shape: .roundedRect(radius: 6), padding: Padding(horizontal: 8, vertical: 4)),
         decrement: StepperButton = StepperButton(),
         increment: StepperButton = StepperButton(),
         text: TextStyle = TextStyle(font: Font(size: 16), align: .center),

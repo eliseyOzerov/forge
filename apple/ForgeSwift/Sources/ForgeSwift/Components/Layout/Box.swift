@@ -1,6 +1,3 @@
-#if canImport(UIKit)
-import UIKit
-
 /// The fundamental layout primitive. A container that paints a Surface,
 /// clips to a Shape, and overlays its children (each aligned independently).
 ///
@@ -18,170 +15,165 @@ import UIKit
 /// ```
 // MARK: - BoxStyle
 
-public struct BoxStyle: Lerpable {
-    public var frame: Frame
-    public var surface: Surface?
-    public var shape: AnyShape?
-    public var padding: Padding
-    public var alignment: Alignment
-    public var clip: Bool
-    public var overflow: Overflow
-
-    public init(
-        _ frame: Frame = .hug,
-        _ surface: Surface? = nil,
-        _ shape: AnyShape? = nil,
-        padding: Padding = .zero,
-        alignment: Alignment = .center,
-        clip: Bool = true,
-        overflow: Overflow = .clip
-    ) {
-        self.frame = frame; self.surface = surface; self.shape = shape
-        self.padding = padding; self.alignment = alignment
-        self.clip = clip; self.overflow = overflow
-    }
-
-    /// Generic shape init — enables `.capsule()` dot syntax.
-    public init<S: Shape>(
-        _ frame: Frame = .hug,
-        _ surface: Surface? = nil,
-        _ shape: S,
-        padding: Padding = .zero,
-        alignment: Alignment = .center,
-        clip: Bool = true,
-        overflow: Overflow = .clip
-    ) {
-        self.frame = frame; self.surface = surface; self.shape = shape
-        self.padding = padding; self.alignment = alignment
-        self.clip = clip; self.overflow = overflow
-    }
-
-    public func isEqual(to other: BoxStyle) -> Bool {
-        frame == other.frame && padding == other.padding && alignment == other.alignment && clip == other.clip
-        && surfaceEqual(surface, other.surface) && shapeEqual(shape, other.shape)
-    }
-
-    public func lerp(to other: BoxStyle, t: Double) -> BoxStyle {
-        var result = BoxStyle()
-        result.frame = t < 0.5 ? frame : other.frame
-        result.surface = lerpSurface(surface, other.surface, t: t)
-        result.shape = lerpShape(shape, other.shape, t: t)
-        result.padding = padding.lerp(to: other.padding, t: t)
-        result.alignment = alignment.lerp(to: other.alignment, t: t)
-        result.clip = t < 0.5 ? clip : other.clip
-        result.overflow = t < 0.5 ? overflow : other.overflow
-        return result
-    }
-}
-
-private func surfaceEqual(_ a: Surface?, _ b: Surface?) -> Bool {
-    a == b
-}
-
-private func lerpSurface(_ a: Surface?, _ b: Surface?, t: Double) -> Surface? {
-    guard let a, let b else { return t < 0.5 ? a : b }
-    return a.lerp(to: b, t: t)
-}
-
-private func shapeEqual(_ a: AnyShape?, _ b: AnyShape?) -> Bool {
-    a == b
-}
-
-private func lerpShape(_ a: AnyShape?, _ b: AnyShape?, t: Double) -> AnyShape? {
-    guard let a, let b else { return t < 0.5 ? a : b }
-    return a.lerp(to: b, t: t)
+@Init @Copy @Lerp
+public struct BoxStyle: Equatable {
+    public var frame: Frame = .hug
+    public var surface: Surface? = nil
+    public var shape: AnyShape? = nil
+    public var padding: Padding = .zero
+    public var alignment: Alignment = .center
+    @Snap public var clip: Bool = true
+    @Snap public var overflow: Overflow = .clip
 }
 
 // MARK: - Box
 
+@Init
 public struct Box: ContainerView {
-    public let frame: Frame
-    public let shape: AnyShape?
-    public let surface: Surface?
-    public let padding: Padding
-    public let alignment: Alignment
-    public let clip: Bool
-    public let overflow: Overflow
-    public let children: [any View]
+    public var frame: Frame = .hug
+    public var surface: Surface? = nil
+    public var shape: AnyShape? = nil
+    public var padding: Padding = .zero
+    public var alignment: Alignment = .center
+    public var clip: Bool = true
+    public var overflow: Overflow = .clip
+    public var children: [any View] = []
 
     public init(
-        _ frame: Frame = .hug,
-        _ surface: Surface? = nil,
-        _ shape: AnyShape? = nil,
-        padding: Padding = .zero,
-        alignment: Alignment = .center,
-        clip: Bool = true,
-        overflow: Overflow = .clip,
-        children: [any View] = []
-    ) {
-        self.frame = frame; self.shape = shape; self.surface = surface
-        self.padding = padding; self.alignment = alignment
-        self.clip = clip; self.overflow = overflow; self.children = children
-    }
-
-    public init<S: Shape>(
-        _ frame: Frame = .hug,
-        _ surface: Surface? = nil,
-        _ shape: S,
-        padding: Padding = .zero,
-        alignment: Alignment = .center,
-        clip: Bool = true,
-        overflow: Overflow = .clip,
-        children: [any View] = []
-    ) {
-        self.frame = frame; self.shape = shape; self.surface = surface
-        self.padding = padding; self.alignment = alignment
-        self.clip = clip; self.overflow = overflow; self.children = children
-    }
-
-    public init(
-        _ frame: Frame = .hug,
-        _ surface: Surface? = nil,
-        _ shape: AnyShape? = nil,
+        frame: Frame = .hug,
+        surface: Surface? = nil,
+        shape: AnyShape? = nil,
         padding: Padding = .zero,
         alignment: Alignment = .center,
         clip: Bool = true,
         overflow: Overflow = .clip,
         @ChildrenBuilder content: () -> [any View]
     ) {
-        self.frame = frame; self.shape = shape; self.surface = surface
-        self.padding = padding; self.alignment = alignment
-        self.clip = clip; self.overflow = overflow; self.children = content()
-    }
-
-    public init<S: Shape>(
-        _ frame: Frame = .hug,
-        _ surface: Surface? = nil,
-        _ shape: S,
-        padding: Padding = .zero,
-        alignment: Alignment = .center,
-        clip: Bool = true,
-        overflow: Overflow = .clip,
-        @ChildrenBuilder content: () -> [any View]
-    ) {
-        self.frame = frame; self.shape = shape; self.surface = surface
-        self.padding = padding; self.alignment = alignment
-        self.clip = clip; self.overflow = overflow; self.children = content()
+        self.init(frame: frame, surface: surface, shape: shape,
+                  padding: padding, alignment: alignment,
+                  clip: clip, overflow: overflow, children: content())
     }
 
     public init(_ style: BoxStyle, children: [any View] = []) {
-        self.frame = style.frame; self.surface = style.surface; self.shape = style.shape
-        self.padding = style.padding; self.alignment = style.alignment
-        self.clip = style.clip; self.overflow = style.overflow; self.children = children
+        self.init(frame: style.frame, surface: style.surface, shape: style.shape,
+                  padding: style.padding, alignment: style.alignment,
+                  clip: style.clip, overflow: style.overflow, children: children)
     }
 
     public init(_ style: BoxStyle, @ChildrenBuilder content: () -> [any View]) {
-        self.frame = style.frame; self.surface = style.surface; self.shape = style.shape
-        self.padding = style.padding; self.alignment = style.alignment
-        self.clip = style.clip; self.overflow = style.overflow; self.children = content()
+        self.init(frame: style.frame, surface: style.surface, shape: style.shape,
+                  padding: style.padding, alignment: style.alignment,
+                  clip: style.clip, overflow: style.overflow, children: content())
     }
 
     public func makeRenderer() -> ContainerRenderer {
+        #if canImport(UIKit)
         BoxRenderer(view: self)
+        #else
+        fatalError("Box not yet implemented for this platform")
+        #endif
     }
 }
 
-// MARK: - Renderer
+// MARK: - View Extensions
+
+public extension View {
+    func centered() -> Box {
+        aligned(.center)
+    }
+
+    func padded(_ padding: Padding) -> Box {
+        Box(padding: padding) { self }
+    }
+
+    func padded(_ value: Double) -> Box {
+        Box(padding: .all(value)) { self }
+    }
+
+    func aligned(_ alignment: Alignment, fill: Frame = .fill) -> Box {
+        Box(frame: fill, alignment: alignment) { self }
+    }
+
+    func framed(_ frame: Frame) -> Box {
+        Box(frame: frame) { self }
+    }
+
+    func scrollable(_ config: ScrollConfig = ScrollConfig()) -> Box {
+        Box(overflow: .scroll(config)) { self }
+    }
+}
+
+// MARK: - BoxRole
+
+public struct BoxRole: NamedKey {
+    public let name: String
+    public init(_ name: String) { self.name = name }
+}
+
+public extension BoxRole {
+    static let primary    = BoxRole("primary")
+    static let secondary  = BoxRole("secondary")
+    static let tertiary   = BoxRole("tertiary")
+    static let quaternary = BoxRole("quaternary")
+
+    static let defaultChain: [BoxRole] = [.primary, .secondary, .tertiary, .quaternary]
+}
+
+// MARK: - BoxTheme
+
+/// Role-keyed BoxStyles with cascade. Surfaces, cards, panels read
+/// via `ctx.theme(.box).primary`.
+public struct BoxTheme: Copyable {
+    public var styles: [BoxRole: BoxStyle]
+    public var chain: [BoxRole]
+
+    public init(_ styles: [BoxRole: BoxStyle], chain: [BoxRole] = BoxRole.defaultChain) {
+        self.styles = styles
+        self.chain = chain
+    }
+
+    public init(_ priority: PriorityTokens<BoxStyle>) {
+        var map: [BoxRole: BoxStyle] = [:]
+        for (level, style) in priority.values {
+            map[BoxRole(level.name)] = style
+        }
+        self.init(map)
+    }
+
+    public init(
+        primary: BoxStyle,
+        secondary: BoxStyle? = nil,
+        tertiary: BoxStyle? = nil,
+        quaternary: BoxStyle? = nil
+    ) {
+        self.init(PriorityTokens(
+            primary: primary, secondary: secondary,
+            tertiary: tertiary, quaternary: quaternary
+        ))
+    }
+
+    public subscript(_ role: BoxRole) -> BoxStyle {
+        styles.cascade(role, chain: chain) ?? BoxStyle()
+    }
+
+    public var primary:    BoxStyle { self[.primary] }
+    public var secondary:  BoxStyle { self[.secondary] }
+    public var tertiary:   BoxStyle { self[.tertiary] }
+    public var quaternary: BoxStyle { self[.quaternary] }
+
+    public static func standard() -> BoxTheme {
+        BoxTheme(primary: BoxStyle())
+    }
+}
+
+public extension ThemeSlot where T == BoxTheme {
+    static var box: ThemeSlot<BoxTheme> { .init(BoxTheme.self) }
+}
+
+// MARK: - UIKit Renderer
+
+#if canImport(UIKit)
+import UIKit
 
 final class BoxRenderer: ContainerRenderer {
     private weak var boxView: BoxView?
@@ -555,39 +547,13 @@ extension BoxView: UIScrollViewDelegate {
     }
 }
 
-// MARK: - View Extensions
+// MARK: - DebugOverlay
 
 public extension View {
-    func centered() -> Box {
-        aligned(.center)
-    }
-
-    func padded(_ padding: Padding) -> Box {
-        Box(padding: padding) { self }
-    }
-    
-    func padded(_ value: Double) -> Box {
-        Box(padding: .all(value)) { self }
-    }
-    
-    func aligned(_ alignment: Alignment, fill: Frame = .fill) -> Box {
-        Box(fill, alignment: alignment) { self }
-    }
-    
-    func framed(_ frame: Frame) -> Box {
-        Box(frame) { self }
-    }
-    
-    func scrollable(_ config: ScrollConfig = ScrollConfig()) -> Box {
-        Box(overflow: .scroll(config)) { self }
-    }
-
     func debug(_ color: Color = .red, label: String? = nil) -> DebugOverlay {
         DebugOverlay(child: self, color: Color(platform: color.platformColor), label: label)
     }
 }
-
-// MARK: - DebugOverlay
 
 public struct DebugOverlay: ContainerView {
     public let child: any View
@@ -707,73 +673,6 @@ final class DebugOverlayView: UIView {
         infoLabel.sizeToFit()
         infoLabel.frame.origin = CGPoint(x: 2, y: bounds.height + 2)
     }
-}
-
-// MARK: - BoxRole
-
-public struct BoxRole: NamedKey {
-    public let name: String
-    public init(_ name: String) { self.name = name }
-}
-
-public extension BoxRole {
-    static let primary    = BoxRole("primary")
-    static let secondary  = BoxRole("secondary")
-    static let tertiary   = BoxRole("tertiary")
-    static let quaternary = BoxRole("quaternary")
-
-    static let defaultChain: [BoxRole] = [.primary, .secondary, .tertiary, .quaternary]
-}
-
-// MARK: - BoxTheme
-
-/// Role-keyed BoxStyles with cascade. Surfaces, cards, panels read
-/// via `ctx.theme(.box).primary`.
-public struct BoxTheme: Copyable {
-    public var styles: [BoxRole: BoxStyle]
-    public var chain: [BoxRole]
-
-    public init(_ styles: [BoxRole: BoxStyle], chain: [BoxRole] = BoxRole.defaultChain) {
-        self.styles = styles
-        self.chain = chain
-    }
-
-    public init(_ priority: PriorityTokens<BoxStyle>) {
-        var map: [BoxRole: BoxStyle] = [:]
-        for (level, style) in priority.values {
-            map[BoxRole(level.name)] = style
-        }
-        self.init(map)
-    }
-
-    public init(
-        primary: BoxStyle,
-        secondary: BoxStyle? = nil,
-        tertiary: BoxStyle? = nil,
-        quaternary: BoxStyle? = nil
-    ) {
-        self.init(PriorityTokens(
-            primary: primary, secondary: secondary,
-            tertiary: tertiary, quaternary: quaternary
-        ))
-    }
-
-    public subscript(_ role: BoxRole) -> BoxStyle {
-        styles.cascade(role, chain: chain) ?? BoxStyle()
-    }
-
-    public var primary:    BoxStyle { self[.primary] }
-    public var secondary:  BoxStyle { self[.secondary] }
-    public var tertiary:   BoxStyle { self[.tertiary] }
-    public var quaternary: BoxStyle { self[.quaternary] }
-
-    public static func standard() -> BoxTheme {
-        BoxTheme(primary: BoxStyle())
-    }
-}
-
-public extension ThemeSlot where T == BoxTheme {
-    static var box: ThemeSlot<BoxTheme> { .init(BoxTheme.self) }
 }
 
 // MARK: - SurfaceView

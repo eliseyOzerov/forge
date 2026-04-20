@@ -1,10 +1,4 @@
 import Foundation
-#if canImport(CoreGraphics)
-import CoreGraphics
-#endif
-#if canImport(UIKit)
-import UIKit
-#endif
 
 // MARK: - Color
 
@@ -90,20 +84,6 @@ public struct Color: Equatable, Hashable, Sendable, Lerpable {
     public static let teal = Color(0, 0.7, 0.7)
     public static let lime = Color(0.5, 1, 0)
 
-    #if canImport(CoreGraphics)
-    public var cgColor: CGColor {
-        CGColor(red: red, green: green, blue: blue, alpha: alpha)
-    }
-    #endif
-
-    #if canImport(UIKit)
-    public var platformColor: UIColor { UIColor(red: red, green: green, blue: blue, alpha: alpha) }
-    public init(platform: UIColor) {
-        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-        platform.getRed(&r, green: &g, blue: &b, alpha: &a)
-        self.init(Double(r), Double(g), Double(b), Double(a))
-    }
-    #endif
 }
 
 // MARK: - OkLab
@@ -731,8 +711,8 @@ public struct HueToken: Equatable, Hashable, Sendable, Copyable {
     /// user-added canonical hues return nil unless UIKit ships one
     /// under that name.
     public var system: Color? {
-        guard let canonical else { return nil }
         #if canImport(UIKit)
+        guard let canonical else { return nil }
         switch canonical.name {
         case "red":    return Color(platform: UIColor.systemRed)
         case "orange": return Color(platform: UIColor.systemOrange)
@@ -743,7 +723,7 @@ public struct HueToken: Equatable, Hashable, Sendable, Copyable {
         case "purple": return Color(platform: UIColor.systemPurple)
         case "pink":   return Color(platform: UIColor.systemPink)
         case "cyan":   return Color(platform: UIColor.systemCyan)
-        default:       return nil   // lime, magenta, sky, or user-added
+        default:       return nil
         }
         #else
         return nil
@@ -1270,3 +1250,30 @@ public extension ColorTheme {
         )
     }
 }
+
+// MARK: - CoreGraphics Bridge
+
+#if canImport(CoreGraphics)
+import CoreGraphics
+
+extension Color {
+    public var cgColor: CGColor {
+        CGColor(red: red, green: green, blue: blue, alpha: alpha)
+    }
+}
+#endif
+
+// MARK: - UIKit Bridge
+
+#if canImport(UIKit)
+import UIKit
+
+extension Color {
+    public var platformColor: UIColor { UIColor(red: red, green: green, blue: blue, alpha: alpha) }
+    public init(platform: UIColor) {
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        platform.getRed(&r, green: &g, blue: &b, alpha: &a)
+        self.init(Double(r), Double(g), Double(b), Double(a))
+    }
+}
+#endif

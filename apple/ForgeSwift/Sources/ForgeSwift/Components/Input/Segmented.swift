@@ -16,13 +16,13 @@ public struct SegmentedStyle<T> {
 
     public init(
         background: StateProperty<BoxStyle> = .constant(BoxStyle(
-            .fillWidth.height(.hug()),
-            .color(Color(0.93, 0.93, 0.95)),
-            .roundedRect(radius: 8),
+            frame: .fillWidth.height(.hug()),
+            surface: .color(Color(0.93, 0.93, 0.95)),
+            shape: .roundedRect(radius: 8),
             padding: Padding(all: 2)
         )),
         selector: @escaping @MainActor (T, State) -> any View = { _, _ in
-            Box(BoxStyle(.fill, .color(.white), .roundedRect(radius: 6)))
+            Box(BoxStyle(frame: .fill, surface: .color(.white), shape: .roundedRect(radius: 6)))
         },
         item: @escaping @MainActor (T, State) -> any View = { value, _ in
             Text("\(value)", style: TextStyle(font: Font(size: 14), align: .center))
@@ -209,7 +209,7 @@ public final class SegmentedBuilder<T: Hashable>: ViewBuilder<SegmentedModel<T>>
         let selectorItem = model.view.items[model.selectedIndex]
 
         let itemViews: [any View] = model.view.items.enumerated().map { pair in
-            Box(BoxStyle(.fill)) {
+            Box(BoxStyle(frame: .fill)) {
                 style.item(pair.element, model.itemState(at: pair.offset))
             }
         }
@@ -220,11 +220,11 @@ public final class SegmentedBuilder<T: Hashable>: ViewBuilder<SegmentedModel<T>>
 
             // Selector, positioned via leading padding
             Box(BoxStyle(
-                .fill,
+                frame: .fill,
                 padding: Padding(leading: selectorX),
                 alignment: .topLeft
             )) {
-                Box(.fixed(segmentWidth, size.height)) {
+                Box(frame: .fixed(segmentWidth, size.height)) {
                     style.selector(selectorItem, model.currentState)
                 }
             }

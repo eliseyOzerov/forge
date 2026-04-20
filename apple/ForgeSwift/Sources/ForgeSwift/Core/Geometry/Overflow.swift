@@ -1,5 +1,5 @@
 /// How a container handles content larger than its bounds.
-public enum Overflow {
+public enum Overflow: Equatable {
     case clip
     case visible
     case scroll(ScrollConfig = ScrollConfig())
@@ -7,9 +7,9 @@ public enum Overflow {
 
 /// Configuration for scroll overflow behavior.
 @Init @Copy
-public struct ScrollConfig {
+public struct ScrollConfig: Equatable {
     public var axis: Axis?
-    public var state: ScrollState?
+    @Snap public var state: ScrollState?
     public var showsIndicators: Bool = true
     public var bounces: Bool = true
     public var paging: Bool = false
@@ -18,7 +18,9 @@ public struct ScrollConfig {
 
 /// Observable scroll state for programmatic control.
 @MainActor
-public final class ScrollState {
+public final class ScrollState: Equatable {
+    nonisolated public static func ==(lhs: ScrollState, rhs: ScrollState) -> Bool { lhs === rhs }
+
     public var offset: Vec2 = .zero
     public var contentSize: Size = .zero
     public var viewportSize: Size = .zero

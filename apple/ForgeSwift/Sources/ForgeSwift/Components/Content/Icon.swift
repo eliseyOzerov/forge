@@ -1,5 +1,24 @@
-#if canImport(UIKit)
-import UIKit
+// MARK: - IconStyle
+
+@Init @Copy
+public struct IconStyle {
+    public var size: Double = 24
+    @Snap public var weight: IconWeight = .regular
+    public var color: Color? = nil
+    @Snap public var renderingMode: IconRenderingMode = .template
+}
+
+public enum IconWeight: Sendable {
+    case ultraLight, thin, light, regular, medium, semibold, bold, heavy, black
+}
+
+public enum IconRenderingMode: Sendable {
+    case template, original, hierarchical, palette
+
+    var isTemplate: Bool { self == .template }
+}
+
+// MARK: - Icon
 
 public struct Icon: LeafView {
     public let name: String
@@ -11,112 +30,13 @@ public struct Icon: LeafView {
     }
 
     public func makeRenderer() -> Renderer {
+        #if canImport(UIKit)
         UIKitIconRenderer(view: self)
+        #else
+        fatalError("Icon not yet implemented for this platform")
+        #endif
     }
 }
-
-// MARK: - IconStyle
-
-public struct IconStyle {
-    public var size: Double
-    public var weight: IconWeight
-    public var color: Color?
-    public var renderingMode: IconRenderingMode
-
-    public init(
-        size: Double = 24,
-        weight: IconWeight = .regular,
-        color: Color? = nil,
-        renderingMode: IconRenderingMode = .template
-    ) {
-        self.size = size
-        self.weight = weight
-        self.color = color
-        self.renderingMode = renderingMode
-    }
-}
-
-public enum IconWeight: Sendable {
-    case ultraLight, thin, light, regular, medium, semibold, bold, heavy, black
-
-    var uiSymbolWeight: UIImage.SymbolWeight {
-        switch self {
-        case .ultraLight: .ultraLight; case .thin: .thin; case .light: .light
-        case .regular: .regular; case .medium: .medium; case .semibold: .semibold
-        case .bold: .bold; case .heavy: .heavy; case .black: .black
-        }
-    }
-}
-
-public enum IconRenderingMode: Sendable {
-    case template, original, hierarchical, palette
-
-    var isTemplate: Bool { self == .template }
-}
-
-// MARK: - Renderer
-
-final class UIKitIconRenderer: Renderer {
-    private weak var imageView: UIImageView?
-    private var view: Icon
-
-    init(view: Icon) {
-        self.view = view
-    }
-
-    func update(from newView: any View) {
-        guard let icon = newView as? Icon, let imageView else { return }
-        let old = view
-        view = icon
-
-        let nameChanged = old.name != icon.name
-        let sizeChanged = old.style.size != icon.style.size || old.style.weight != icon.style.weight
-        let renderingChanged = old.style.renderingMode != icon.style.renderingMode
-        let colorChanged = old.style.color != icon.style.color
-
-        if nameChanged || sizeChanged || renderingChanged {
-            applyIconImage(to: imageView)
-            imageView.superview?.setNeedsLayout()
-        } else if colorChanged {
-            if icon.style.renderingMode.isTemplate {
-                imageView.tintColor = icon.style.color?.platformColor ?? .label
-            }
-        }
-    }
-
-    func mount() -> PlatformView {
-        let imageView = UIImageView()
-        imageView.contentMode = .scaleAspectFit
-        imageView.setContentHuggingPriority(.required, for: .horizontal)
-        imageView.setContentHuggingPriority(.required, for: .vertical)
-        self.imageView = imageView
-        applyIconImage(to: imageView)
-        return imageView
-    }
-
-    private func applyIconImage(to imageView: UIImageView) {
-        let config = UIImage.SymbolConfiguration(pointSize: view.style.size, weight: view.style.weight.uiSymbolWeight)
-        var image = UIImage(systemName: view.name, withConfiguration: config)
-
-        if view.style.renderingMode.isTemplate {
-            image = image?.withRenderingMode(.alwaysTemplate)
-            imageView.tintColor = view.style.color?.platformColor ?? .label
-        } else {
-            image = image?.withRenderingMode(.alwaysOriginal)
-        }
-
-        imageView.image = image
-    }
-}
-
-#else
-
-public struct Icon: BuiltView {
-    public init() {}
-    public func build(context: BuildContext) -> any View { Text("TODO: Icon") }
-}
-
-#endif
 
 // MARK: - IconRole
 
@@ -182,3 +102,73 @@ public struct IconTheme: Copyable {
 public extension ThemeSlot where T == IconTheme {
     static var icon: ThemeSlot<IconTheme> { .init(IconTheme.self) }
 }
+
+// MARK: - UIKit Renderer
+
+#if canImport(UIKit)
+import UIKit
+
+extension IconWeight {
+    var uiSymbolWeight: UIImage.SymbolWeight {
+        switch self {
+        case .ultraLight: .ultraLight; case .thin: .thin; case .light: .light
+        case .regular: .regular; case .medium: .medium; case .semibold: .semibold
+        case .bold: .bold; case .heavy: .heavy; case .black: .black
+        }
+    }
+}
+
+final class UIKitIconRenderer: Renderer {
+    private weak var imageView: UIImageView?
+    private var view: Icon
+
+    init(view: Icon) {
+        self.view = view
+    }
+
+    func update(from newView: any View) {
+        guard let icon = newView as? Icon, let imageView else { return }
+        let old = view
+        view = icon
+
+        let nameChanged = old.name != icon.name
+        let sizeChanged = old.style.size != icon.style.size || old.style.weight != icon.style.weight
+        let renderingChanged = old.style.renderingMode != icon.style.renderingMode
+        let colorChanged = old.style.color != icon.style.color
+
+        if nameChanged || sizeChanged || renderingChanged {
+            applyIconImage(to: imageView)
+            imageView.superview?.setNeedsLayout()
+        } else if colorChanged {
+            if icon.style.renderingMode.isTemplate {
+                imageView.tintColor = icon.style.color?.platformColor ?? .label
+            }
+        }
+    }
+
+    func mount() -> PlatformView {
+        let imageView = UIImageView()
+        imageView.contentMode = .scaleAspectFit
+        imageView.setContentHuggingPriority(.required, for: .horizontal)
+        imageView.setContentHuggingPriority(.required, for: .vertical)
+        self.imageView = imageView
+        applyIconImage(to: imageView)
+        return imageView
+    }
+
+    private func applyIconImage(to imageView: UIImageView) {
+        let config = UIImage.SymbolConfiguration(pointSize: view.style.size, weight: view.style.weight.uiSymbolWeight)
+        var image = UIImage(systemName: view.name, withConfiguration: config)
+
+        if view.style.renderingMode.isTemplate {
+            image = image?.withRenderingMode(.alwaysTemplate)
+            imageView.tintColor = view.style.color?.platformColor ?? .label
+        } else {
+            image = image?.withRenderingMode(.alwaysOriginal)
+        }
+
+        imageView.image = image
+    }
+}
+
+#endif

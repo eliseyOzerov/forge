@@ -375,6 +375,7 @@ public final class BuiltNode: Node {
 /// size, and skips child updates. When the view transitions from
 /// offstage to onstage (or vice versa), the child is shown/hidden
 /// without remounting.
+#if canImport(UIKit)
 public final class OffstageNode: Node {
     public var child: Node?
     private var isOffstage: Bool = true
@@ -439,7 +440,6 @@ public final class OffstageNode: Node {
     }
 }
 
-#if canImport(UIKit)
 /// Platform view that reports zero size when offstage and hides
 /// its content. When onstage, passes through to the child's size.
 final class OffstageView: UIView {
