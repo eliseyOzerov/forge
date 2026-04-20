@@ -1,7 +1,7 @@
 import Foundation
 
 /// Edge insets (spacing around content).
-public struct Padding: Equatable, Hashable, Sendable {
+public struct Padding: Equatable, Hashable, Sendable, Lerpable {
     public var top: Double
     public var bottom: Double
     public var leading: Double
@@ -51,4 +51,11 @@ public struct Padding: Equatable, Hashable, Sendable {
     public func bottom(_ value: Double) -> Padding { copy(bottom: value) }
     public func leading(_ value: Double) -> Padding { copy(leading: value) }
     public func trailing(_ value: Double) -> Padding { copy(trailing: value) }
+
+    public func lerp(to other: Padding, t: Double) -> Padding {
+        Padding(top: top.lerp(to: other.top, t: t),
+                bottom: bottom.lerp(to: other.bottom, t: t),
+                leading: leading.lerp(to: other.leading, t: t),
+                trailing: trailing.lerp(to: other.trailing, t: t))
+    }
 }

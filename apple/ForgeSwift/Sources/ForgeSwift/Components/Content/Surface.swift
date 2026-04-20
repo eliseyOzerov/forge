@@ -24,7 +24,8 @@ public extension Fill where Self: Equatable {
 public extension Fill where Self: Equatable & Lerpable {
     func lerp(to other: any Fill, t: Double) -> any Fill {
         guard let other = other as? Self else { return t < 0.5 ? self : other }
-        return self.lerp(to: other, t: t)
+        let result: Self = self.lerp(to: other, t: t)
+        return result
     }
 }
 
@@ -354,7 +355,8 @@ public extension Layer where Self: Equatable {
 public extension Layer where Self: Equatable & Lerpable {
     func lerp(to other: any Layer, t: Double) -> any Layer {
         guard let other = other as? Self else { return t < 0.5 ? self : other }
-        return self.lerp(to: other, t: t)
+        let result: Self = self.lerp(to: other, t: t)
+        return result
     }
 }
 

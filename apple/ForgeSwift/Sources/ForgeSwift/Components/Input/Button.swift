@@ -3,7 +3,7 @@ import UIKit
 
 // MARK: - ButtonStyle
 
-public struct ButtonStyle {
+public struct ButtonStyle: Equatable, Lerpable {
     public var box: BoxStyle
     public var textStyle: TextStyle
     public var haptic: HapticStyle
@@ -19,6 +19,17 @@ public struct ButtonStyle {
         self.textStyle = textStyle
         self.haptic = haptic
         self.animation = animation
+    }
+
+    public static func ==(lhs: ButtonStyle, rhs: ButtonStyle) -> Bool {
+        lhs.box.isEqual(to: rhs.box) && lhs.textStyle == rhs.textStyle && lhs.haptic == rhs.haptic
+    }
+
+    public func lerp(to other: ButtonStyle, t: Double) -> ButtonStyle {
+        ButtonStyle(box.lerp(to: other.box, t: t),
+                    textStyle: textStyle.lerp(to: other.textStyle, t: t),
+                    haptic: t < 0.5 ? haptic : other.haptic,
+                    animation: t < 0.5 ? animation : other.animation)
     }
 }
 
@@ -180,8 +191,10 @@ public final class ButtonBuilder: ViewBuilder<ButtonModel> {
                 activate: { model.handleTap(); return true }
             )
         ) {
-            Provided(style.textStyle) {
-                Box(style.box) { model.view.body }
+            Animated(value: style, animation: style.animation ?? .default) { _, s in
+                Provided(s.textStyle) {
+                    Box(s.box) { model.view.body }
+                }
             }
         }
     }

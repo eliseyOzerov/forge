@@ -27,6 +27,22 @@ extension Int: Lerpable {
     }
 }
 
+// MARK: - Mergeable
+
+/// A type whose instances can be merged, with `self`'s non-nil fields
+/// winning and `other`'s filling the gaps.
+/// `explicit.merge(theme).merge(defaults)` — left to right, highest priority first.
+public protocol Mergeable {
+    func merge(_ other: Self) -> Self
+}
+
+public extension Mergeable {
+    func merge(_ other: Self?) -> Self {
+        guard let other else { return self }
+        return merge(other)
+    }
+}
+
 // MARK: - Curve
 
 /// Maps a linear time value (0→1) to an eased output value.

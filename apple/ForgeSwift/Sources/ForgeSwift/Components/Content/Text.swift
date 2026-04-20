@@ -6,7 +6,7 @@ import AppKit
 import CoreText
 #endif
 
-public struct TextStyle: Sendable {
+public struct TextStyle: Sendable, Equatable, Lerpable, Mergeable {
     public var font: Font?
     public var color: Color?
     public var maxLines: Int?
@@ -33,38 +33,54 @@ public struct TextStyle: Sendable {
         self.decoration = decoration
     }
 
-    /// Merge this style over a base. Non-nil fields in `self` win;
-    /// nil fields fall through to `base`.
-    public func merged(over base: TextStyle) -> TextStyle {
+    public func merge(_ other: TextStyle) -> TextStyle {
         TextStyle(
-            font: font ?? base.font,
-            color: color ?? base.color,
-            maxLines: maxLines ?? base.maxLines,
-            align: align ?? base.align,
-            textCase: textCase ?? base.textCase,
-            overflow: overflow ?? base.overflow,
-            decoration: decoration ?? base.decoration
+            font: font ?? other.font,
+            color: color ?? other.color,
+            maxLines: maxLines ?? other.maxLines,
+            align: align ?? other.align,
+            textCase: textCase ?? other.textCase,
+            overflow: overflow ?? other.overflow,
+            decoration: decoration ?? other.decoration
+        )
+    }
+
+    public func lerp(to other: TextStyle, t: Double) -> TextStyle {
+        TextStyle(
+            font: lerpOptional(font, other.font, t: t),
+            color: lerpOptional(color, other.color, t: t),
+            maxLines: t < 0.5 ? maxLines : other.maxLines,
+            align: t < 0.5 ? align : other.align,
+            textCase: t < 0.5 ? textCase : other.textCase,
+            overflow: t < 0.5 ? overflow : other.overflow,
+            decoration: t < 0.5 ? decoration : other.decoration
         )
     }
 }
 
+/// Lerp two optional Lerpable values. If both present, lerp. Otherwise snap.
+private func lerpOptional<T: Lerpable>(_ a: T?, _ b: T?, t: Double) -> T? {
+    guard let a, let b else { return t < 0.5 ? a : b }
+    return a.lerp(to: b, t: t)
+}
+
 // MARK: - FontConfig
 
-public struct Font: Sendable {
+public struct Font: Sendable, Equatable, Lerpable {
     public var family: String?
-    public var size: CGFloat
-    public var height: CGFloat
-    public var tracking: CGFloat
-    public var weight: CGFloat
+    public var size: Double
+    public var height: Double
+    public var tracking: Double
+    public var weight: Double
     public var italic: Bool
     public var features: FontFeatures?
 
     public init(
         family: String? = nil,
-        size: CGFloat = 17,
-        lineHeight: CGFloat = 1.2,
-        tracking: CGFloat = 0,
-        weight: CGFloat = 400,
+        size: Double = 17,
+        lineHeight: Double = 1.2,
+        tracking: Double = 0,
+        weight: Double = 400,
         italic: Bool = false,
         features: FontFeatures? = nil
     ) {
@@ -77,7 +93,17 @@ public struct Font: Sendable {
         self.features = features
     }
 
-    public var resolvedLineSpacing: CGFloat {
+    public func lerp(to other: Font, t: Double) -> Font {
+        Font(family: t < 0.5 ? family : other.family,
+             size: size.lerp(to: other.size, t: t),
+             lineHeight: height.lerp(to: other.height, t: t),
+             tracking: tracking.lerp(to: other.tracking, t: t),
+             weight: weight.lerp(to: other.weight, t: t),
+             italic: t < 0.5 ? italic : other.italic,
+             features: t < 0.5 ? features : other.features)
+    }
+
+    public var resolvedLineSpacing: Double {
         max(0, (height - 1.0) * size)
     }
 
@@ -102,7 +128,7 @@ public struct Font: Sendable {
 
     private func applyVariations(to descriptor: UIFontDescriptor) -> UIFontDescriptor {
         let info = FontInfo.query(family: family)
-        var variations: [Int: CGFloat] = [:]
+        var variations: [Int: Double] = [:]
 
         if info.hasWeightAxis {
             variations[Self.tagToNumber("wght")] = weight
@@ -164,8 +190,8 @@ public struct Font: Sendable {
         ]
     }
 
-    private static func uiFontWeight(from weight: CGFloat) -> UIFont.Weight {
-        let stops: [(CGFloat, CGFloat)] = [
+    private static func uiFontWeight(from weight: Double) -> UIFont.Weight {
+        let stops: [(Double, CGFloat)] = [
             (100, UIFont.Weight.ultraLight.rawValue),
             (200, UIFont.Weight.thin.rawValue),
             (300, UIFont.Weight.light.rawValue),
@@ -202,16 +228,16 @@ public struct Font: Sendable {
 
 // MARK: - FontFeatures
 
-public struct FontFeatures: Sendable {
+public struct FontFeatures: Sendable, Equatable {
     public var stylisticSets: Set<Int>
     public var alternates: [Int: Int]
-    public var axes: [FontAxis: CGFloat]
+    public var axes: [FontAxis: Double]
     public var rawTags: Set<String>
 
     public init(
         stylisticSets: Set<Int> = [],
         alternates: [Int: Int] = [:],
-        axes: [FontAxis: CGFloat] = [:],
+        axes: [FontAxis: Double] = [:],
         rawTags: Set<String> = []
     ) {
         self.stylisticSets = stylisticSets
@@ -353,7 +379,7 @@ public enum TextCase: String, Sendable {
 
 // MARK: - TextDecoration
 
-public struct TextDecoration: Sendable {
+public struct TextDecoration: Sendable, Equatable {
     public var line: TextLineConfig?
     public var shadow: ShadowConfig?
 
@@ -363,7 +389,7 @@ public struct TextDecoration: Sendable {
     }
 }
 
-public struct TextLineConfig: Sendable {
+public struct TextLineConfig: Sendable, Equatable {
     public var color: Color?
     public var position: TextLinePosition
     public var style: Int
@@ -388,15 +414,15 @@ public enum TextLinePosition: String, Sendable {
     case strikethrough
 }
 
-public struct ShadowConfig: Sendable {
+public struct ShadowConfig: Sendable, Equatable {
     public var color: Color
-    public var radius: CGFloat
-    public var offset: CGSize
+    public var radius: Double
+    public var offset: Size
 
     public init(
         color: Color = Color.black.withAlpha(0.33),
-        radius: CGFloat = 1,
-        offset: CGSize = CGSize(width: 0, height: 1)
+        radius: Double = 1,
+        offset: Size = Size(0, 1)
     ) {
         self.color = color
         self.radius = radius
@@ -415,7 +441,7 @@ public struct Text: BuiltView {
 
     public func build(context: ViewContext) -> any View {
         let provided = context.tryRead(TextStyle.self)
-        let resolved = provided != nil ? style.merged(over: provided!) : style
+        let resolved = provided != nil ? style.merge(provided!) : style
         return TextLeaf(content: content, style: resolved)
     }
 }
@@ -511,7 +537,7 @@ final class UIKitTextRenderer: Renderer {
                 let nsShadow = NSShadow()
                 nsShadow.shadowColor = shadow.color.platformColor
                 nsShadow.shadowBlurRadius = shadow.radius
-                nsShadow.shadowOffset = shadow.offset
+                nsShadow.shadowOffset = CGSize(width: shadow.offset.width, height: shadow.offset.height)
                 attributes[.shadow] = nsShadow
             }
         }

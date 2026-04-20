@@ -18,7 +18,7 @@ import UIKit
 /// ```
 // MARK: - BoxStyle
 
-public struct BoxStyle {
+public struct BoxStyle: Lerpable {
     public var frame: Frame
     public var surface: Surface?
     public var shape: (any Shape)?
@@ -55,6 +55,49 @@ public struct BoxStyle {
         self.padding = padding; self.alignment = alignment
         self.clip = clip; self.overflow = overflow
     }
+
+    public func isEqual(to other: BoxStyle) -> Bool {
+        frame == other.frame && padding == other.padding && alignment == other.alignment && clip == other.clip
+        && surfaceEqual(surface, other.surface) && shapeEqual(shape, other.shape)
+    }
+
+    public func lerp(to other: BoxStyle, t: Double) -> BoxStyle {
+        var result = BoxStyle()
+        result.frame = t < 0.5 ? frame : other.frame
+        result.surface = lerpSurface(surface, other.surface, t: t)
+        result.shape = lerpShape(shape, other.shape, t: t)
+        result.padding = padding.lerp(to: other.padding, t: t)
+        result.alignment = alignment.lerp(to: other.alignment, t: t)
+        result.clip = t < 0.5 ? clip : other.clip
+        result.overflow = t < 0.5 ? overflow : other.overflow
+        return result
+    }
+}
+
+private func surfaceEqual(_ a: Surface?, _ b: Surface?) -> Bool {
+    switch (a, b) {
+    case (.none, .none): return true
+    case let (.some(a), .some(b)): return a.isEqual(to: b)
+    default: return false
+    }
+}
+
+private func lerpSurface(_ a: Surface?, _ b: Surface?, t: Double) -> Surface? {
+    guard let a, let b else { return t < 0.5 ? a : b }
+    return a.lerp(to: b, t: t)
+}
+
+private func shapeEqual(_ a: (any Shape)?, _ b: (any Shape)?) -> Bool {
+    switch (a, b) {
+    case (.none, .none): return true
+    case let (.some(a), .some(b)): return a.isEqual(to: b)
+    default: return false
+    }
+}
+
+private func lerpShape(_ a: (any Shape)?, _ b: (any Shape)?, t: Double) -> (any Shape)? {
+    guard let a, let b else { return t < 0.5 ? a : b }
+    return a.lerp(to: b, t: t)
 }
 
 // MARK: - Box
@@ -185,19 +228,18 @@ final class BoxRenderer: ContainerRenderer {
         boxView.overflow = box.overflow
         needsSelfLayout = true
 
-        // Shape/Surface lack Equatable (closures/layers) — always apply
+        // Shape/surface update the surface sublayer via didSet/layout
         boxView.shape = box.shape
         boxView.surface = box.surface
-        needsDisplay = true
+        needsSelfLayout = true
 
         if old.clip != box.clip {
             boxView.clip = box.clip
-            needsDisplay = true
+            needsSelfLayout = true
         }
 
         if needsSelfLayout { boxView.setNeedsLayout() }
         if needsParentLayout { boxView.superview?.setNeedsLayout() }
-        if needsDisplay { boxView.setNeedsDisplay() }
     }
 
     func mount() -> PlatformView {
@@ -238,7 +280,7 @@ final class BoxRenderer: ContainerRenderer {
 /// and optional scroll overflow.
 class BoxView: UIView {
     var shape: (any Shape)?
-    var surface: Surface?
+    var surface: Surface? { didSet { surfaceView.surface = surface; layoutSurfaceView() } }
     var clip: Bool = true
     var sizing: Frame = .hug
     var padding: Padding = .zero
@@ -251,22 +293,36 @@ class BoxView: UIView {
     private var scrollView: UIScrollView?
     private var scrollState: ScrollState?
 
+    // Surface painting — separate view that can overflow bounds
+    private let surfaceView = SurfaceView()
+
     override init(frame: CGRect) {
         super.init(frame: frame)
         isOpaque = false
-        contentMode = .redraw
+        backgroundColor = .clear
+        clipsToBounds = false
+        super.addSubview(surfaceView)
     }
 
     required init?(coder: NSCoder) { fatalError() }
 
-    // MARK: - Drawing
+    // MARK: - Surface
 
-    /// Paint the surface behind children.
-    override func draw(_ rect: CGRect) {
-        guard let surface, let ctx = UIGraphicsGetCurrentContext() else { return }
+    private func layoutSurfaceView() {
+        guard surface != nil else {
+            surfaceView.frame = .zero
+            surfaceView.path = nil
+            return
+        }
+
         let resolvedShape: any Shape = shape ?? RectShape()
-        let canvas = CGCanvas(ctx)
-        SurfaceRenderer(surface: surface, shape: resolvedShape, bounds: Rect(bounds)).render(on: canvas)
+        let viewRect = Rect(bounds)
+        let path = resolvedShape.path(in: viewRect)
+        let pathRect = path.boundingBox
+
+        surfaceView.frame = pathRect.cgRect
+        surfaceView.path = path
+        surfaceView.setNeedsDisplay()
     }
 
     // MARK: - Sizing
@@ -345,6 +401,7 @@ class BoxView: UIView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
+        layoutSurfaceView()
         layoutScrollView()
         layoutChildren()
         updateScrollContentSize()
@@ -430,7 +487,7 @@ class BoxView: UIView {
 
     /// The actual content children (through scroll view if scrolling).
     private var contentChildren: [UIView] {
-        scrollView?.subviews ?? super.subviews.filter { $0 !== scrollView }
+        scrollView?.subviews ?? super.subviews.filter { $0 !== scrollView && $0 !== surfaceView }
     }
 
     // MARK: - Subview routing
@@ -443,7 +500,7 @@ class BoxView: UIView {
 
     override func insertSubview(_ view: UIView, at index: Int) {
         if let sv = scrollView { sv.insertSubview(view, at: index) }
-        else { super.insertSubview(view, at: index) }
+        else { super.insertSubview(view, at: index + 1) } // +1 to keep surfaceView at 0
     }
 
     override var subviews: [UIView] {
@@ -725,6 +782,32 @@ public struct BoxTheme: Copyable {
 
 public extension ThemeSlot where T == BoxTheme {
     static var box: ThemeSlot<BoxTheme> { .init(BoxTheme.self) }
+}
+
+// MARK: - SurfaceView
+
+/// Paints a Surface's layers for a pre-resolved path. Sized to the
+/// path's bounding box — can extend beyond the parent BoxView's
+/// bounds for shapes that overflow (scaled, transformed, etc.).
+class SurfaceView: UIView {
+    var surface: Surface?
+    var path: Path?
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isOpaque = false
+        isUserInteractionEnabled = false
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func draw(_ rect: CGRect) {
+        guard let path, let surface, let ctx = UIGraphicsGetCurrentContext() else { return }
+        ctx.translateBy(x: -frame.origin.x, y: -frame.origin.y)
+        let canvas = CGCanvas(ctx)
+        let context = SurfaceContext(canvas: canvas, path: path, bounds: Rect(frame))
+        for layer in surface.layers { layer.render(in: context) }
+    }
 }
 
 #endif

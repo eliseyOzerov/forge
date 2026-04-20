@@ -31,7 +31,8 @@ public extension Shape where Self: Equatable {
 public extension Shape where Self: Equatable & Lerpable {
     func lerp(to other: any Shape, t: Double) -> any Shape {
         guard let other = other as? Self else { return t < 0.5 ? self : other }
-        return self.lerp(to: other, t: t)
+        let result: Self = self.lerp(to: other, t: t)
+        return result
     }
 }
 
