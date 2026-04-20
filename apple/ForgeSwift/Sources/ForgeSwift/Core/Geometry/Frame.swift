@@ -12,13 +12,13 @@ public enum Extent: Equatable, Sendable {
 }
 
 /// Sizing constraints for a view.
-public struct Frame: Equatable, Sendable {
-    public var width: Extent
-    public var height: Extent
+@Init @Copy
+public struct Frame: Equatable, Sendable, Lerpable {
+    public var width: Extent = .hug()
+    public var height: Extent = .hug()
 
     public init(_ width: Extent = .hug(), _ height: Extent = .hug()) {
-        self.width = width
-        self.height = height
+        self.init(width: width, height: height)
     }
 
     public static func fixed(_ width: Double, _ height: Double) -> Frame {
@@ -28,35 +28,41 @@ public struct Frame: Equatable, Sendable {
     public static func square(_ size: Double) -> Frame {
         Frame(.fix(size), .fix(size))
     }
-    
-    public static func height(_ extent: Extent) -> Frame {
-        Frame(.hug(), extent)
-    }
-    
-    public static func width(_ extent: Extent) -> Frame {
-        Frame(extent, .hug())
-    }
-    
-    public func height(_ extent: Extent) -> Frame {
-        Frame(self.width, extent)
-    }
-    
+
     public func height(_ value: Double) -> Frame {
-        Frame(self.width, .fix(value))
+        height(.fix(value))
     }
-    
-    public func width(_ extent: Extent) -> Frame {
-        Frame(extent, self.height)
-    }
-    
+
     public func width(_ value: Double) -> Frame {
-        Frame(.fix(value), self.height)
+        width(.fix(value))
     }
 
     public static let fill = Frame(.fill(), .fill())
     public static let hug = Frame(.hug(), .hug())
-    
+
     public static let fillWidth = Frame(.fill(), .hug())
     public static let fillHeight = Frame(.hug(), .fill())
 
+    public func lerp(to other: Frame, t: Double) -> Frame {
+        Frame(width: width.lerp(to: other.width, t: t),
+              height: height.lerp(to: other.height, t: t))
+    }
+}
+
+extension Extent: Lerpable {
+    public func lerp(to other: Extent, t: Double) -> Extent {
+        switch (self, other) {
+        case (.fix(let a), .fix(let b)):
+            return .fix(a.lerp(to: b, t: t))
+        case (.hug(let aMin, let aMax), .hug(let bMin, let bMax)):
+            return .hug(min: lerpOptional(aMin, bMin, t: t),
+                        max: lerpOptional(aMax, bMax, t: t))
+        case (.fill(let aFlex, let aMin, let aMax), .fill(let bFlex, let bMin, let bMax)):
+            return .fill(flex: aFlex.lerp(to: bFlex, t: t),
+                         min: lerpOptional(aMin, bMin, t: t),
+                         max: lerpOptional(aMax, bMax, t: t))
+        default:
+            return t < 0.5 ? self : other
+        }
+    }
 }

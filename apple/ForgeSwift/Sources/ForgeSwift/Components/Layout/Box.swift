@@ -75,11 +75,7 @@ public struct BoxStyle: Lerpable {
 }
 
 private func surfaceEqual(_ a: Surface?, _ b: Surface?) -> Bool {
-    switch (a, b) {
-    case (.none, .none): return true
-    case let (.some(a), .some(b)): return a.isEqual(to: b)
-    default: return false
-    }
+    a == b
 }
 
 private func lerpSurface(_ a: Surface?, _ b: Surface?, t: Double) -> Surface? {

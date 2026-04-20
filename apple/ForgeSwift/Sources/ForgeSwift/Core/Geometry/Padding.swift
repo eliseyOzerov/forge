@@ -7,22 +7,29 @@ public struct Padding: Equatable, Hashable, Sendable {
     public var bottom: Double = 0
     public var leading: Double = 0
     public var trailing: Double = 0
+}
 
-    public init(all: Double) {
-        self.top = all; self.bottom = all; self.leading = all; self.trailing = all
+// MARK: - Convenience Initializers
+
+public extension Padding {
+    init(all: Double) {
+        self.init(top: all, bottom: all, leading: all, trailing: all)
     }
 
-    public init(horizontal: Double = 0, vertical: Double = 0) {
-        self.leading = horizontal; self.trailing = horizontal
-        self.top = vertical; self.bottom = vertical
+    init(horizontal: Double = 0, vertical: Double = 0) {
+        self.init(top: vertical, bottom: vertical, leading: horizontal, trailing: horizontal)
     }
+}
 
-    public static let zero = Padding()
+// MARK: - Factories & Computed
 
-    public static func all(_ value: Double) -> Padding { Padding(all: value) }
-    public static func horizontal(_ value: Double) -> Padding { Padding(horizontal: value) }
-    public static func vertical(_ value: Double) -> Padding { Padding(vertical: value) }
+public extension Padding {
+    static let zero = Padding()
 
-    public var horizontal: Double { leading + trailing }
-    public var vertical: Double { top + bottom }
+    static func all(_ value: Double) -> Padding { Padding(all: value) }
+    static func horizontal(_ value: Double) -> Padding { Padding(horizontal: value) }
+    static func vertical(_ value: Double) -> Padding { Padding(vertical: value) }
+
+    var horizontal: Double { leading + trailing }
+    var vertical: Double { top + bottom }
 }
