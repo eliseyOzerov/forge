@@ -9,8 +9,8 @@ public struct TrackStyle {
     public var divisions: TrackDivisions?
 
     public init(
-        inactive: BoxStyle = BoxStyle(frame: .fillWidth.height(.fix(4)), surface: .color(Color(0.85, 0.85, 0.85)), shape: .capsule()),
-        active: BoxStyle = BoxStyle(frame: .fillWidth.height(.fix(4)), surface: .color(Color(0.2, 0.5, 1.0)), shape: .capsule()),
+        inactive: BoxStyle = .frame(.fillWidth.height(.fix(4))).surface(.color(Color(0.85, 0.85, 0.85))).shape(.capsule()),
+        active: BoxStyle = .frame(.fillWidth.height(.fix(4))).surface(.color(Color(0.2, 0.5, 1.0))).shape(.capsule()),
         mark: BoxStyle? = nil,
         divisions: TrackDivisions? = nil
     ) {
@@ -40,7 +40,7 @@ public struct DivisionLabelStyle {
     public var show: Mapper<Double, Bool>?
 
     public init(
-        text: TextStyle = TextStyle(font: Font(size: 10)),
+        text: TextStyle = .font(.size(10)),
         placement: Alignment = .bottomCenter,
         formatter: TextFormatter<Double>? = nil,
         show: Mapper<Double, Bool>? = nil
@@ -57,7 +57,7 @@ public struct ThumbStyle {
     public var label: ThumbLabelStyle?
 
     public init(
-        box: BoxStyle = BoxStyle(frame: .square(24), surface: .color(.white).shadow(blur: 4), shape: .circle()),
+        box: BoxStyle = .frame(.square(24)).surface(.color(.white).shadow(blur: 4)).shape(.circle()),
         label: ThumbLabelStyle? = nil
     ) {
         self.box = box; self.label = label
@@ -71,8 +71,8 @@ public struct ThumbLabelStyle {
     public var formatter: TextFormatter<Double>?
 
     public init(
-        text: TextStyle = TextStyle(font: Font(size: 12, weight: 600), color: .white),
-        box: BoxStyle = BoxStyle(surface: .color(Color(0.2, 0.2, 0.2)), shape: .capsule(), padding: Padding(horizontal: 8, vertical: 4)),
+        text: TextStyle = .font(.size(12).weight(600)).color(.white),
+        box: BoxStyle = .surface(.color(Color(0.2, 0.2, 0.2))).shape(.capsule()).padding(Padding(horizontal: 8, vertical: 4)),
         visible: Bool = false,
         formatter: TextFormatter<Double>? = nil
     ) {

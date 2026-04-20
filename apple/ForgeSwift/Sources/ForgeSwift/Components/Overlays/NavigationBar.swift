@@ -384,7 +384,7 @@ public struct NavigationBar: BuiltView {
         )
 
         let contentRow = Box(
-            BoxStyle(frame: .height(.fix(height)), padding: padding)
+            .frame(.height(.fix(height))).padding(padding)
         ) { row }
 
         #if canImport(UIKit)

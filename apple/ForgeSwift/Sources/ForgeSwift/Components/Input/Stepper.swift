@@ -47,7 +47,7 @@ public struct StepperButton {
     public var view: (any View)?
 
     public init(
-        style: ButtonStyle = ButtonStyle(box: BoxStyle(frame: .square(36), surface: .color(Color(0.9, 0.9, 0.9)), shape: .roundedRect(radius: 6)), textStyle: TextStyle(font: Font(size: 18, weight: 600))),
+        style: ButtonStyle = .box(.frame(.square(36)).surface(.color(Color(0.9, 0.9, 0.9))).shape(.roundedRect(radius: 6))).textStyle(.font(.size(18).weight(600))),
         view: (any View)? = nil
     ) {
         self.style = style; self.view = view
@@ -68,11 +68,11 @@ public struct StepperStyle<T> {
     public var transition: ValueTransition
 
     public init(
-        container: BoxStyle = BoxStyle(padding: .zero),
-        field: BoxStyle = BoxStyle(surface: .color(Color(0.95, 0.95, 0.95)), shape: .roundedRect(radius: 6), padding: Padding(horizontal: 8, vertical: 4)),
+        container: BoxStyle = .padding(.zero),
+        field: BoxStyle = .surface(.color(Color(0.95, 0.95, 0.95))).shape(.roundedRect(radius: 6)).padding(Padding(horizontal: 8, vertical: 4)),
         decrement: StepperButton = StepperButton(),
         increment: StepperButton = StepperButton(),
-        text: TextStyle = TextStyle(font: Font(size: 16), align: .center),
+        text: TextStyle = .font(.size(16)).align(.center),
         spacing: Double = 4,
         formatter: TextFormatter<T>? = nil,
         longPress: LongPressConfig = .default,
@@ -284,7 +284,7 @@ public final class StepperBuilder<T: Numeric & Comparable & LosslessStringConver
     }
 
     private func dimmed(_ style: ButtonStyle) -> ButtonStyle {
-        ButtonStyle(box: style.box, textStyle: TextStyle(font: style.textStyle.font, color: .gray), haptic: .none, animation: style.animation)
+        ButtonStyle.box(style.box).textStyle(.font(style.textStyle.font).color(.gray)).haptic(.none).animation(style.animation)
     }
 }
 

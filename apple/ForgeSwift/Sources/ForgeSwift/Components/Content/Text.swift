@@ -167,12 +167,19 @@ public struct ShadowConfig: Sendable, Equatable {
 // MARK: - Text
 
 public struct Text: BuiltView {
-    public let content: String
-    public let style: TextStyle
+    public var content: String
+    public var style: TextStyle
 
     public init(_ content: String, style: TextStyle = TextStyle()) {
         self.content = content
         self.style = style
+    }
+
+    /// Configure style. The callback receives the current style for modification.
+    public func style(_ build: (TextStyle) -> TextStyle) -> Text {
+        var copy = self
+        copy.style = build(style)
+        return copy
     }
 
     public func build(context: ViewContext) -> any View {

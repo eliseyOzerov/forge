@@ -4,11 +4,10 @@
 /// Single child = styled container. Multiple children = overlay (ZStack).
 ///
 /// ```swift
-/// Box(
-///     frame: .fixed(200, 200),
-///     shape: .roundedRect(radius: 12),
-///     surface: Surface { $0.color(.white).shadow(blur: 8) },
-///     padding: Padding(all: 16)
+/// Box(.frame(.fixed(200, 200))
+///     .shape(.roundedRect(radius: 12))
+///     .surface(.color(.white).shadow(blur: 8))
+///     .padding(.all(16))
 /// ) {
 ///     Text("Hello")
 /// }

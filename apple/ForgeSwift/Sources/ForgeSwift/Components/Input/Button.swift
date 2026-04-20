@@ -1,3 +1,5 @@
+import Foundation
+
 // MARK: - ButtonStyle
 
 @Init @Copy @Lerp
@@ -26,9 +28,6 @@ public extension ButtonRole {
 
 // MARK: - ButtonTheme
 
-/// Role-keyed ButtonStyles with cascade. Read at use sites via
-/// `ctx.theme(.button).primary` (or `theme[.customRole]` for app-
-/// specific roles declared as `extension ButtonRole { static let ... }`).
 public struct ButtonTheme: Copyable {
     public var styles: [ButtonRole: ButtonStyle]
     public var chain: [ButtonRole]
@@ -38,8 +37,6 @@ public struct ButtonTheme: Copyable {
         self.chain = chain
     }
 
-    /// Convenience init from a PriorityTokens bundle — translates
-    /// the 4 built-in priority levels to matching ButtonRoles.
     public init(_ priority: PriorityTokens<ButtonStyle>) {
         var map: [ButtonRole: ButtonStyle] = [:]
         for (level, style) in priority.values {
@@ -80,42 +77,26 @@ public extension ThemeSlot where T == ButtonTheme {
 
 // MARK: - Button
 
-#if canImport(UIKit)
-import UIKit
-
 /// A tappable component. Wraps a single child view in an interactive
 /// container with state-reactive styling.
 ///
 /// ```swift
-/// Button(onTap: { print("tapped") }) {
-///     Text("Tap me")
-/// }
-///
-/// Button(
-///     "Submit",
-///     style: StateProperty { state in
-///         ButtonStyle(
-///             BoxStyle(
-///                 .fillWidth.height(.fix(48)),
-///                 state.contains(.pressed)
-///                     ? .color(Color(0.1, 0.4, 0.9))
-///                     : .color(Color(0.2, 0.5, 1.0)),
-///                 .capsule(),
-///                 padding: Padding(horizontal: 16)
-///             ),
-///             haptic: .medium
-///         )
-///     },
-///     onTap: { }
-/// )
+/// Button("Submit", onTap: { })
+///     .style { style, state in
+///         style
+///             .box(.frame(.fillWidth.height(.fix(48)))
+///                 .surface(.color(.blue))
+///                 .shape(.capsule()))
+///             .haptic(.medium)
+///     }
 /// ```
 public struct Button: ModelView {
-    public let body: any View
-    public let style: StateProperty<ButtonStyle>
-    public let states: State
-    public let onTap: @MainActor () -> Void
-    public let debounce: Double?
-    public let label: String?
+    public var body: any View
+    public var style: StateProperty<ButtonStyle>
+    public var states: State
+    public var onTap: @MainActor () -> Void
+    public var debounce: Double?
+    public var label: String?
 
     /// Single-child button with custom content.
     public init(
@@ -154,12 +135,21 @@ public struct Button: ModelView {
     public func builder(model: ButtonModel) -> ButtonBuilder { ButtonBuilder(model: model) }
 }
 
+public extension Button {
+    /// Configure style as a function of the default style and current state.
+    func style(_ build: @escaping @MainActor (ButtonStyle, State) -> ButtonStyle) -> Button {
+        var copy = self
+        copy.style = StateProperty { state in build(ButtonStyle(), state) }
+        return copy
+    }
+}
+
 // MARK: - Model
 
 public final class ButtonModel: ViewModel<Button> {
     var isPressed = false
     var onTap: (@MainActor () -> Void)?
-    var lastTapTime: CFTimeInterval = 0
+    var lastTapTime: Double = 0
 
     public override func didInit(view: Button) {
         super.didInit(view: view)
@@ -195,7 +185,7 @@ public final class ButtonModel: ViewModel<Button> {
         guard !isDisabled, !isLoading else { return }
         rebuild { isPressed = false }
         if let debounce = view.debounce {
-            let now = CACurrentMediaTime()
+            let now = ProcessInfo.processInfo.systemUptime
             guard now - lastTapTime >= debounce else { return }
             lastTapTime = now
         }
@@ -207,6 +197,7 @@ public final class ButtonModel: ViewModel<Button> {
     }
 
     private func fireHaptic() {
+        #if canImport(UIKit)
         let haptic = view.style(currentState).haptic
         guard haptic != .none else { return }
         let style: UIImpactFeedbackGenerator.FeedbackStyle = switch haptic {
@@ -215,9 +206,10 @@ public final class ButtonModel: ViewModel<Button> {
         case .heavy: .heavy
         case .rigid: .rigid
         case .soft: .soft
-        case .none: .light // unreachable
+        case .none: .light
         }
         UIImpactFeedbackGenerator(style: style).impactOccurred()
+        #endif
     }
 }
 
@@ -227,7 +219,9 @@ public final class ButtonBuilder: ViewBuilder<ButtonModel> {
     public override func build(context: ViewContext) -> any View {
         let model = self.model
         let style = model.view.style(model.currentState)
-        var traits: UIAccessibilityTraits = .button
+
+        #if canImport(UIKit)
+        var traits: AccessibilityTraits = .button
         if model.isDisabled { traits.insert(.notEnabled) }
         return TapHandler(
             onDown: { _ in model.handleDown() },
@@ -245,7 +239,16 @@ public final class ButtonBuilder: ViewBuilder<ButtonModel> {
                 }
             }
         }
+        #else
+        return Animated(value: style, animation: style.animation ?? .default) { _, s in
+            Provided(s.textStyle) {
+                Box(s.box) { model.view.body }
+            }
+        }
+        #endif
     }
 }
 
+#if canImport(UIKit)
+import UIKit
 #endif

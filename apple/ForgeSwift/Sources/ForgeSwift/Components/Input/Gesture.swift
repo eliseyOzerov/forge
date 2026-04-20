@@ -1,5 +1,59 @@
+// MARK: - AccessibilityTraits
+
+public struct AccessibilityTraits: OptionSet, Sendable {
+    public let rawValue: UInt64
+    public init(rawValue: UInt64) { self.rawValue = rawValue }
+
+    public static let button     = AccessibilityTraits(rawValue: 1 << 0)
+    public static let link       = AccessibilityTraits(rawValue: 1 << 1)
+    public static let image      = AccessibilityTraits(rawValue: 1 << 2)
+    public static let selected   = AccessibilityTraits(rawValue: 1 << 3)
+    public static let adjustable = AccessibilityTraits(rawValue: 1 << 4)
+    public static let header     = AccessibilityTraits(rawValue: 1 << 5)
+    public static let notEnabled = AccessibilityTraits(rawValue: 1 << 6)
+    public static let staticText = AccessibilityTraits(rawValue: 1 << 7)
+}
+
+// MARK: - AccessibilityConfig
+
+public struct AccessibilityConfig {
+    public var traits: AccessibilityTraits
+    public var label: String?
+    public var value: String?
+    public var activate: (@MainActor () -> Bool)?
+    public var increment: (@MainActor () -> Void)?
+    public var decrement: (@MainActor () -> Void)?
+
+    public init(
+        traits: AccessibilityTraits = [],
+        label: String? = nil,
+        value: String? = nil,
+        activate: (@MainActor () -> Bool)? = nil,
+        increment: (@MainActor () -> Void)? = nil,
+        decrement: (@MainActor () -> Void)? = nil
+    ) {
+        self.traits = traits; self.label = label; self.value = value
+        self.activate = activate; self.increment = increment; self.decrement = decrement
+    }
+}
+
 #if canImport(UIKit)
 import UIKit
+
+extension AccessibilityTraits {
+    var uiTraits: UIAccessibilityTraits {
+        var result: UIAccessibilityTraits = []
+        if contains(.button)     { result.insert(.button) }
+        if contains(.link)       { result.insert(.link) }
+        if contains(.image)      { result.insert(.image) }
+        if contains(.selected)   { result.insert(.selected) }
+        if contains(.adjustable) { result.insert(.adjustable) }
+        if contains(.header)     { result.insert(.header) }
+        if contains(.notEnabled) { result.insert(.notEnabled) }
+        if contains(.staticText) { result.insert(.staticText) }
+        return result
+    }
+}
 
 // MARK: - Gesture
 
@@ -158,7 +212,7 @@ final class GestureView: UIView {
     private func configureAccessibility(_ config: AccessibilityConfig?) {
         accessibilityConfig = config
         isAccessibilityElement = config != nil
-        accessibilityTraits = config?.traits ?? []
+        accessibilityTraits = config?.traits.uiTraits ?? []
         accessibilityLabel = config?.label
         accessibilityValue = config?.value
     }
@@ -439,29 +493,6 @@ extension GestureView: UIGestureRecognizerDelegate {
         let isPinchOrRotation = gestureRecognizer is UIPinchGestureRecognizer || gestureRecognizer is UIRotationGestureRecognizer
         let otherIsPinchOrRotation = other is UIPinchGestureRecognizer || other is UIRotationGestureRecognizer
         return isPinchOrRotation && otherIsPinchOrRotation
-    }
-}
-
-// MARK: - AccessibilityConfig
-
-public struct AccessibilityConfig {
-    public var traits: UIAccessibilityTraits
-    public var label: String?
-    public var value: String?
-    public var activate: (@MainActor () -> Bool)?
-    public var increment: (@MainActor () -> Void)?
-    public var decrement: (@MainActor () -> Void)?
-
-    public init(
-        traits: UIAccessibilityTraits = [],
-        label: String? = nil,
-        value: String? = nil,
-        activate: (@MainActor () -> Bool)? = nil,
-        increment: (@MainActor () -> Void)? = nil,
-        decrement: (@MainActor () -> Void)? = nil
-    ) {
-        self.traits = traits; self.label = label; self.value = value
-        self.activate = activate; self.increment = increment; self.decrement = decrement
     }
 }
 

@@ -44,8 +44,6 @@ public struct Mapper<T, K> {
 /// Resolves a value based on the current UI state.
 public typealias StateProperty<T> = Mapper<State, T>
 
-/// Formats a value of type `T` into a display string.
-public typealias TextFormatter<T> = Mapper<T, String>
 
 public extension StateProperty {
     /// Constant value regardless of state.

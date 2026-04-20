@@ -21,12 +21,19 @@ public enum IconRenderingMode: Sendable {
 // MARK: - Icon
 
 public struct Icon: LeafView {
-    public let name: String
-    public let style: IconStyle
+    public var name: String
+    public var style: IconStyle
 
     public init(_ name: String, style: IconStyle = IconStyle()) {
         self.name = name
         self.style = style
+    }
+
+    /// Configure style. The callback receives the current style for modification.
+    public func style(_ build: (IconStyle) -> IconStyle) -> Icon {
+        var copy = self
+        copy.style = build(style)
+        return copy
     }
 
     public func makeRenderer() -> Renderer {

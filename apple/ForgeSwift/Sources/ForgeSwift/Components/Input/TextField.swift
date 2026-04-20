@@ -1,6 +1,3 @@
-#if canImport(UIKit)
-import UIKit
-
 // MARK: - Function Types
 
 public typealias TextParser<T> = Mapper<String, T?>
@@ -8,16 +5,15 @@ public typealias TextFormatter<T> = Mapper<T, String>
 public typealias TextTransformer = Mapper<String, String>
 public typealias InputFilter = Mapper<String, Bool>
 public typealias InputValidator<T> = Mapper<T, String?>
-// Handler and ValueHandler are defined in State.swift
 
 // MARK: - TextField<T>
 
 public struct TextField<T>: ModelView {
-    public let value: Binding<T>
-    public let logic: TextFieldLogic<T>
-    public let decoration: TextFieldDecoration
-    public let keyboard: KeyboardConfig
-    public let style: StateProperty<TextFieldStyle>
+    public var value: Binding<T>
+    public var logic: TextFieldLogic<T>
+    public var decoration: TextFieldDecoration
+    public var keyboard: KeyboardConfig
+    public var style: StateProperty<TextFieldStyle>
 
     public init(
         value: Binding<T>,
@@ -127,45 +123,18 @@ public struct KeyboardConfig: Sendable {
 
 public enum KeyboardType: Sendable {
     case `default`, email, number, decimal, phone, url
-    var ui: UIKeyboardType {
-        switch self {
-        case .default: .default; case .email: .emailAddress
-        case .number: .numberPad; case .decimal: .decimalPad
-        case .phone: .phonePad; case .url: .URL
-        }
-    }
 }
 
 public enum ContentType: Sendable {
     case email, password, newPassword, oneTimeCode, name, username
-    var ui: UITextContentType {
-        switch self {
-        case .email: .emailAddress; case .password: .password
-        case .newPassword: .newPassword; case .oneTimeCode: .oneTimeCode
-        case .name: .name; case .username: .username
-        }
-    }
 }
 
 public enum Autocapitalization: Sendable {
     case none, words, sentences, all
-    var ui: UITextAutocapitalizationType {
-        switch self {
-        case .none: .none; case .words: .words
-        case .sentences: .sentences; case .all: .allCharacters
-        }
-    }
 }
 
 public enum ReturnKey: Sendable {
     case `default`, done, next, search, go, send
-    var ui: UIReturnKeyType {
-        switch self {
-        case .default: .default; case .done: .done
-        case .next: .next; case .search: .search
-        case .go: .go; case .send: .send
-        }
-    }
 }
 
 // MARK: - Style
@@ -181,12 +150,12 @@ public struct TextFieldStyle {
     public var obscureCharacter: Character
 
     public init(
-        field: BoxStyle = BoxStyle(frame: .fillWidth.height(.fix(48)), surface: .color(Color(0.95, 0.95, 0.95)), shape: .roundedRect(radius: 8), padding: Padding(horizontal: 12)),
-        text: TextStyle = TextStyle(font: Font(size: 16)),
-        placeholder: TextStyle = TextStyle(font: Font(size: 16), color: .gray),
-        label: TextStyle = TextStyle(font: Font(size: 14, weight: 500)),
-        helper: TextStyle = TextStyle(font: Font(size: 12), color: .gray),
-        error: TextStyle = TextStyle(font: Font(size: 12), color: .red),
+        field: BoxStyle = .frame(.fillWidth.height(.fix(48))).surface(.color(Color(0.95, 0.95, 0.95))).shape(.roundedRect(radius: 8)).padding(.horizontal(12)),
+        text: TextStyle = .font(.size(16)),
+        placeholder: TextStyle = .font(.size(16)).color(.gray),
+        label: TextStyle = .font(.size(14).weight(500)),
+        helper: TextStyle = .font(.size(12)).color(.gray),
+        error: TextStyle = .font(.size(12)).color(.red),
         labelPosition: LabelPosition = .above,
         obscureCharacter: Character = "•"
     ) {
@@ -351,10 +320,279 @@ public final class TextFieldBuilder<T>: ViewBuilder<TextFieldModel<T>> {
 struct TextFieldLeaf<T>: LeafView {
     let model: TextFieldModel<T>
     let style: TextFieldStyle
-    func makeRenderer() -> Renderer { UIKitTextFieldRenderer(view: self) }
+    func makeRenderer() -> Renderer {
+        #if canImport(UIKit)
+        UIKitTextFieldRenderer(view: self)
+        #else
+        fatalError("TextField not yet implemented for this platform")
+        #endif
+    }
 }
 
-// MARK: - Renderer
+// MARK: - Convenience Variants
+
+public extension TextField where T == String {
+    static func email(
+        text: Binding<String>,
+        decoration: TextFieldDecoration = TextFieldDecoration(placeholder: "you@example.com", label: "Email"),
+        onChanged: ValueHandler<String>? = nil,
+        onSubmit: Handler? = nil,
+        style: StateProperty<TextFieldStyle> = .constant(TextFieldStyle())
+    ) -> TextField {
+        TextField(text: text, logic: TextFieldLogic(
+            validator: InputValidator {
+                guard !$0.isEmpty else { return nil }
+                return $0.contains("@") && $0.contains(".") ? nil : "Invalid email"
+            },
+            onChanged: onChanged,
+            onSubmit: onSubmit
+        ), decoration: decoration,
+           keyboard: KeyboardConfig(type: .email, contentType: .email, autocapitalization: .none), style: style)
+    }
+
+    static func password(
+        text: Binding<String>,
+        decoration: TextFieldDecoration = TextFieldDecoration(placeholder: "Enter password", label: "Password"),
+        showStrength: Bool = false,
+        onChanged: ValueHandler<String>? = nil,
+        onSubmit: Handler? = nil,
+        style: StateProperty<TextFieldStyle> = .constant(TextFieldStyle())
+    ) -> TextField {
+        TextField(text: text, logic: TextFieldLogic(
+            validator: showStrength ? InputValidator { PasswordStrength.evaluate($0).message } : nil,
+            onChanged: onChanged,
+            onSubmit: onSubmit
+        ), decoration: decoration,
+           keyboard: KeyboardConfig(contentType: .password, secure: true, autocapitalization: .none), style: style)
+    }
+
+    static func name(
+        text: Binding<String>,
+        decoration: TextFieldDecoration = TextFieldDecoration(placeholder: "Full name", label: "Name"),
+        onChanged: ValueHandler<String>? = nil,
+        onSubmit: Handler? = nil,
+        style: StateProperty<TextFieldStyle> = .constant(TextFieldStyle())
+    ) -> TextField {
+        TextField(text: text, logic: TextFieldLogic(
+            onChanged: onChanged,
+            onSubmit: onSubmit
+        ), decoration: decoration,
+           keyboard: KeyboardConfig(contentType: .name, autocapitalization: .words), style: style)
+    }
+
+    static func search(
+        text: Binding<String>,
+        decoration: TextFieldDecoration = TextFieldDecoration(placeholder: "Search"),
+        onChanged: ValueHandler<String>? = nil,
+        onSubmit: Handler? = nil,
+        style: StateProperty<TextFieldStyle> = .constant(TextFieldStyle())
+    ) -> TextField {
+        TextField(text: text, logic: TextFieldLogic(
+            onChanged: onChanged,
+            onSubmit: onSubmit
+        ), decoration: decoration,
+           keyboard: KeyboardConfig(returnKey: .search), style: style)
+    }
+
+    static func phone(
+        text: Binding<String>,
+        mask: String = "(###) ###-####",
+        decoration: TextFieldDecoration = TextFieldDecoration(placeholder: "(555) 555-5555", label: "Phone"),
+        onChanged: ValueHandler<String>? = nil,
+        onSubmit: Handler? = nil,
+        style: StateProperty<TextFieldStyle> = .constant(TextFieldStyle())
+    ) -> TextField {
+        TextField(text: text, logic: TextFieldLogic(
+            transformer: TextTransformer { TextMask.apply(mask, to: $0) },
+            filter: InputFilter { $0.allSatisfy { $0.isNumber } },
+            onChanged: onChanged,
+            onSubmit: onSubmit
+        ), decoration: decoration,
+           keyboard: KeyboardConfig(type: .phone), style: style)
+    }
+
+    static func masked(
+        _ mask: String,
+        text: Binding<String>,
+        decoration: TextFieldDecoration = TextFieldDecoration(),
+        onChanged: ValueHandler<String>? = nil,
+        onSubmit: Handler? = nil,
+        style: StateProperty<TextFieldStyle> = .constant(TextFieldStyle())
+    ) -> TextField {
+        TextField(text: text, logic: TextFieldLogic(
+            transformer: TextTransformer { TextMask.apply(mask, to: $0) },
+            onChanged: onChanged,
+            onSubmit: onSubmit
+        ), decoration: TextFieldDecoration(
+            placeholder: decoration.placeholder ?? mask,
+            label: decoration.label,
+            helper: decoration.helper,
+            error: decoration.error,
+            leading: decoration.leading,
+            trailing: decoration.trailing,
+            lines: decoration.lines,
+            alignment: decoration.alignment
+        ), style: style)
+    }
+
+    static func multiline(
+        text: Binding<String>,
+        decoration: TextFieldDecoration = TextFieldDecoration(),
+        lines: ClosedRange<Int> = 3...10,
+        onChanged: ValueHandler<String>? = nil,
+        style: StateProperty<TextFieldStyle> = .constant(TextFieldStyle(
+            field: .frame(.fillWidth.height(.hug(min: 80))).surface(.color(Color(0.95, 0.95, 0.95))).shape(.roundedRect(radius: 8)).padding(.all(12))
+        ))
+    ) -> TextField {
+        TextField(text: text, logic: TextFieldLogic(
+            onChanged: onChanged
+        ), decoration: TextFieldDecoration(
+            placeholder: decoration.placeholder,
+            label: decoration.label,
+            helper: decoration.helper,
+            error: decoration.error,
+            leading: decoration.leading,
+            trailing: decoration.trailing,
+            lines: lines,
+            alignment: decoration.alignment
+        ), style: style)
+    }
+}
+
+public extension TextField where T: Numeric & LosslessStringConvertible {
+    static func number(
+        value: Binding<T>,
+        decoration: TextFieldDecoration = TextFieldDecoration(placeholder: "0"),
+        allowDecimal: Bool = true,
+        allowNegative: Bool = true,
+        onChanged: ValueHandler<T>? = nil,
+        onSubmit: Handler? = nil,
+        style: StateProperty<TextFieldStyle> = .constant(TextFieldStyle())
+    ) -> TextField {
+        TextField(value: value, logic: TextFieldLogic(
+            parser: TextParser { T($0) }, formatter: TextFormatter { "\($0)" },
+            filter: InputFilter { text in
+                text.allSatisfy { c in
+                    c.isNumber
+                    || (allowDecimal && c == ".")
+                    || (allowNegative && c == "-")
+                }
+            },
+            onChanged: onChanged,
+            onSubmit: onSubmit
+        ), decoration: decoration,
+           keyboard: KeyboardConfig(type: allowDecimal ? .decimal : .number), style: style)
+    }
+}
+
+// MARK: - TextFieldRole
+
+public struct TextFieldRole: NamedKey {
+    public let name: String
+    public init(_ name: String) { self.name = name }
+}
+
+public extension TextFieldRole {
+    static let primary    = TextFieldRole("primary")
+    static let secondary  = TextFieldRole("secondary")
+    static let tertiary   = TextFieldRole("tertiary")
+    static let quaternary = TextFieldRole("quaternary")
+
+    static let defaultChain: [TextFieldRole] = [.primary, .secondary, .tertiary, .quaternary]
+}
+
+// MARK: - TextFieldTheme
+
+public struct TextFieldTheme: Copyable {
+    public var styles: [TextFieldRole: TextFieldStyle]
+    public var chain: [TextFieldRole]
+
+    public init(_ styles: [TextFieldRole: TextFieldStyle], chain: [TextFieldRole] = TextFieldRole.defaultChain) {
+        self.styles = styles
+        self.chain = chain
+    }
+
+    public init(_ priority: PriorityTokens<TextFieldStyle>) {
+        var map: [TextFieldRole: TextFieldStyle] = [:]
+        for (level, style) in priority.values {
+            map[TextFieldRole(level.name)] = style
+        }
+        self.init(map)
+    }
+
+    public init(
+        primary: TextFieldStyle,
+        secondary: TextFieldStyle? = nil,
+        tertiary: TextFieldStyle? = nil,
+        quaternary: TextFieldStyle? = nil
+    ) {
+        self.init(PriorityTokens(
+            primary: primary, secondary: secondary,
+            tertiary: tertiary, quaternary: quaternary
+        ))
+    }
+
+    public subscript(_ role: TextFieldRole) -> TextFieldStyle {
+        styles.cascade(role, chain: chain) ?? TextFieldStyle()
+    }
+
+    public var primary:    TextFieldStyle { self[.primary] }
+    public var secondary:  TextFieldStyle { self[.secondary] }
+    public var tertiary:   TextFieldStyle { self[.tertiary] }
+    public var quaternary: TextFieldStyle { self[.quaternary] }
+
+    public static func standard() -> TextFieldTheme {
+        TextFieldTheme(primary: TextFieldStyle())
+    }
+}
+
+public extension ThemeSlot where T == TextFieldTheme {
+    static var textField: ThemeSlot<TextFieldTheme> { .init(TextFieldTheme.self) }
+}
+
+// MARK: - UIKit Renderer
+
+#if canImport(UIKit)
+import UIKit
+
+extension KeyboardType {
+    var ui: UIKeyboardType {
+        switch self {
+        case .default: .default; case .email: .emailAddress
+        case .number: .numberPad; case .decimal: .decimalPad
+        case .phone: .phonePad; case .url: .URL
+        }
+    }
+}
+
+extension ContentType {
+    var ui: UITextContentType {
+        switch self {
+        case .email: .emailAddress; case .password: .password
+        case .newPassword: .newPassword; case .oneTimeCode: .oneTimeCode
+        case .name: .name; case .username: .username
+        }
+    }
+}
+
+extension Autocapitalization {
+    var ui: UITextAutocapitalizationType {
+        switch self {
+        case .none: .none; case .words: .words
+        case .sentences: .sentences; case .all: .allCharacters
+        }
+    }
+}
+
+extension ReturnKey {
+    var ui: UIReturnKeyType {
+        switch self {
+        case .default: .default; case .done: .done
+        case .next: .next; case .search: .search
+        case .go: .go; case .send: .send
+        }
+    }
+}
 
 final class UIKitTextFieldRenderer<T>: Renderer {
     private weak var wrapper: TextFieldWrapperView<T>?
@@ -489,227 +727,6 @@ final class TextFieldWrapperView<T>: BoxView, UITextFieldDelegate {
         get { model?.view.decoration.label ?? model?.view.decoration.placeholder }
         set {}
     }
-}
-
-// MARK: - Convenience Variants
-
-public extension TextField where T == String {
-    static func email(
-        text: Binding<String>,
-        decoration: TextFieldDecoration = TextFieldDecoration(placeholder: "you@example.com", label: "Email"),
-        onChanged: ValueHandler<String>? = nil,
-        onSubmit: Handler? = nil,
-        style: StateProperty<TextFieldStyle> = .constant(TextFieldStyle())
-    ) -> TextField {
-        TextField(text: text, logic: TextFieldLogic(
-            validator: InputValidator {
-                guard !$0.isEmpty else { return nil }
-                return $0.contains("@") && $0.contains(".") ? nil : "Invalid email"
-            },
-            onChanged: onChanged,
-            onSubmit: onSubmit
-        ), decoration: decoration,
-           keyboard: KeyboardConfig(type: .email, contentType: .email, autocapitalization: .none), style: style)
-    }
-
-    static func password(
-        text: Binding<String>,
-        decoration: TextFieldDecoration = TextFieldDecoration(placeholder: "Enter password", label: "Password"),
-        showStrength: Bool = false,
-        onChanged: ValueHandler<String>? = nil,
-        onSubmit: Handler? = nil,
-        style: StateProperty<TextFieldStyle> = .constant(TextFieldStyle())
-    ) -> TextField {
-        TextField(text: text, logic: TextFieldLogic(
-            validator: showStrength ? InputValidator { PasswordStrength.evaluate($0).message } : nil,
-            onChanged: onChanged,
-            onSubmit: onSubmit
-        ), decoration: decoration,
-           keyboard: KeyboardConfig(contentType: .password, secure: true, autocapitalization: .none), style: style)
-    }
-
-    static func name(
-        text: Binding<String>,
-        decoration: TextFieldDecoration = TextFieldDecoration(placeholder: "Full name", label: "Name"),
-        onChanged: ValueHandler<String>? = nil,
-        onSubmit: Handler? = nil,
-        style: StateProperty<TextFieldStyle> = .constant(TextFieldStyle())
-    ) -> TextField {
-        TextField(text: text, logic: TextFieldLogic(
-            onChanged: onChanged,
-            onSubmit: onSubmit
-        ), decoration: decoration,
-           keyboard: KeyboardConfig(contentType: .name, autocapitalization: .words), style: style)
-    }
-
-    static func search(
-        text: Binding<String>,
-        decoration: TextFieldDecoration = TextFieldDecoration(placeholder: "Search"),
-        onChanged: ValueHandler<String>? = nil,
-        onSubmit: Handler? = nil,
-        style: StateProperty<TextFieldStyle> = .constant(TextFieldStyle())
-    ) -> TextField {
-        TextField(text: text, logic: TextFieldLogic(
-            onChanged: onChanged,
-            onSubmit: onSubmit
-        ), decoration: decoration,
-           keyboard: KeyboardConfig(returnKey: .search), style: style)
-    }
-
-    static func phone(
-        text: Binding<String>,
-        mask: String = "(###) ###-####",
-        decoration: TextFieldDecoration = TextFieldDecoration(placeholder: "(555) 555-5555", label: "Phone"),
-        onChanged: ValueHandler<String>? = nil,
-        onSubmit: Handler? = nil,
-        style: StateProperty<TextFieldStyle> = .constant(TextFieldStyle())
-    ) -> TextField {
-        TextField(text: text, logic: TextFieldLogic(
-            transformer: TextTransformer { TextMask.apply(mask, to: $0) },
-            filter: InputFilter { $0.allSatisfy { $0.isNumber } },
-            onChanged: onChanged,
-            onSubmit: onSubmit
-        ), decoration: decoration,
-           keyboard: KeyboardConfig(type: .phone), style: style)
-    }
-
-    static func masked(
-        _ mask: String,
-        text: Binding<String>,
-        decoration: TextFieldDecoration = TextFieldDecoration(),
-        onChanged: ValueHandler<String>? = nil,
-        onSubmit: Handler? = nil,
-        style: StateProperty<TextFieldStyle> = .constant(TextFieldStyle())
-    ) -> TextField {
-        TextField(text: text, logic: TextFieldLogic(
-            transformer: TextTransformer { TextMask.apply(mask, to: $0) },
-            onChanged: onChanged,
-            onSubmit: onSubmit
-        ), decoration: TextFieldDecoration(
-            placeholder: decoration.placeholder ?? mask,
-            label: decoration.label,
-            helper: decoration.helper,
-            error: decoration.error,
-            leading: decoration.leading,
-            trailing: decoration.trailing,
-            lines: decoration.lines,
-            alignment: decoration.alignment
-        ), style: style)
-    }
-
-    static func multiline(
-        text: Binding<String>,
-        decoration: TextFieldDecoration = TextFieldDecoration(),
-        lines: ClosedRange<Int> = 3...10,
-        onChanged: ValueHandler<String>? = nil,
-        style: StateProperty<TextFieldStyle> = .constant(TextFieldStyle(
-            field: BoxStyle(frame: .fillWidth.height(.hug(min: 80)), surface: .color(Color(0.95, 0.95, 0.95)), shape: .roundedRect(radius: 8), padding: Padding(all: 12))
-        ))
-    ) -> TextField {
-        TextField(text: text, logic: TextFieldLogic(
-            onChanged: onChanged
-        ), decoration: TextFieldDecoration(
-            placeholder: decoration.placeholder,
-            label: decoration.label,
-            helper: decoration.helper,
-            error: decoration.error,
-            leading: decoration.leading,
-            trailing: decoration.trailing,
-            lines: lines,
-            alignment: decoration.alignment
-        ), style: style)
-    }
-}
-
-public extension TextField where T: Numeric & LosslessStringConvertible {
-    static func number(
-        value: Binding<T>,
-        decoration: TextFieldDecoration = TextFieldDecoration(placeholder: "0"),
-        allowDecimal: Bool = true,
-        allowNegative: Bool = true,
-        onChanged: ValueHandler<T>? = nil,
-        onSubmit: Handler? = nil,
-        style: StateProperty<TextFieldStyle> = .constant(TextFieldStyle())
-    ) -> TextField {
-        TextField(value: value, logic: TextFieldLogic(
-            parser: TextParser { T($0) }, formatter: TextFormatter { "\($0)" },
-            filter: InputFilter { text in
-                text.allSatisfy { c in
-                    c.isNumber
-                    || (allowDecimal && c == ".")
-                    || (allowNegative && c == "-")
-                }
-            },
-            onChanged: onChanged,
-            onSubmit: onSubmit
-        ), decoration: decoration,
-           keyboard: KeyboardConfig(type: allowDecimal ? .decimal : .number), style: style)
-    }
-}
-
-// MARK: - TextFieldRole
-
-public struct TextFieldRole: NamedKey {
-    public let name: String
-    public init(_ name: String) { self.name = name }
-}
-
-public extension TextFieldRole {
-    static let primary    = TextFieldRole("primary")
-    static let secondary  = TextFieldRole("secondary")
-    static let tertiary   = TextFieldRole("tertiary")
-    static let quaternary = TextFieldRole("quaternary")
-
-    static let defaultChain: [TextFieldRole] = [.primary, .secondary, .tertiary, .quaternary]
-}
-
-// MARK: - TextFieldTheme
-
-public struct TextFieldTheme: Copyable {
-    public var styles: [TextFieldRole: TextFieldStyle]
-    public var chain: [TextFieldRole]
-
-    public init(_ styles: [TextFieldRole: TextFieldStyle], chain: [TextFieldRole] = TextFieldRole.defaultChain) {
-        self.styles = styles
-        self.chain = chain
-    }
-
-    public init(_ priority: PriorityTokens<TextFieldStyle>) {
-        var map: [TextFieldRole: TextFieldStyle] = [:]
-        for (level, style) in priority.values {
-            map[TextFieldRole(level.name)] = style
-        }
-        self.init(map)
-    }
-
-    public init(
-        primary: TextFieldStyle,
-        secondary: TextFieldStyle? = nil,
-        tertiary: TextFieldStyle? = nil,
-        quaternary: TextFieldStyle? = nil
-    ) {
-        self.init(PriorityTokens(
-            primary: primary, secondary: secondary,
-            tertiary: tertiary, quaternary: quaternary
-        ))
-    }
-
-    public subscript(_ role: TextFieldRole) -> TextFieldStyle {
-        styles.cascade(role, chain: chain) ?? TextFieldStyle()
-    }
-
-    public var primary:    TextFieldStyle { self[.primary] }
-    public var secondary:  TextFieldStyle { self[.secondary] }
-    public var tertiary:   TextFieldStyle { self[.tertiary] }
-    public var quaternary: TextFieldStyle { self[.quaternary] }
-
-    public static func standard() -> TextFieldTheme {
-        TextFieldTheme(primary: TextFieldStyle())
-    }
-}
-
-public extension ThemeSlot where T == TextFieldTheme {
-    static var textField: ThemeSlot<TextFieldTheme> { .init(TextFieldTheme.self) }
 }
 
 #endif

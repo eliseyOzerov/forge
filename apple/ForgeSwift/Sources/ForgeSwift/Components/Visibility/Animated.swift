@@ -6,7 +6,7 @@
 ///
 /// ```swift
 /// Animated(value: model.progress, animation: .default) { context, value in
-///     Box(BoxStyle(frame: .fillWidth.height(.fix(value * 200)), surface: .color(.blue)))
+///     Box(.frame(.fillWidth.height(.fix(value * 200))).surface(.color(.blue)))
 /// }
 /// ```
 ///

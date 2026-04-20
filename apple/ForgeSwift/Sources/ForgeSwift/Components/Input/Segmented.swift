@@ -15,17 +15,17 @@ public struct SegmentedStyle<T> {
     public var dragEnabled: Bool
 
     public init(
-        background: StateProperty<BoxStyle> = .constant(BoxStyle(
-            frame: .fillWidth.height(.hug()),
-            surface: .color(Color(0.93, 0.93, 0.95)),
-            shape: .roundedRect(radius: 8),
-            padding: Padding(all: 2)
-        )),
+        background: StateProperty<BoxStyle> = .constant(
+            .frame(.fillWidth.height(.hug()))
+            .surface(.color(Color(0.93, 0.93, 0.95)))
+            .shape(.roundedRect(radius: 8))
+            .padding(.all(2))
+        ),
         selector: @escaping @MainActor (T, State) -> any View = { _, _ in
-            Box(BoxStyle(frame: .fill, surface: .color(.white), shape: .roundedRect(radius: 6)))
+            Box(.frame(.fill).surface(.color(.white)).shape(.roundedRect(radius: 6)))
         },
         item: @escaping @MainActor (T, State) -> any View = { value, _ in
-            Text("\(value)", style: TextStyle(font: Font(size: 14), align: .center))
+            Text("\(value)", style: .font(.size(14)).align(.center))
         },
         divider: StateProperty<BoxStyle>? = nil,
         foreground: StateProperty<BoxStyle>? = nil,
@@ -209,7 +209,7 @@ public final class SegmentedBuilder<T: Hashable>: ViewBuilder<SegmentedModel<T>>
         let selectorItem = model.view.items[model.selectedIndex]
 
         let itemViews: [any View] = model.view.items.enumerated().map { pair in
-            Box(BoxStyle(frame: .fill)) {
+            Box(.frame(.fill)) {
                 style.item(pair.element, model.itemState(at: pair.offset))
             }
         }
@@ -219,11 +219,7 @@ public final class SegmentedBuilder<T: Hashable>: ViewBuilder<SegmentedModel<T>>
             Row(children: itemViews)
 
             // Selector, positioned via leading padding
-            Box(BoxStyle(
-                frame: .fill,
-                padding: Padding(leading: selectorX),
-                alignment: .topLeft
-            )) {
+            Box(.frame(.fill).padding(.leading(selectorX)).alignment(.topLeft)) {
                 Box(frame: .fixed(segmentWidth, size.height)) {
                     style.selector(selectorItem, model.currentState)
                 }
