@@ -1,7 +1,7 @@
 import Foundation
 
 /// Alignment within a container. Backed by Vec2 with values -1 (start) to 1 (end).
-public struct Alignment: Equatable, Hashable, Sendable {
+public struct Alignment: Equatable, Hashable, Sendable, Lerpable {
     public var value: Vec2
 
     public var x: Double { value.x }

@@ -2,20 +2,29 @@ import Foundation
 
 // MARK: - Canvas Protocol
 
-/// Platform-agnostic 2D drawing interface. The minimal set of
-/// operations needed to implement any visual component.
+/// Platform-agnostic 2D drawing interface. Exposes low-level primitives
+/// that Fill and Gradient types compose to render themselves.
 ///
-/// `draw(_:with:)` is the single drawing primitive. Everything else
-/// is context state that affects how draws land on the surface.
-///
-/// Paint carries fill (color/gradient/image), blend mode, and opacity.
-/// Path carries geometry and can expand strokes into fill paths via
-/// `stroked(width:cap:join:)`. Shape builds paths from rects.
-/// Filter applies post-processing effects.
-public protocol Canvas {
+/// State operations (save/restore, transforms, clip) affect subsequent draws.
+/// Drawing primitives (fillColor, drawLinearGradient, etc.) produce output.
+public protocol Canvas: AnyObject {
 
-    /// Draw a filled path with the given paint.
-    func draw(_ path: Path, with paint: Paint)
+    // MARK: Drawing primitives
+
+    /// Fill a path with a solid color.
+    func fillColor(_ path: Path, _ color: Color)
+
+    /// Draw a linear gradient within bounds. Caller is responsible for clipping first.
+    func drawLinearGradient(stops: [GradientStop], start: Vec2, end: Vec2, in bounds: Rect)
+
+    /// Draw a radial gradient within bounds. Caller is responsible for clipping first.
+    func drawRadialGradient(stops: [GradientStop], center: Vec2, radius: Double, in bounds: Rect)
+
+    /// Draw an angular gradient within bounds. Caller is responsible for clipping first.
+    func drawAngularGradient(stops: [GradientStop], center: Vec2, startAngle: Double, endAngle: Double, in bounds: Rect)
+
+    /// Draw an image within bounds. Caller is responsible for clipping first.
+    func drawImage(_ source: ImageSource, fit: ContentFit, in bounds: Rect)
 
     // MARK: State
 
@@ -56,9 +65,19 @@ public enum Filter {
     case shadow(color: Color, offset: Vec2, blur: Double)
 }
 
-// MARK: - Convenience Extensions
+// MARK: - Convenience: draw with Paint
 
 public extension Canvas {
+
+    /// Draw a filled path with full paint (fill + blend + opacity).
+    /// Delegates to `paint.fill.draw(on:path:)` after setting up state.
+    func draw(_ path: Path, with paint: Paint) {
+        save()
+        if paint.opacity < 1 { setAlpha(paint.opacity) }
+        if paint.blendMode != .normal { setBlendMode(paint.blendMode) }
+        paint.fill.draw(on: self, path: path)
+        restore()
+    }
 
     // MARK: Fill shortcuts
 
@@ -128,30 +147,43 @@ public final class CGCanvas: Canvas {
         self.ctx = ctx
     }
 
-    public func draw(_ path: Path, with paint: Paint) {
-        ctx.saveGState()
-        if paint.opacity < 1 { ctx.setAlpha(paint.opacity) }
-        if paint.blendMode != .normal { ctx.setBlendMode(paint.blendMode.cgBlendMode) }
+    // MARK: Drawing primitives
 
-        switch paint.fill {
-        case .color(let color):
-            ctx.addPath(path.cgPath)
-            ctx.setFillColor(color.cgColor)
-            ctx.fillPath()
-        case .gradient(let gradient):
-            ctx.addPath(path.cgPath)
-            ctx.clip()
-            drawGradient(gradient, in: path.boundingBox)
-        case .image(let image, let fit):
-            ctx.addPath(path.cgPath)
-            ctx.clip()
-            drawImage(image, fit: fit, in: path.boundingBox)
-        case .shader:
-            break
-        }
-
-        ctx.restoreGState()
+    public func fillColor(_ path: Path, _ color: Color) {
+        ctx.addPath(path.cgPath)
+        ctx.setFillColor(color.cgColor)
+        ctx.fillPath()
     }
+
+    public func drawLinearGradient(stops: [GradientStop], start: Vec2, end: Vec2, in bounds: Rect) {
+        guard let cgGradient = makeCGGradient(stops: stops) else { return }
+        let startPt = CGPoint(x: bounds.x + start.x * bounds.width, y: bounds.y + start.y * bounds.height)
+        let endPt = CGPoint(x: bounds.x + end.x * bounds.width, y: bounds.y + end.y * bounds.height)
+        ctx.drawLinearGradient(cgGradient, start: startPt, end: endPt, options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
+    }
+
+    public func drawRadialGradient(stops: [GradientStop], center: Vec2, radius: Double, in bounds: Rect) {
+        guard let cgGradient = makeCGGradient(stops: stops) else { return }
+        let centerPt = CGPoint(x: bounds.x + center.x * bounds.width, y: bounds.y + center.y * bounds.height)
+        let r = radius * max(bounds.width, bounds.height)
+        ctx.drawRadialGradient(cgGradient, startCenter: centerPt, startRadius: 0, endCenter: centerPt, endRadius: r, options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
+    }
+
+    public func drawAngularGradient(stops: [GradientStop], center: Vec2, startAngle: Double, endAngle: Double, in bounds: Rect) {
+        // Angular gradient requires manual wedge rendering or Metal.
+        _ = (stops, center, startAngle, endAngle, bounds)
+    }
+
+    public func drawImage(_ source: ImageSource, fit: ContentFit, in bounds: Rect) {
+        #if canImport(UIKit)
+        guard let cgImage = source.platformImage.cgImage else { return }
+        let imageSize = Size(Double(cgImage.width), Double(cgImage.height))
+        let destRect = fit.rect(for: imageSize, in: bounds)
+        ctx.draw(cgImage, in: destRect.cgRect)
+        #endif
+    }
+
+    // MARK: State
 
     public func save() { ctx.saveGState() }
     public func restore() { ctx.restoreGState() }
@@ -172,49 +204,18 @@ public final class CGCanvas: Canvas {
     public func filter(_ filter: Filter) {
         switch filter {
         case .blur(let radius):
-            // CIFilter-based blur would require capturing the context contents.
-            // For now, use shadow as an approximation for simple cases.
             _ = radius
         case .shadow(let color, let offset, let blur):
             ctx.setShadow(offset: CGSize(width: offset.x, height: offset.y), blur: blur, color: color.cgColor)
         }
     }
 
-    // MARK: - Gradient rendering
-
-    private func drawGradient(_ gradient: Gradient, in bounds: Rect) {
-        switch gradient {
-        case .linear(let lg):
-            guard let cgGradient = makeCGGradient(stops: lg.stops) else { return }
-            let start = CGPoint(x: bounds.x + lg.start.x * bounds.width, y: bounds.y + lg.start.y * bounds.height)
-            let end = CGPoint(x: bounds.x + lg.end.x * bounds.width, y: bounds.y + lg.end.y * bounds.height)
-            ctx.drawLinearGradient(cgGradient, start: start, end: end, options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
-        case .radial(let rg):
-            guard let cgGradient = makeCGGradient(stops: rg.stops) else { return }
-            let center = CGPoint(x: bounds.x + rg.center.x * bounds.width, y: bounds.y + rg.center.y * bounds.height)
-            let radius = rg.radius * max(bounds.width, bounds.height)
-            ctx.drawRadialGradient(cgGradient, startCenter: center, startRadius: 0, endCenter: center, endRadius: radius, options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
-        case .angular(let ag):
-            // Angular gradient requires manual wedge rendering or Metal.
-            _ = ag
-        }
-    }
+    // MARK: Internal
 
     private func makeCGGradient(stops: [GradientStop]) -> CGGradient? {
         let colors = stops.map { $0.color.cgColor } as CFArray
         var locations = stops.map { CGFloat($0.location) }
         return CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: &locations)
-    }
-
-    // MARK: - Image rendering
-
-    private func drawImage(_ source: ImageSource, fit: ContentFit, in bounds: Rect) {
-        #if canImport(UIKit)
-        guard let cgImage = source.platformImage.cgImage else { return }
-        let imageSize = Size(Double(cgImage.width), Double(cgImage.height))
-        let destRect = fit.rect(for: imageSize, in: bounds)
-        ctx.draw(cgImage, in: destRect.cgRect)
-        #endif
     }
 }
 

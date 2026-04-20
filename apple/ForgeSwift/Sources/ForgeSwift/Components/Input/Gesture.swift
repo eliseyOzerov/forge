@@ -27,6 +27,7 @@ public struct Gesture: ProxyView {
     public let hold: HoldConfig?
     public let drag: DragConfig?
     public let pan: PanConfig?
+    public let accessibility: AccessibilityConfig?
 
     public init(
         tap: TapConfig? = nil,
@@ -35,11 +36,13 @@ public struct Gesture: ProxyView {
         hold: HoldConfig? = nil,
         drag: DragConfig? = nil,
         pan: PanConfig? = nil,
+        accessibility: AccessibilityConfig? = nil,
         @ChildBuilder child: () -> any View
     ) {
         self.tap = tap; self.doubleTap = doubleTap
         self.press = press; self.hold = hold
         self.drag = drag; self.pan = pan
+        self.accessibility = accessibility
         self.child = child()
     }
 
@@ -124,12 +127,52 @@ final class GestureView: UIView {
         }
     }
 
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        super.touchesBegan(touches, with: event)
+        guard let touch = touches.first else { return }
+        let local = touch.location(in: self)
+        let global = touch.location(in: nil)
+        let pos = GesturePosition(
+            local: Vec2(Double(local.x), Double(local.y)),
+            global: Vec2(Double(global.x), Double(global.y))
+        )
+        tapConfig?.onDown?(pos)
+        doubleTapConfig?.onDown?(pos)
+        pressConfig?.onDown?(pos)
+        holdConfig?.onDown?(pos)
+        dragConfig?.onDown?(pos)
+        panConfig?.onDown?(pos)
+    }
+
+    private var accessibilityConfig: AccessibilityConfig?
+
     func configure(_ gesture: Gesture) {
         configureTap(gesture.tap)
         configureDoubleTap(gesture.doubleTap)
         configurePress(gesture.press, hold: gesture.hold)
         configureDrag(gesture.drag)
         configurePan(gesture.pan)
+        configureAccessibility(gesture.accessibility)
+    }
+
+    private func configureAccessibility(_ config: AccessibilityConfig?) {
+        accessibilityConfig = config
+        isAccessibilityElement = config != nil
+        accessibilityTraits = config?.traits ?? []
+        accessibilityLabel = config?.label
+        accessibilityValue = config?.value
+    }
+
+    override func accessibilityActivate() -> Bool {
+        accessibilityConfig?.activate?() ?? false
+    }
+
+    override func accessibilityIncrement() {
+        accessibilityConfig?.increment?()
+    }
+
+    override func accessibilityDecrement() {
+        accessibilityConfig?.decrement?()
     }
 
     // MARK: - Tap
@@ -193,6 +236,7 @@ final class GestureView: UIView {
             }
             let duration = press?.pressDuration ?? hold?.holdThreshold ?? 0.5
             longPressRecognizer?.minimumPressDuration = duration
+            longPressRecognizer?.allowableMovement = CGFloat(press?.slop ?? hold?.slop ?? 10)
         } else if let r = longPressRecognizer {
             removeGestureRecognizer(r)
             longPressRecognizer = nil
@@ -395,6 +439,287 @@ extension GestureView: UIGestureRecognizerDelegate {
         let isPinchOrRotation = gestureRecognizer is UIPinchGestureRecognizer || gestureRecognizer is UIRotationGestureRecognizer
         let otherIsPinchOrRotation = other is UIPinchGestureRecognizer || other is UIRotationGestureRecognizer
         return isPinchOrRotation && otherIsPinchOrRotation
+    }
+}
+
+// MARK: - AccessibilityConfig
+
+public struct AccessibilityConfig {
+    public var traits: UIAccessibilityTraits
+    public var label: String?
+    public var value: String?
+    public var activate: (@MainActor () -> Bool)?
+    public var increment: (@MainActor () -> Void)?
+    public var decrement: (@MainActor () -> Void)?
+
+    public init(
+        traits: UIAccessibilityTraits = [],
+        label: String? = nil,
+        value: String? = nil,
+        activate: (@MainActor () -> Bool)? = nil,
+        increment: (@MainActor () -> Void)? = nil,
+        decrement: (@MainActor () -> Void)? = nil
+    ) {
+        self.traits = traits; self.label = label; self.value = value
+        self.activate = activate; self.increment = increment; self.decrement = decrement
+    }
+}
+
+// MARK: - TapHandler
+
+/// Single-tap gesture with flat API.
+///
+/// ```swift
+/// TapHandler(
+///     onDown: { pos in pressed = true },
+///     onEnd: { e in doAction() },
+///     onCancel: { pressed = false }
+/// ) {
+///     MyContent()
+/// }
+/// ```
+public struct TapHandler: BuiltView {
+    public let onDown: (@MainActor (GesturePosition) -> Void)?
+    public let onStart: (@MainActor (TapStart) -> Void)?
+    public let onEnd: (@MainActor (TapEnd) -> Void)?
+    public let onCancel: (@MainActor () -> Void)?
+    public let accessibility: AccessibilityConfig?
+    public let child: any View
+
+    public init(
+        onDown: (@MainActor (GesturePosition) -> Void)? = nil,
+        onStart: (@MainActor (TapStart) -> Void)? = nil,
+        onEnd: (@MainActor (TapEnd) -> Void)? = nil,
+        onCancel: (@MainActor () -> Void)? = nil,
+        accessibility: AccessibilityConfig? = nil,
+        @ChildBuilder child: () -> any View
+    ) {
+        self.onDown = onDown; self.onStart = onStart; self.onEnd = onEnd
+        self.onCancel = onCancel; self.accessibility = accessibility
+        self.child = child()
+    }
+
+    public func build(context: ViewContext) -> any View {
+        Gesture(
+            tap: TapConfig(onDown: onDown, onStart: onStart, onEnd: onEnd, onCancel: onCancel),
+            accessibility: accessibility
+        ) { child }
+    }
+}
+
+// MARK: - DoubleTapHandler
+
+/// Double-tap gesture with flat API.
+public struct DoubleTapHandler: BuiltView {
+    public let onDown: (@MainActor (GesturePosition) -> Void)?
+    public let onStart: (@MainActor (DoubleTapStart) -> Void)?
+    public let onEnd: (@MainActor (DoubleTapEnd) -> Void)?
+    public let onCancel: (@MainActor () -> Void)?
+    public let accessibility: AccessibilityConfig?
+    public let child: any View
+
+    public init(
+        onDown: (@MainActor (GesturePosition) -> Void)? = nil,
+        onStart: (@MainActor (DoubleTapStart) -> Void)? = nil,
+        onEnd: (@MainActor (DoubleTapEnd) -> Void)? = nil,
+        onCancel: (@MainActor () -> Void)? = nil,
+        accessibility: AccessibilityConfig? = nil,
+        @ChildBuilder child: () -> any View
+    ) {
+        self.onDown = onDown; self.onStart = onStart; self.onEnd = onEnd
+        self.onCancel = onCancel; self.accessibility = accessibility
+        self.child = child()
+    }
+
+    public func build(context: ViewContext) -> any View {
+        Gesture(
+            doubleTap: DoubleTapConfig(onDown: onDown, onStart: onStart, onEnd: onEnd, onCancel: onCancel),
+            accessibility: accessibility
+        ) { child }
+    }
+}
+
+// MARK: - PressHandler
+
+/// Press gesture with flat API. Use `duration: 0` for instant
+/// touch-down/up tracking (e.g. button press state).
+///
+/// ```swift
+/// PressHandler(
+///     duration: 0,
+///     onDown: { pos in model.handleDown() },
+///     onStart: { e in model.handlePress() },
+///     onEnd: { e in model.handleRelease() },
+///     onCancel: { model.handleRelease() }
+/// ) {
+///     Box(style) { content }
+/// }
+/// ```
+public struct PressHandler: BuiltView {
+    public let duration: Double
+    public let slop: Double
+    public let onDown: (@MainActor (GesturePosition) -> Void)?
+    public let onStart: (@MainActor (LongPressStart) -> Void)?
+    public let onUpdate: (@MainActor (LongPressUpdate) -> Void)?
+    public let onEnd: (@MainActor (LongPressEnd) -> Void)?
+    public let onCancel: (@MainActor () -> Void)?
+    public let accessibility: AccessibilityConfig?
+    public let child: any View
+
+    public init(
+        duration: Double = 0.5,
+        slop: Double = 10,
+        onDown: (@MainActor (GesturePosition) -> Void)? = nil,
+        onStart: (@MainActor (LongPressStart) -> Void)? = nil,
+        onUpdate: (@MainActor (LongPressUpdate) -> Void)? = nil,
+        onEnd: (@MainActor (LongPressEnd) -> Void)? = nil,
+        onCancel: (@MainActor () -> Void)? = nil,
+        accessibility: AccessibilityConfig? = nil,
+        @ChildBuilder child: () -> any View
+    ) {
+        self.duration = duration; self.slop = slop
+        self.onDown = onDown; self.onStart = onStart; self.onUpdate = onUpdate
+        self.onEnd = onEnd; self.onCancel = onCancel
+        self.accessibility = accessibility; self.child = child()
+    }
+
+    public func build(context: ViewContext) -> any View {
+        Gesture(
+            press: PressConfig(
+                pressDuration: duration, slop: slop,
+                onDown: onDown, onStart: onStart, onUpdate: onUpdate, onEnd: onEnd, onCancel: onCancel
+            ),
+            accessibility: accessibility
+        ) { child }
+    }
+}
+
+// MARK: - HoldHandler
+
+/// Long-hold gesture with flat API.
+public struct HoldHandler: BuiltView {
+    public let threshold: Double
+    public let slop: Double
+    public let onDown: (@MainActor (GesturePosition) -> Void)?
+    public let onStart: (@MainActor (LongPressStart) -> Void)?
+    public let onUpdate: (@MainActor (LongPressUpdate) -> Void)?
+    public let onEnd: (@MainActor (LongPressEnd) -> Void)?
+    public let onCancel: (@MainActor () -> Void)?
+    public let accessibility: AccessibilityConfig?
+    public let child: any View
+
+    public init(
+        threshold: Double = 0.8,
+        slop: Double = 10,
+        onDown: (@MainActor (GesturePosition) -> Void)? = nil,
+        onStart: (@MainActor (LongPressStart) -> Void)? = nil,
+        onUpdate: (@MainActor (LongPressUpdate) -> Void)? = nil,
+        onEnd: (@MainActor (LongPressEnd) -> Void)? = nil,
+        onCancel: (@MainActor () -> Void)? = nil,
+        accessibility: AccessibilityConfig? = nil,
+        @ChildBuilder child: () -> any View
+    ) {
+        self.threshold = threshold; self.slop = slop
+        self.onDown = onDown; self.onStart = onStart; self.onUpdate = onUpdate
+        self.onEnd = onEnd; self.onCancel = onCancel
+        self.accessibility = accessibility; self.child = child()
+    }
+
+    public func build(context: ViewContext) -> any View {
+        Gesture(
+            hold: HoldConfig(
+                holdThreshold: threshold, slop: slop,
+                onDown: onDown, onStart: onStart, onUpdate: onUpdate, onEnd: onEnd, onCancel: onCancel
+            ),
+            accessibility: accessibility
+        ) { child }
+    }
+}
+
+// MARK: - DragHandler
+
+/// Single-finger drag gesture with flat API.
+///
+/// ```swift
+/// DragHandler(
+///     onDown: { pos in ... },
+///     onStart: { e in ... },
+///     onUpdate: { e in offset += e.delta },
+///     onEnd: { e in snap(velocity: e.velocity) }
+/// ) {
+///     MyDraggableContent()
+/// }
+/// ```
+public struct DragHandler: BuiltView {
+    public let onDown: (@MainActor (GesturePosition) -> Void)?
+    public let onStart: (@MainActor (DragStart) -> Void)?
+    public let onUpdate: (@MainActor (DragUpdate) -> Void)?
+    public let onEnd: (@MainActor (DragEnd) -> Void)?
+    public let onCancel: (@MainActor () -> Void)?
+    public let accessibility: AccessibilityConfig?
+    public let child: any View
+
+    public init(
+        onDown: (@MainActor (GesturePosition) -> Void)? = nil,
+        onStart: (@MainActor (DragStart) -> Void)? = nil,
+        onUpdate: (@MainActor (DragUpdate) -> Void)? = nil,
+        onEnd: (@MainActor (DragEnd) -> Void)? = nil,
+        onCancel: (@MainActor () -> Void)? = nil,
+        accessibility: AccessibilityConfig? = nil,
+        @ChildBuilder child: () -> any View
+    ) {
+        self.onDown = onDown; self.onStart = onStart; self.onUpdate = onUpdate
+        self.onEnd = onEnd; self.onCancel = onCancel
+        self.accessibility = accessibility; self.child = child()
+    }
+
+    public func build(context: ViewContext) -> any View {
+        Gesture(
+            drag: DragConfig(
+                onDown: onDown, onStart: onStart, onUpdate: onUpdate, onEnd: onEnd, onCancel: onCancel
+            ),
+            accessibility: accessibility
+        ) { child }
+    }
+}
+
+// MARK: - PanHandler
+
+/// Multi-finger gesture (pinch + rotation) with flat API.
+public struct PanHandler: BuiltView {
+    public let minPointers: Int
+    public let onDown: (@MainActor (GesturePosition) -> Void)?
+    public let onStart: (@MainActor (PanStart) -> Void)?
+    public let onUpdate: (@MainActor (PanUpdate) -> Void)?
+    public let onEnd: (@MainActor (PanEnd) -> Void)?
+    public let onCancel: (@MainActor () -> Void)?
+    public let accessibility: AccessibilityConfig?
+    public let child: any View
+
+    public init(
+        minPointers: Int = 2,
+        onDown: (@MainActor (GesturePosition) -> Void)? = nil,
+        onStart: (@MainActor (PanStart) -> Void)? = nil,
+        onUpdate: (@MainActor (PanUpdate) -> Void)? = nil,
+        onEnd: (@MainActor (PanEnd) -> Void)? = nil,
+        onCancel: (@MainActor () -> Void)? = nil,
+        accessibility: AccessibilityConfig? = nil,
+        @ChildBuilder child: () -> any View
+    ) {
+        self.minPointers = minPointers
+        self.onDown = onDown; self.onStart = onStart; self.onUpdate = onUpdate
+        self.onEnd = onEnd; self.onCancel = onCancel
+        self.accessibility = accessibility; self.child = child()
+    }
+
+    public func build(context: ViewContext) -> any View {
+        Gesture(
+            pan: PanConfig(
+                minPointers: minPointers,
+                onDown: onDown, onStart: onStart, onUpdate: onUpdate, onEnd: onEnd, onCancel: onCancel
+            ),
+            accessibility: accessibility
+        ) { child }
     }
 }
 

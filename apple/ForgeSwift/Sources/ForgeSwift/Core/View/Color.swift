@@ -20,7 +20,7 @@ public final class _ColorInverseBox: @unchecked Sendable, Hashable {
     public func hash(into hasher: inout Hasher) { color.hash(into: &hasher) }
 }
 
-public struct Color: Equatable, Hashable, Sendable {
+public struct Color: Equatable, Hashable, Sendable, Lerpable {
     public var red: Double
     public var green: Double
     public var blue: Double

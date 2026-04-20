@@ -2,7 +2,7 @@ import CoreGraphics
 import Foundation
 
 /// A 2D extent (width x height).
-public struct Size {
+public struct Size: Lerpable {
     public var width: Double
     public var height: Double
 

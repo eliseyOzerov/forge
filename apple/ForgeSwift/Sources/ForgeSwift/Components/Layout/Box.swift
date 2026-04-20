@@ -21,7 +21,7 @@ import UIKit
 public struct BoxStyle {
     public var frame: Frame
     public var surface: Surface?
-    public var shape: Shape?
+    public var shape: (any Shape)?
     public var padding: Padding
     public var alignment: Alignment
     public var clip: Bool
@@ -30,19 +30,30 @@ public struct BoxStyle {
     public init(
         _ frame: Frame = .hug,
         _ surface: Surface? = nil,
-        _ shape: Shape? = nil,
+        _ shape: (any Shape)? = nil,
         padding: Padding = .zero,
         alignment: Alignment = .center,
         clip: Bool = true,
         overflow: Overflow = .clip
     ) {
-        self.frame = frame
-        self.surface = surface
-        self.shape = shape
-        self.padding = padding
-        self.alignment = alignment
-        self.clip = clip
-        self.overflow = overflow
+        self.frame = frame; self.surface = surface; self.shape = shape
+        self.padding = padding; self.alignment = alignment
+        self.clip = clip; self.overflow = overflow
+    }
+
+    /// Generic shape init — enables `.capsule()` dot syntax.
+    public init<S: Shape>(
+        _ frame: Frame = .hug,
+        _ surface: Surface? = nil,
+        _ shape: S,
+        padding: Padding = .zero,
+        alignment: Alignment = .center,
+        clip: Bool = true,
+        overflow: Overflow = .clip
+    ) {
+        self.frame = frame; self.surface = surface; self.shape = shape
+        self.padding = padding; self.alignment = alignment
+        self.clip = clip; self.overflow = overflow
     }
 }
 
@@ -50,7 +61,7 @@ public struct BoxStyle {
 
 public struct Box: ContainerView {
     public let frame: Frame
-    public let shape: Shape?
+    public let shape: (any Shape)?
     public let surface: Surface?
     public let padding: Padding
     public let alignment: Alignment
@@ -61,41 +72,61 @@ public struct Box: ContainerView {
     public init(
         _ frame: Frame = .hug,
         _ surface: Surface? = nil,
-        _ shape: Shape? = nil,
+        _ shape: (any Shape)? = nil,
         padding: Padding = .zero,
         alignment: Alignment = .center,
         clip: Bool = true,
         overflow: Overflow = .clip,
         children: [any View] = []
     ) {
-        self.frame = frame
-        self.shape = shape
-        self.surface = surface
-        self.padding = padding
-        self.alignment = alignment
-        self.clip = clip
-        self.overflow = overflow
-        self.children = children
+        self.frame = frame; self.shape = shape; self.surface = surface
+        self.padding = padding; self.alignment = alignment
+        self.clip = clip; self.overflow = overflow; self.children = children
+    }
+
+    public init<S: Shape>(
+        _ frame: Frame = .hug,
+        _ surface: Surface? = nil,
+        _ shape: S,
+        padding: Padding = .zero,
+        alignment: Alignment = .center,
+        clip: Bool = true,
+        overflow: Overflow = .clip,
+        children: [any View] = []
+    ) {
+        self.frame = frame; self.shape = shape; self.surface = surface
+        self.padding = padding; self.alignment = alignment
+        self.clip = clip; self.overflow = overflow; self.children = children
     }
 
     public init(
         _ frame: Frame = .hug,
         _ surface: Surface? = nil,
-        _ shape: Shape? = nil,
+        _ shape: (any Shape)? = nil,
         padding: Padding = .zero,
         alignment: Alignment = .center,
         clip: Bool = true,
         overflow: Overflow = .clip,
         @ChildrenBuilder content: () -> [any View]
     ) {
-        self.frame = frame
-        self.shape = shape
-        self.surface = surface
-        self.padding = padding
-        self.alignment = alignment
-        self.clip = clip
-        self.overflow = overflow
-        self.children = content()
+        self.frame = frame; self.shape = shape; self.surface = surface
+        self.padding = padding; self.alignment = alignment
+        self.clip = clip; self.overflow = overflow; self.children = content()
+    }
+
+    public init<S: Shape>(
+        _ frame: Frame = .hug,
+        _ surface: Surface? = nil,
+        _ shape: S,
+        padding: Padding = .zero,
+        alignment: Alignment = .center,
+        clip: Bool = true,
+        overflow: Overflow = .clip,
+        @ChildrenBuilder content: () -> [any View]
+    ) {
+        self.frame = frame; self.shape = shape; self.surface = surface
+        self.padding = padding; self.alignment = alignment
+        self.clip = clip; self.overflow = overflow; self.children = content()
     }
 
     public init(_ style: BoxStyle, children: [any View] = []) {
@@ -206,7 +237,7 @@ final class BoxRenderer: ContainerRenderer {
 /// (alignment-based positioning), frame constraints, shape clipping,
 /// and optional scroll overflow.
 class BoxView: UIView {
-    var shape: Shape?
+    var shape: (any Shape)?
     var surface: Surface?
     var clip: Bool = true
     var sizing: Frame = .hug
@@ -232,8 +263,8 @@ class BoxView: UIView {
 
     /// Paint the surface behind children.
     override func draw(_ rect: CGRect) {
-        guard let surface = surface, let ctx = UIGraphicsGetCurrentContext() else { return }
-        let resolvedShape = shape ?? .rect()
+        guard let surface, let ctx = UIGraphicsGetCurrentContext() else { return }
+        let resolvedShape: any Shape = shape ?? RectShape()
         let canvas = CGCanvas(ctx)
         SurfaceRenderer(surface: surface, shape: resolvedShape, bounds: Rect(bounds)).render(on: canvas)
     }
@@ -387,9 +418,10 @@ class BoxView: UIView {
 
     /// Apply shape mask for clipping.
     private func applyShapeClip() {
-        if clip, let shape = shape {
+        if clip {
+            let resolvedShape: any Shape = shape ?? RectShape()
             let maskLayer = CAShapeLayer()
-            maskLayer.path = shape.resolve(in: bounds).cgPath
+            maskLayer.path = resolvedShape.path(in: Rect(bounds)).cgPath
             layer.mask = maskLayer
         } else {
             layer.mask = nil

@@ -2,7 +2,7 @@ import CoreGraphics
 import Foundation
 
 /// An axis-aligned rectangle.
-public struct Rect {
+public struct Rect: Lerpable {
     public var x: Double
     public var y: Double
     public var width: Double

@@ -1,6 +1,32 @@
 import Foundation
 import QuartzCore
 
+// MARK: - Lerpable
+
+/// A type that can be linearly interpolated between two values.
+/// `t` ranges from 0 (self) to 1 (other).
+public protocol Lerpable {
+    func lerp(to other: Self, t: Double) -> Self
+}
+
+extension Double: Lerpable {
+    public func lerp(to other: Double, t: Double) -> Double {
+        self + (other - self) * t
+    }
+}
+
+extension Float: Lerpable {
+    public func lerp(to other: Float, t: Double) -> Float {
+        self + (other - self) * Float(t)
+    }
+}
+
+extension Int: Lerpable {
+    public func lerp(to other: Int, t: Double) -> Int {
+        Int(Double(self) + Double(other - self) * t)
+    }
+}
+
 // MARK: - Curve
 
 /// Maps a linear time value (0→1) to an eased output value.

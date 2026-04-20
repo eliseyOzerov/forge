@@ -464,18 +464,18 @@ public struct SVGPainter {
         case .rect(let data):
             let r = Rect(x: data.x, y: data.y, width: data.width, height: data.height)
             let path = data.rx > 0 || data.ry > 0
-                ? Shape.roundedRect(radius: data.rx > 0 ? data.rx : data.ry).resolve(in: r)
-                : Shape.rect().resolve(in: r)
+                ? RoundedModifiedShape(base: RectShape(), radii: [data.rx > 0 ? data.rx : data.ry], smooth: 0).path(in: r)
+                : RectShape().path(in: r)
             paintDrawn(path, attributes: data.attributes, id: data.id, on: canvas)
 
         case .circle(let data):
             let r = Rect.fromCircle(center: Point(data.cx, data.cy), radius: data.r)
-            let path = Shape.ellipse().resolve(in: r)
+            let path = EllipseShape().path(in: r)
             paintDrawn(path, attributes: data.attributes, id: data.id, on: canvas)
 
         case .ellipse(let data):
             let r = Rect(x: data.cx - data.rx, y: data.cy - data.ry, width: data.rx * 2, height: data.ry * 2)
-            let path = Shape.ellipse().resolve(in: r)
+            let path = EllipseShape().path(in: r)
             paintDrawn(path, attributes: data.attributes, id: data.id, on: canvas)
 
         case .line(let data):

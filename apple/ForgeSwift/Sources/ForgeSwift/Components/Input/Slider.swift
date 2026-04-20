@@ -319,7 +319,7 @@ final class SliderView: UIView {
         let trackRect = Rect(x: thumbSize / 2, y: trackY, width: bounds.width - thumbSize, height: trackHeight)
 
         // Inactive track
-        canvas.fillRoundedRect(trackRect, radius: trackHeight / 2, color: trackStyle.inactive.surface?.build(shape: .rect()).isEmpty == false ? Color(0.5, 0.5, 0.5) : Color(0.85, 0.85, 0.85))
+        canvas.fillRoundedRect(trackRect, radius: trackHeight / 2, color: trackStyle.inactive.surface?.primaryColor ?? Color(0.85, 0.85, 0.85))
 
         // Active track
         let originN: Double

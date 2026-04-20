@@ -7,7 +7,7 @@ import Foundation
 /// operations live here — dot, length, normalize, lerp, project, etc.
 /// Concrete types (Vec2, Vec3, Vec4) add named accessors and
 /// dimension-specific operations.
-public protocol Vector: Equatable, Hashable, Sendable {
+public protocol Vector: Equatable, Hashable, Sendable, Lerpable {
     var components: [Double] { get }
     init(components: [Double])
 }

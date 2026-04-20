@@ -126,22 +126,25 @@ public final class ButtonModel: ViewModel<Button> {
         return state
     }
 
-    func handlePress() {
+    func handleDown() {
         guard !isDisabled, !isLoading else { return }
         rebuild { isPressed = true }
         fireHaptic()
     }
 
-    func handleRelease(inside: Bool) {
-        let wasPressed = isPressed
+    func handleTap() {
+        guard !isDisabled, !isLoading else { return }
         rebuild { isPressed = false }
-        guard inside, wasPressed else { return }
         if let debounce = view.debounce {
             let now = CACurrentMediaTime()
             guard now - lastTapTime >= debounce else { return }
             lastTapTime = now
         }
         onTap?()
+    }
+
+    func handleCancel() {
+        rebuild { isPressed = false }
     }
 
     private func fireHaptic() {
@@ -163,167 +166,24 @@ public final class ButtonModel: ViewModel<Button> {
 
 public final class ButtonBuilder: ViewBuilder<ButtonModel> {
     public override func build(context: ViewContext) -> any View {
+        let model = self.model
         let style = model.view.style(model.currentState)
-        return TappableBox(style.box, model: model, animation: style.animation) {
-            model.view.body
-        }
-    }
-}
-
-// MARK: - TappableBox
-
-/// A Box that handles touch events and forwards to ButtonModel.
-struct TappableBox: ContainerView {
-    let boxStyle: BoxStyle
-    let model: ButtonModel
-    let animation: Animation?
-    let children: [any View]
-
-    init(_ style: BoxStyle, model: ButtonModel, animation: Animation?, @ChildrenBuilder content: () -> [any View]) {
-        self.boxStyle = style
-        self.model = model
-        self.animation = animation
-        self.children = content()
-    }
-
-    func makeRenderer() -> ContainerRenderer {
-        TappableBoxRenderer(view: self)
-    }
-}
-
-final class TappableBoxRenderer: ContainerRenderer {
-    private weak var tappableView: TappableBoxView?
-    private var view: TappableBox
-
-    init(view: TappableBox) {
-        self.view = view
-    }
-
-    func update(from newView: any View) {
-        guard let tappable = newView as? TappableBox, let tv = tappableView else { return }
-        let old = view
-        view = tappable
-
-        let oldStyle = old.boxStyle
-        let newStyle = tappable.boxStyle
-
-        var needsSelfLayout = false
-        var needsParentLayout = false
-
-        if oldStyle.frame != newStyle.frame {
-            needsSelfLayout = true
-            needsParentLayout = true
-        }
-        if oldStyle.padding != newStyle.padding
-            || oldStyle.alignment != newStyle.alignment {
-            needsSelfLayout = true
-        }
-
-        // Shape/surface/overflow/clip always applied (non-Equatable)
-        applyStyle(to: tv, animated: true)
-
-        if needsSelfLayout { tv.setNeedsLayout() }
-        if needsParentLayout { tv.superview?.setNeedsLayout() }
-
-        // Model
-        tv.buttonModel = tappable.model
-        tv.accessibilityLabel = tappable.model.view.label
-        tv.updateAccessibility()
-    }
-
-    func mount() -> PlatformView {
-        let tv = TappableBoxView()
-        self.tappableView = tv
-        tv.sizing = view.boxStyle.frame
-        tv.shape = view.boxStyle.shape
-        tv.surface = view.boxStyle.surface
-        tv.clip = view.boxStyle.clip
-        tv.padding = view.boxStyle.padding
-        tv.alignment = view.boxStyle.alignment
-        tv.overflow = view.boxStyle.overflow
-        tv.buttonModel = view.model
-        tv.accessibilityLabel = view.model.view.label
-        tv.isUserInteractionEnabled = true
-        tv.updateAccessibility()
-        return tv
-    }
-
-    private func applyStyle(to tv: TappableBoxView, animated: Bool) {
-        let style = view.boxStyle
-        let applyBlock = {
-            tv.sizing = style.frame
-            tv.shape = style.shape
-            tv.surface = style.surface
-            tv.clip = style.clip
-            tv.padding = style.padding
-            tv.alignment = style.alignment
-            tv.overflow = style.overflow
-            tv.setNeedsDisplay()
-        }
-
-        if animated, let anim = view.animation, anim.duration > 0 {
-            UIView.animate(withDuration: anim.duration, delay: 0, options: .curveEaseInOut) {
-                applyBlock()
-                tv.layoutIfNeeded()
+        var traits: UIAccessibilityTraits = .button
+        if model.isDisabled { traits.insert(.notEnabled) }
+        return TapHandler(
+            onDown: { _ in model.handleDown() },
+            onEnd: { _ in model.handleTap() },
+            onCancel: { model.handleCancel() },
+            accessibility: AccessibilityConfig(
+                traits: traits,
+                label: model.view.label,
+                activate: { model.handleTap(); return true }
+            )
+        ) {
+            Provided(style.textStyle) {
+                Box(style.box) { model.view.body }
             }
-        } else {
-            applyBlock()
         }
-    }
-
-    func insert(_ platformView: PlatformView, at index: Int, into container: PlatformView) {
-        container.insertSubview(platformView, at: index)
-    }
-
-    func remove(_ platformView: PlatformView, from container: PlatformView) {
-        platformView.removeFromSuperview()
-    }
-
-    func move(_ platformView: PlatformView, to index: Int, in container: PlatformView) {
-        platformView.removeFromSuperview()
-        container.insertSubview(platformView, at: index)
-    }
-
-    func index(of platformView: PlatformView, in container: PlatformView) -> Int? {
-        container.subviews.firstIndex(of: platformView)
-    }
-}
-
-// MARK: - TappableBoxView
-
-final class TappableBoxView: BoxView {
-    weak var buttonModel: ButtonModel?
-
-    func updateAccessibility() {
-        isAccessibilityElement = true
-        accessibilityTraits = .button
-        if buttonModel?.isDisabled == true {
-            accessibilityTraits.insert(.notEnabled)
-        }
-        if buttonModel?.currentState.contains(.selected) == true {
-            accessibilityTraits.insert(.selected)
-        }
-    }
-
-    override func accessibilityActivate() -> Bool {
-        buttonModel?.onTap?()
-        return true
-    }
-
-    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        super.touchesBegan(touches, with: event)
-        buttonModel?.handlePress()
-    }
-
-    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        super.touchesEnded(touches, with: event)
-        let inside = touches.first.map { bounds.contains($0.location(in: self)) } ?? false
-        buttonModel?.handleRelease(inside: inside)
-    }
-
-    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-        super.touchesCancelled(touches, with: event)
-        buttonModel?.handleRelease(inside: false)
     }
 }
 

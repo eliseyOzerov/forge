@@ -113,6 +113,7 @@ public struct PanEnd {
 public struct TapConfig {
     public var maxDuration: Double
     public var slop: Double
+    public var onDown: (@MainActor (GesturePosition) -> Void)?
     public var onStart: (@MainActor (TapStart) -> Void)?
     public var onUpdate: (@MainActor (TapUpdate) -> Void)?
     public var onEnd: (@MainActor (TapEnd) -> Void)?
@@ -121,13 +122,14 @@ public struct TapConfig {
     public init(
         maxDuration: Double = 0.3,
         slop: Double = 10,
+        onDown: (@MainActor (GesturePosition) -> Void)? = nil,
         onStart: (@MainActor (TapStart) -> Void)? = nil,
         onUpdate: (@MainActor (TapUpdate) -> Void)? = nil,
         onEnd: (@MainActor (TapEnd) -> Void)? = nil,
         onCancel: (@MainActor () -> Void)? = nil
     ) {
         self.maxDuration = maxDuration; self.slop = slop
-        self.onStart = onStart; self.onUpdate = onUpdate
+        self.onDown = onDown; self.onStart = onStart; self.onUpdate = onUpdate
         self.onEnd = onEnd; self.onCancel = onCancel
     }
 }
@@ -136,6 +138,7 @@ public struct DoubleTapConfig {
     public var maxTapDuration: Double
     public var betweenTapsDuration: Double
     public var slop: Double
+    public var onDown: (@MainActor (GesturePosition) -> Void)?
     public var onStart: (@MainActor (DoubleTapStart) -> Void)?
     public var onUpdate: (@MainActor (DoubleTapUpdate) -> Void)?
     public var onEnd: (@MainActor (DoubleTapEnd) -> Void)?
@@ -145,13 +148,14 @@ public struct DoubleTapConfig {
         maxTapDuration: Double = 0.3,
         betweenTapsDuration: Double = 0.3,
         slop: Double = 100,
+        onDown: (@MainActor (GesturePosition) -> Void)? = nil,
         onStart: (@MainActor (DoubleTapStart) -> Void)? = nil,
         onUpdate: (@MainActor (DoubleTapUpdate) -> Void)? = nil,
         onEnd: (@MainActor (DoubleTapEnd) -> Void)? = nil,
         onCancel: (@MainActor () -> Void)? = nil
     ) {
         self.maxTapDuration = maxTapDuration; self.betweenTapsDuration = betweenTapsDuration
-        self.slop = slop; self.onStart = onStart; self.onUpdate = onUpdate
+        self.slop = slop; self.onDown = onDown; self.onStart = onStart; self.onUpdate = onUpdate
         self.onEnd = onEnd; self.onCancel = onCancel
     }
 }
@@ -159,6 +163,7 @@ public struct DoubleTapConfig {
 public struct PressConfig {
     public var pressDuration: Double
     public var slop: Double
+    public var onDown: (@MainActor (GesturePosition) -> Void)?
     public var onStart: (@MainActor (LongPressStart) -> Void)?
     public var onUpdate: (@MainActor (LongPressUpdate) -> Void)?
     public var onEnd: (@MainActor (LongPressEnd) -> Void)?
@@ -167,13 +172,14 @@ public struct PressConfig {
     public init(
         pressDuration: Double = 0.5,
         slop: Double = 10,
+        onDown: (@MainActor (GesturePosition) -> Void)? = nil,
         onStart: (@MainActor (LongPressStart) -> Void)? = nil,
         onUpdate: (@MainActor (LongPressUpdate) -> Void)? = nil,
         onEnd: (@MainActor (LongPressEnd) -> Void)? = nil,
         onCancel: (@MainActor () -> Void)? = nil
     ) {
         self.pressDuration = pressDuration; self.slop = slop
-        self.onStart = onStart; self.onUpdate = onUpdate
+        self.onDown = onDown; self.onStart = onStart; self.onUpdate = onUpdate
         self.onEnd = onEnd; self.onCancel = onCancel
     }
 }
@@ -181,6 +187,7 @@ public struct PressConfig {
 public struct HoldConfig {
     public var holdThreshold: Double
     public var slop: Double
+    public var onDown: (@MainActor (GesturePosition) -> Void)?
     public var onStart: (@MainActor (LongPressStart) -> Void)?
     public var onUpdate: (@MainActor (LongPressUpdate) -> Void)?
     public var onEnd: (@MainActor (LongPressEnd) -> Void)?
@@ -189,19 +196,21 @@ public struct HoldConfig {
     public init(
         holdThreshold: Double = 0.8,
         slop: Double = 10,
+        onDown: (@MainActor (GesturePosition) -> Void)? = nil,
         onStart: (@MainActor (LongPressStart) -> Void)? = nil,
         onUpdate: (@MainActor (LongPressUpdate) -> Void)? = nil,
         onEnd: (@MainActor (LongPressEnd) -> Void)? = nil,
         onCancel: (@MainActor () -> Void)? = nil
     ) {
         self.holdThreshold = holdThreshold; self.slop = slop
-        self.onStart = onStart; self.onUpdate = onUpdate
+        self.onDown = onDown; self.onStart = onStart; self.onUpdate = onUpdate
         self.onEnd = onEnd; self.onCancel = onCancel
     }
 }
 
 public struct DragConfig {
     public var slop: Double
+    public var onDown: (@MainActor (GesturePosition) -> Void)?
     public var onStart: (@MainActor (DragStart) -> Void)?
     public var onUpdate: (@MainActor (DragUpdate) -> Void)?
     public var onEnd: (@MainActor (DragEnd) -> Void)?
@@ -209,12 +218,13 @@ public struct DragConfig {
 
     public init(
         slop: Double = 10,
+        onDown: (@MainActor (GesturePosition) -> Void)? = nil,
         onStart: (@MainActor (DragStart) -> Void)? = nil,
         onUpdate: (@MainActor (DragUpdate) -> Void)? = nil,
         onEnd: (@MainActor (DragEnd) -> Void)? = nil,
         onCancel: (@MainActor () -> Void)? = nil
     ) {
-        self.slop = slop; self.onStart = onStart
+        self.slop = slop; self.onDown = onDown; self.onStart = onStart
         self.onUpdate = onUpdate; self.onEnd = onEnd; self.onCancel = onCancel
     }
 }
@@ -222,6 +232,7 @@ public struct DragConfig {
 public struct PanConfig {
     public var minPointers: Int
     public var slop: Double
+    public var onDown: (@MainActor (GesturePosition) -> Void)?
     public var onStart: (@MainActor (PanStart) -> Void)?
     public var onUpdate: (@MainActor (PanUpdate) -> Void)?
     public var onEnd: (@MainActor (PanEnd) -> Void)?
@@ -230,13 +241,14 @@ public struct PanConfig {
     public init(
         minPointers: Int = 2,
         slop: Double = 20,
+        onDown: (@MainActor (GesturePosition) -> Void)? = nil,
         onStart: (@MainActor (PanStart) -> Void)? = nil,
         onUpdate: (@MainActor (PanUpdate) -> Void)? = nil,
         onEnd: (@MainActor (PanEnd) -> Void)? = nil,
         onCancel: (@MainActor () -> Void)? = nil
     ) {
         self.minPointers = minPointers; self.slop = slop
-        self.onStart = onStart; self.onUpdate = onUpdate
+        self.onDown = onDown; self.onStart = onStart; self.onUpdate = onUpdate
         self.onEnd = onEnd; self.onCancel = onCancel
     }
 }

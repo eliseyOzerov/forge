@@ -383,11 +383,13 @@ final class UIKitTextFieldRenderer<T>: Renderer {
         wrapper.model = leaf.model
 
         // Apply style props
-        let styleChanged = old.style.text.font.size != leaf.style.text.font.size
-            || old.style.text.font.weight != leaf.style.text.font.weight
-            || old.style.text.font.family != leaf.style.text.font.family
+        let oldFont = old.style.text.font ?? Font()
+        let newFont = leaf.style.text.font ?? Font()
+        let styleChanged = oldFont.size != newFont.size
+            || oldFont.weight != newFont.weight
+            || oldFont.family != newFont.family
         if styleChanged {
-            field.font = leaf.style.text.font.resolvedFont
+            field.font = newFont.resolvedFont
         }
 
         wrapper.sizing = leaf.style.field.frame
@@ -414,7 +416,7 @@ final class UIKitTextFieldRenderer<T>: Renderer {
         field.returnKeyType = kb.returnKey.ui
         field.textAlignment = dec.alignment.nsTextAlignment
         if let ct = kb.contentType { field.textContentType = ct.ui }
-        field.font = view.style.text.font.resolvedFont
+        field.font = (view.style.text.font ?? Font()).resolvedFont
 
         wrapper.model = view.model
         wrapper.sizing = view.style.field.frame

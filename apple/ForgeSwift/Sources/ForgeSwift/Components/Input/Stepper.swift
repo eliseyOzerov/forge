@@ -319,9 +319,9 @@ final class StepperFieldRenderer<T: Numeric & Comparable & LosslessStringConvert
 
         // Apply style props
         let field = fieldView.textField
-        field.font = leaf.style.text.font.resolvedFont
+        field.font = (leaf.style.text.font ?? Font()).resolvedFont
         field.textColor = leaf.style.text.color?.platformColor ?? .label
-        field.textAlignment = leaf.style.text.align.nsTextAlignment
+        field.textAlignment = (leaf.style.text.align ?? .center).nsTextAlignment
 
         fieldView.dragAxis = leaf.style.drag.axis
         fieldView.dragEnabled = leaf.style.drag.enabled
@@ -340,9 +340,9 @@ final class StepperFieldRenderer<T: Numeric & Comparable & LosslessStringConvert
         self.fieldView = fv
         let field = fv.textField
         field.text = view.model.displayText()
-        field.font = view.style.text.font.resolvedFont
+        field.font = (view.style.text.font ?? Font()).resolvedFont
         field.textColor = view.style.text.color?.platformColor ?? .label
-        field.textAlignment = view.style.text.align.nsTextAlignment
+        field.textAlignment = (view.style.text.align ?? .center).nsTextAlignment
         field.keyboardType = .decimalPad
 
         fv.model = view.model

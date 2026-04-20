@@ -4,43 +4,88 @@ import UIKit
 import AppKit
 #endif
 
-/// What to fill a shape with.
-public enum Fill {
-    case color(Color)
-    case gradient(Gradient)
-    case image(ImageSource, fit: ContentFit = .cover)
-    case shader(Shader)
+// MARK: - Fill Protocol
+
+/// What to fill a shape with. Each Fill type knows how to draw itself
+/// on a Canvas — no switching at the call site.
+public protocol Fill {
+    func draw(on canvas: any Canvas, path: Path)
+    func isEqual(to other: any Fill) -> Bool
+    func lerp(to other: any Fill, t: Double) -> any Fill
 }
 
-/// Liquid-Glass material variant. Maps to `UIGlassEffect` on iOS 26+.
-///
-/// - `regular`: the standard translucent glass, used for most chrome
-///   (nav bars, tab bars, sheets).
-/// - `prominent`: higher-opacity, more saturated — for floating
-///   controls that need to pop.
-/// - `clear`: most translucent, used at scroll-edges where the glass
-///   should nearly disappear against the content underneath.
-public enum GlassStyle: Sendable, Equatable {
-    case regular, prominent, clear
+public extension Fill where Self: Equatable {
+    func isEqual(to other: any Fill) -> Bool {
+        guard let other = other as? Self else { return false }
+        return self == other
+    }
 }
 
-// Color is defined in Core/View/Color.swift
-
-// MARK: - Gradient
-
-public enum Gradient {
-    case linear(LinearGradient)
-    case radial(RadialGradient)
-    case angular(AngularGradient)
+public extension Fill where Self: Equatable & Lerpable {
+    func lerp(to other: any Fill, t: Double) -> any Fill {
+        guard let other = other as? Self else { return t < 0.5 ? self : other }
+        return self.lerp(to: other, t: t)
+    }
 }
 
-public struct GradientStop: Sendable {
+// MARK: - Concrete Fills
+
+public struct ColorFill: Fill, Equatable, Lerpable {
+    public var color: Color
+    public init(_ color: Color) { self.color = color }
+    public func draw(on canvas: any Canvas, path: Path) {
+        canvas.fillColor(path, color)
+    }
+    public func lerp(to other: ColorFill, t: Double) -> ColorFill {
+        ColorFill(color.lerp(to: other.color, t: t))
+    }
+}
+
+public struct GradientFill<G: Gradient>: Fill, Equatable, Lerpable {
+    public var gradient: G
+    public init(_ gradient: G) { self.gradient = gradient }
+    public func draw(on canvas: any Canvas, path: Path) {
+        canvas.save()
+        canvas.clip(path)
+        gradient.draw(on: canvas, in: path.boundingBox)
+        canvas.restore()
+    }
+    public func lerp(to other: GradientFill<G>, t: Double) -> GradientFill<G> {
+        GradientFill(gradient.lerp(to: other.gradient, t: t))
+    }
+}
+
+public struct ImageFill: Fill {
+    public var image: ImageSource
+    public var fit: ContentFit
+    public init(_ image: ImageSource, fit: ContentFit = .cover) { self.image = image; self.fit = fit }
+    public func draw(on canvas: any Canvas, path: Path) {
+        canvas.save()
+        canvas.clip(path)
+        canvas.drawImage(image, fit: fit, in: path.boundingBox)
+        canvas.restore()
+    }
+    public func isEqual(to other: any Fill) -> Bool { false }
+    public func lerp(to other: any Fill, t: Double) -> any Fill { t < 0.5 ? self : other }
+}
+
+// MARK: - Gradient Protocol
+
+/// A gradient that knows how to draw itself on a Canvas within clipped bounds.
+public protocol Gradient: Equatable, Lerpable {
+    func draw(on canvas: any Canvas, in bounds: Rect)
+}
+
+public struct GradientStop: Sendable, Equatable, Lerpable {
     public var color: Color
     public var location: Double
     public init(_ color: Color, at location: Double) { self.color = color; self.location = location }
+    public func lerp(to other: GradientStop, t: Double) -> GradientStop {
+        GradientStop(color.lerp(to: other.color, t: t), at: location.lerp(to: other.location, t: t))
+    }
 }
 
-public struct LinearGradient: Sendable {
+public struct LinearGradient: Sendable, Equatable, Gradient {
     public var stops: [GradientStop]
     public var start: Vec2
     public var end: Vec2
@@ -52,18 +97,30 @@ public struct LinearGradient: Sendable {
         self.stops = colors.enumerated().map { GradientStop($1, at: n > 1 ? Double($0) / Double(n - 1) : 0) }
         self.start = start; self.end = end
     }
+    public func draw(on canvas: any Canvas, in bounds: Rect) {
+        canvas.drawLinearGradient(stops: stops, start: start, end: end, in: bounds)
+    }
+    public func lerp(to other: LinearGradient, t: Double) -> LinearGradient {
+        LinearGradient(stops: lerpStops(stops, other.stops, t: t), start: start.lerp(to: other.start, t: t), end: end.lerp(to: other.end, t: t))
+    }
 }
 
-public struct RadialGradient: Sendable {
+public struct RadialGradient: Sendable, Equatable, Gradient {
     public var stops: [GradientStop]
     public var center: Vec2
     public var radius: Double
     public init(stops: [GradientStop], center: Vec2 = Vec2(0.5, 0.5), radius: Double = 0.5) {
         self.stops = stops; self.center = center; self.radius = radius
     }
+    public func draw(on canvas: any Canvas, in bounds: Rect) {
+        canvas.drawRadialGradient(stops: stops, center: center, radius: radius, in: bounds)
+    }
+    public func lerp(to other: RadialGradient, t: Double) -> RadialGradient {
+        RadialGradient(stops: lerpStops(stops, other.stops, t: t), center: center.lerp(to: other.center, t: t), radius: radius.lerp(to: other.radius, t: t))
+    }
 }
 
-public struct AngularGradient: Sendable {
+public struct AngularGradient: Sendable, Equatable, Gradient {
     public var stops: [GradientStop]
     public var center: Vec2
     public var startAngle: Double
@@ -71,6 +128,27 @@ public struct AngularGradient: Sendable {
     public init(stops: [GradientStop], center: Vec2 = Vec2(0.5, 0.5), startAngle: Double = 0, endAngle: Double = .pi * 2) {
         self.stops = stops; self.center = center; self.startAngle = startAngle; self.endAngle = endAngle
     }
+    public func draw(on canvas: any Canvas, in bounds: Rect) {
+        canvas.drawAngularGradient(stops: stops, center: center, startAngle: startAngle, endAngle: endAngle, in: bounds)
+    }
+    public func lerp(to other: AngularGradient, t: Double) -> AngularGradient {
+        AngularGradient(stops: lerpStops(stops, other.stops, t: t), center: center.lerp(to: other.center, t: t),
+                        startAngle: startAngle.lerp(to: other.startAngle, t: t), endAngle: endAngle.lerp(to: other.endAngle, t: t))
+    }
+}
+
+private func lerpStops(_ a: [GradientStop], _ b: [GradientStop], t: Double) -> [GradientStop] {
+    let maxCount = max(a.count, b.count)
+    return (0..<maxCount).map { i in
+        let sa = a[min(i, a.count - 1)]
+        let sb = b[min(i, b.count - 1)]
+        return sa.lerp(to: sb, t: t)
+    }
+}
+
+/// Liquid-Glass material variant. Maps to `UIGlassEffect` on iOS 26+.
+public enum GlassStyle: Sendable, Equatable {
+    case regular, prominent, clear
 }
 
 // MARK: - ImageSource
@@ -90,11 +168,9 @@ public struct ImageSource {
 public enum ContentFit: Sendable {
     case fill, contain, cover, scaleDown, none
 
-    /// Compute the destination rect for content of `contentSize` fitted into `bounds`.
     public func rect(for contentSize: Size, in bounds: Rect) -> Rect {
         switch self {
-        case .fill:
-            return bounds
+        case .fill: return bounds
         case .contain:
             let scale = min(bounds.width / contentSize.width, bounds.height / contentSize.height)
             let w = contentSize.width * scale, h = contentSize.height * scale
@@ -115,21 +191,34 @@ public enum ContentFit: Sendable {
 
 // MARK: - Shader
 
-public struct Shader { public init() {} }
+public struct Shader: Equatable, Lerpable {
+    public init() {}
+    public func lerp(to other: Shader, t: Double) -> Shader { other }
+}
 
 // MARK: - Paint
 
 public struct Paint {
-    public var fill: Fill
+    public var fill: any Fill
     public var blendMode: BlendMode
     public var opacity: Double
 
-    public init(_ fill: Fill, blendMode: BlendMode = .normal, opacity: Double = 1) {
+    public init(_ fill: any Fill, blendMode: BlendMode = .normal, opacity: Double = 1) {
         self.fill = fill; self.blendMode = blendMode; self.opacity = opacity
     }
 
-    public static func color(_ color: Color) -> Paint { Paint(.color(color)) }
-    public static func gradient(_ gradient: Gradient) -> Paint { Paint(.gradient(gradient)) }
+    public static func color(_ color: Color) -> Paint { Paint(ColorFill(color)) }
+    public static func gradient<G: Gradient>(_ gradient: G) -> Paint { Paint(GradientFill(gradient)) }
+
+    public func isEqual(to other: Paint) -> Bool {
+        fill.isEqual(to: other.fill) && blendMode == other.blendMode && opacity == other.opacity
+    }
+
+    public func lerp(to other: Paint, t: Double) -> Paint {
+        Paint(fill.lerp(to: other.fill, t: t),
+              blendMode: t < 0.5 ? blendMode : other.blendMode,
+              opacity: opacity.lerp(to: other.opacity, t: t))
+    }
 }
 
 // MARK: - BlendMode
@@ -162,7 +251,7 @@ public enum BlendMode: Sendable {
 
 // MARK: - Stroke
 
-public struct Stroke: Sendable {
+public struct Stroke: Sendable, Equatable, Lerpable {
     public var width: Double
     public var cap: StrokeCap
     public var join: StrokeJoin
@@ -173,23 +262,32 @@ public struct Stroke: Sendable {
     public init(width: Double = 1, cap: StrokeCap = .round, join: StrokeJoin = .round, alignment: Double = 0.5, miterLimit: Double = 10, dash: Dash? = nil) {
         self.width = width; self.cap = cap; self.join = join; self.alignment = alignment; self.miterLimit = miterLimit; self.dash = dash
     }
+
+    public func lerp(to other: Stroke, t: Double) -> Stroke {
+        Stroke(width: width.lerp(to: other.width, t: t),
+               cap: t < 0.5 ? cap : other.cap,
+               join: t < 0.5 ? join : other.join,
+               alignment: alignment.lerp(to: other.alignment, t: t),
+               miterLimit: miterLimit.lerp(to: other.miterLimit, t: t),
+               dash: t < 0.5 ? dash : other.dash)
+    }
 }
 
-public enum StrokeCap: Sendable {
+public enum StrokeCap: Sendable, Equatable {
     case butt, round, square
     #if canImport(CoreGraphics)
     public var cgLineCap: CGLineCap { switch self { case .butt: .butt; case .round: .round; case .square: .square } }
     #endif
 }
 
-public enum StrokeJoin: Sendable {
+public enum StrokeJoin: Sendable, Equatable {
     case miter, round, bevel
     #if canImport(CoreGraphics)
     public var cgLineJoin: CGLineJoin { switch self { case .miter: .miter; case .round: .round; case .bevel: .bevel } }
     #endif
 }
 
-public struct Dash: Sendable {
+public struct Dash: Sendable, Equatable {
     public var pattern: [Double]
     public var phase: Double
     public init(_ pattern: [Double], phase: Double = 0) { self.pattern = pattern; self.phase = phase }
@@ -226,169 +324,365 @@ public struct Transform2D: Sendable {
 public enum RotationAxis: Sendable { case x, y, z }
 public enum FillRule: Sendable { case winding, evenOdd }
 
-/// A renderable layer in a Surface. Each layer owns its rendering
-/// instructions and knows how to paint itself onto a Canvas.
+// MARK: - SurfaceContext
+
+/// Everything a Layer needs to render. Populated once by SurfaceRenderer,
+/// shared across all layers in one pass.
+public struct SurfaceContext {
+    public let canvas: any Canvas
+    public let path: Path
+    public let bounds: Rect
+}
+
+// MARK: - Layer Protocol
+
+/// A renderable operation in a Surface. Layers are value types with
+/// inspectable data. Each layer knows how to compare and interpolate itself.
 public protocol Layer {
-    func render(on canvas: Canvas, path: Path, bounds: Rect)
+    func render(in context: SurfaceContext)
+    func isEqual(to other: any Layer) -> Bool
+    func lerp(to other: any Layer, t: Double) -> any Layer
 }
 
-// MARK: - Shape Layer
-
-/// Fills a shape with a paint.
-public struct ShapeLayer: Layer {
-    public let shape: Shape
-    public let paint: Paint
-
-    public init(_ shape: Shape, _ paint: Paint) {
-        self.shape = shape
-        self.paint = paint
-    }
-
-    public func render(on canvas: Canvas, path: Path, bounds: Rect) {
-        let resolved = shape.resolve(in: bounds)
-        canvas.draw(resolved, with: paint)
+public extension Layer where Self: Equatable {
+    func isEqual(to other: any Layer) -> Bool {
+        guard let other = other as? Self else { return false }
+        return self == other
     }
 }
 
-// MARK: - Shadow Layer
-
-public struct ShadowLayer: Layer {
-    public let color: Color
-    public let offset: Vec2
-    public let blur: Double
-
-    public init(color: Color = Color(0, 0, 0, 0.3), offset: Vec2 = Vec2(0, 4), blur: Double = 8) {
-        self.color = color; self.offset = offset; self.blur = blur
-    }
-
-    public func render(on canvas: Canvas, path: Path, bounds: Rect) {
-        canvas.save()
-        canvas.filter(.shadow(color: color, offset: offset, blur: blur))
-        canvas.draw(path, with: .color(color))
-        canvas.restore()
+public extension Layer where Self: Equatable & Lerpable {
+    func lerp(to other: any Layer, t: Double) -> any Layer {
+        guard let other = other as? Self else { return t < 0.5 ? self : other }
+        return self.lerp(to: other, t: t)
     }
 }
 
-// MARK: - Stroke Layer
+// MARK: - Built-in Layers
 
-public struct StrokeLayer: Layer {
-    public let stroke: Stroke
-    public let paint: Paint
+public struct FillLayer: Layer, Equatable, Lerpable {
+    public var paint: Paint
+    public init(_ paint: Paint) { self.paint = paint }
 
-    public init(_ stroke: Stroke, _ paint: Paint) {
-        self.stroke = stroke; self.paint = paint
+    public func render(in context: SurfaceContext) {
+        context.canvas.draw(context.path, with: paint)
     }
 
-    public func render(on canvas: Canvas, path: Path, bounds: Rect) {
-        var expanded = path
+    public static func ==(lhs: FillLayer, rhs: FillLayer) -> Bool {
+        lhs.paint.isEqual(to: rhs.paint)
+    }
+
+    public func lerp(to other: FillLayer, t: Double) -> FillLayer {
+        FillLayer(paint.lerp(to: other.paint, t: t))
+    }
+}
+
+public struct StrokeLayer: Layer, Equatable, Lerpable {
+    public var stroke: Stroke
+    public var paint: Paint
+    public init(_ stroke: Stroke, _ paint: Paint) { self.stroke = stroke; self.paint = paint }
+
+    public func render(in context: SurfaceContext) {
+        var expanded = context.path
         if let dash = stroke.dash {
             expanded = expanded.dashed(phase: dash.phase, lengths: dash.pattern)
         }
         expanded = expanded.stroked(width: stroke.width, cap: stroke.cap, join: stroke.join, miterLimit: stroke.miterLimit)
-        canvas.draw(expanded, with: paint)
+        context.canvas.draw(expanded, with: paint)
+    }
+
+    public static func ==(lhs: StrokeLayer, rhs: StrokeLayer) -> Bool {
+        lhs.stroke == rhs.stroke && lhs.paint.isEqual(to: rhs.paint)
+    }
+
+    public func lerp(to other: StrokeLayer, t: Double) -> StrokeLayer {
+        StrokeLayer(stroke.lerp(to: other.stroke, t: t), paint.lerp(to: other.paint, t: t))
     }
 }
 
-// MARK: - Transform Layers
+public struct ShadowLayer: Layer, Equatable, Lerpable {
+    public var color: Color
+    public var offset: Vec2
+    public var blur: Double
+    public init(color: Color = Color(0, 0, 0, 0.3), offset: Vec2 = Vec2(0, 4), blur: Double = 8) {
+        self.color = color; self.offset = offset; self.blur = blur
+    }
 
-public struct ClipLayer: Layer {
-    public let shape: Shape
-    public let children: [any Layer]
-    public func render(on canvas: Canvas, path: Path, bounds: Rect) {
-        canvas.save()
-        canvas.clip(shape.resolve(in: bounds))
-        for child in children { child.render(on: canvas, path: path, bounds: bounds) }
-        canvas.restore()
+    public func render(in context: SurfaceContext) {
+        context.canvas.save()
+        context.canvas.filter(.shadow(color: color, offset: offset, blur: blur))
+        context.canvas.draw(context.path, with: .color(color))
+        context.canvas.restore()
+    }
+
+    public func lerp(to other: ShadowLayer, t: Double) -> ShadowLayer {
+        ShadowLayer(color: color.lerp(to: other.color, t: t),
+                     offset: offset.lerp(to: other.offset, t: t),
+                     blur: blur.lerp(to: other.blur, t: t))
     }
 }
 
-public struct ScaleLayer: Layer {
-    public let sx: Double, sy: Double
-    public let children: [any Layer]
-    public func render(on canvas: Canvas, path: Path, bounds: Rect) {
-        canvas.save()
-        canvas.translate(bounds.midX, bounds.midY)
-        canvas.scale(sx, sy)
-        canvas.translate(-bounds.midX, -bounds.midY)
-        for child in children { child.render(on: canvas, path: path, bounds: bounds) }
-        canvas.restore()
+public struct TransformLayer: Layer, Equatable, Lerpable {
+    public var sx: Double
+    public var sy: Double
+    public var rotation: Double
+    public var tx: Double
+    public var ty: Double
+    public var children: [any Layer]
+
+    public init(sx: Double = 1, sy: Double = 1, rotation: Double = 0, tx: Double = 0, ty: Double = 0, children: [any Layer]) {
+        self.sx = sx; self.sy = sy; self.rotation = rotation
+        self.tx = tx; self.ty = ty; self.children = children
+    }
+
+    public func render(in context: SurfaceContext) {
+        context.canvas.save()
+        let cx = context.bounds.midX, cy = context.bounds.midY
+        context.canvas.translate(cx + tx, cy + ty)
+        context.canvas.rotate(rotation)
+        context.canvas.scale(sx, sy)
+        context.canvas.translate(-cx, -cy)
+        for child in children { child.render(in: context) }
+        context.canvas.restore()
+    }
+
+    public static func ==(lhs: TransformLayer, rhs: TransformLayer) -> Bool {
+        lhs.sx == rhs.sx && lhs.sy == rhs.sy && lhs.rotation == rhs.rotation &&
+        lhs.tx == rhs.tx && lhs.ty == rhs.ty && layersEqual(lhs.children, rhs.children)
+    }
+
+    public func lerp(to other: TransformLayer, t: Double) -> TransformLayer {
+        TransformLayer(
+            sx: sx.lerp(to: other.sx, t: t), sy: sy.lerp(to: other.sy, t: t),
+            rotation: rotation.lerp(to: other.rotation, t: t),
+            tx: tx.lerp(to: other.tx, t: t), ty: ty.lerp(to: other.ty, t: t),
+            children: lerpLayers(children, other.children, t: t))
     }
 }
 
-public struct TranslateLayer: Layer {
-    public let dx: Double, dy: Double
-    public let children: [any Layer]
-    public func render(on canvas: Canvas, path: Path, bounds: Rect) {
-        canvas.save()
-        canvas.translate(dx, dy)
-        for child in children { child.render(on: canvas, path: path, bounds: bounds) }
-        canvas.restore()
+public struct ClipLayer: Layer, Equatable, Lerpable {
+    public var clipShape: any Shape
+    public var children: [any Layer]
+    public init(clipShape: any Shape, children: [any Layer]) {
+        self.clipShape = clipShape; self.children = children
+    }
+
+    public func render(in context: SurfaceContext) {
+        context.canvas.save()
+        context.canvas.clip(clipShape.path(in: context.bounds))
+        for child in children { child.render(in: context) }
+        context.canvas.restore()
+    }
+
+    public static func ==(lhs: ClipLayer, rhs: ClipLayer) -> Bool {
+        lhs.clipShape.isEqual(to: rhs.clipShape) && layersEqual(lhs.children, rhs.children)
+    }
+
+    public func lerp(to other: ClipLayer, t: Double) -> ClipLayer {
+        ClipLayer(clipShape: clipShape.lerp(to: other.clipShape, t: t),
+                  children: lerpLayers(children, other.children, t: t))
     }
 }
 
-public struct RotateLayer: Layer {
-    public let radians: Double
-    public let children: [any Layer]
-    public func render(on canvas: Canvas, path: Path, bounds: Rect) {
-        canvas.save()
-        canvas.translate(bounds.midX, bounds.midY)
-        canvas.rotate(radians)
-        canvas.translate(-bounds.midX, -bounds.midY)
-        for child in children { child.render(on: canvas, path: path, bounds: bounds) }
-        canvas.restore()
+public struct FadeLayer: Layer, Equatable, Lerpable {
+    public var opacity: Double
+    public var children: [any Layer]
+    public init(opacity: Double, children: [any Layer]) {
+        self.opacity = opacity; self.children = children
+    }
+
+    public func render(in context: SurfaceContext) {
+        context.canvas.save()
+        context.canvas.setAlpha(opacity)
+        for child in children { child.render(in: context) }
+        context.canvas.restore()
+    }
+
+    public static func ==(lhs: FadeLayer, rhs: FadeLayer) -> Bool {
+        lhs.opacity == rhs.opacity && layersEqual(lhs.children, rhs.children)
+    }
+
+    public func lerp(to other: FadeLayer, t: Double) -> FadeLayer {
+        FadeLayer(opacity: opacity.lerp(to: other.opacity, t: t),
+                  children: lerpLayers(children, other.children, t: t))
     }
 }
 
-public struct AffineTransformLayer: Layer {
-    public let transform: Transform2D
-    public let children: [any Layer]
-    public func render(on canvas: Canvas, path: Path, bounds: Rect) {
-        canvas.save()
-        canvas.transform(transform)
-        for child in children { child.render(on: canvas, path: path, bounds: bounds) }
-        canvas.restore()
+public struct BlendLayer: Layer, Equatable, Lerpable {
+    public var mode: BlendMode
+    public var children: [any Layer]
+    public init(mode: BlendMode, children: [any Layer]) {
+        self.mode = mode; self.children = children
+    }
+
+    public func render(in context: SurfaceContext) {
+        context.canvas.save()
+        context.canvas.setBlendMode(mode)
+        for child in children { child.render(in: context) }
+        context.canvas.restore()
+    }
+
+    public static func ==(lhs: BlendLayer, rhs: BlendLayer) -> Bool {
+        lhs.mode == rhs.mode && layersEqual(lhs.children, rhs.children)
+    }
+
+    public func lerp(to other: BlendLayer, t: Double) -> BlendLayer {
+        BlendLayer(mode: t < 0.5 ? mode : other.mode,
+                   children: lerpLayers(children, other.children, t: t))
     }
 }
 
-public struct FadeLayer: Layer {
-    public let opacity: Double
-    public let children: [any Layer]
-    public func render(on canvas: Canvas, path: Path, bounds: Rect) {
-        canvas.save()
-        canvas.setAlpha(opacity)
-        for child in children { child.render(on: canvas, path: path, bounds: bounds) }
-        canvas.restore()
+// MARK: - Layer helpers
+
+private func layersEqual(_ a: [any Layer], _ b: [any Layer]) -> Bool {
+    guard a.count == b.count else { return false }
+    return zip(a, b).allSatisfy { $0.isEqual(to: $1) }
+}
+
+private func lerpLayers(_ a: [any Layer], _ b: [any Layer], t: Double) -> [any Layer] {
+    let maxCount = max(a.count, b.count)
+    return (0..<maxCount).map { i in
+        if i < a.count && i < b.count { return a[i].lerp(to: b[i], t: t) }
+        return i < b.count ? b[i] : a[i]
     }
 }
 
-public struct BlendLayer: Layer {
-    public let mode: BlendMode
-    public let children: [any Layer]
-    public func render(on canvas: Canvas, path: Path, bounds: Rect) {
-        canvas.save()
-        canvas.setBlendMode(mode)
-        for child in children { child.render(on: canvas, path: path, bounds: bounds) }
-        canvas.restore()
+// MARK: - Surface
+
+/// A styled surface. An ordered list of layers — pure data, no closures.
+///
+/// ```swift
+/// let card = Surface()
+///     .color(.white)
+///     .shadow(color: .black, blur: 8)
+///     .border(.gray)
+/// ```
+public struct Surface {
+    public var layers: [any Layer]
+    public private(set) var primaryColor: Color?
+    public private(set) var glassStyle: GlassStyle?
+
+    public init() { self.layers = [] }
+
+    nonisolated(unsafe) public static let empty = Surface()
+
+    // MARK: - Static factories
+
+    public static func color(_ color: Color) -> Surface { Surface().color(color) }
+    public static func gradient<G: Gradient>(_ gradient: G) -> Surface { Surface().gradient(gradient) }
+    public static func border(_ color: Color, width: Double = 1) -> Surface { Surface().border(color, width: width) }
+    public static func shadow(color: Color = Color(0, 0, 0, 0.3), offset: Vec2 = Vec2(0, 4), blur: Double = 8) -> Surface { Surface().shadow(color: color, offset: offset, blur: blur) }
+    public static func glass(_ style: GlassStyle = .regular) -> Surface { Surface().glass(style) }
+
+    // MARK: - Fill
+
+    public func color(_ color: Color) -> Surface {
+        var copy = self
+        if copy.primaryColor == nil { copy.primaryColor = color }
+        copy.layers.append(FillLayer(Paint.color(color)))
+        return copy
     }
-}
 
-/// An isolated composited sub-surface.
-public struct ComposeLayer: Layer {
-    public let children: [any Layer]
-
-    public func render(on canvas: Canvas, path: Path, bounds: Rect) {
-        canvas.save()
-        for child in children { child.render(on: canvas, path: path, bounds: bounds) }
-        canvas.restore()
+    public func gradient<G: Gradient>(_ gradient: G) -> Surface {
+        var copy = self
+        copy.layers.append(FillLayer(Paint.gradient(gradient)))
+        return copy
     }
-}
 
-/// Custom rendering escape hatch.
-public struct CustomLayer: Layer {
-    public let draw: (Canvas, Path, Rect) -> Void
+    public func image(_ image: ImageSource, fit: ContentFit = .cover) -> Surface {
+        var copy = self
+        copy.layers.append(FillLayer(Paint(ImageFill(image, fit: fit))))
+        return copy
+    }
 
-    public func render(on canvas: Canvas, path: Path, bounds: Rect) {
-        draw(canvas, path, bounds)
+    // MARK: - Glass
+
+    public func glass(_ style: GlassStyle = .regular) -> Surface {
+        var copy = self
+        copy.glassStyle = style
+        return copy
+    }
+
+    // MARK: - Stroke
+
+    public func stroke(_ stroke: Stroke, _ paint: Paint) -> Surface {
+        var copy = self
+        copy.layers.append(StrokeLayer(stroke, paint))
+        return copy
+    }
+
+    public func border(_ color: Color, width: Double = 1) -> Surface {
+        stroke(Stroke(width: width), .color(color))
+    }
+
+    // MARK: - Shadow
+
+    public func shadow(color: Color = Color(0, 0, 0, 0.3), offset: Vec2 = Vec2(0, 4), blur: Double = 8) -> Surface {
+        var copy = self
+        copy.layers.append(ShadowLayer(color: color, offset: offset, blur: blur))
+        return copy
+    }
+
+    // MARK: - Transforms (wrap prior layers)
+
+    public func clip(_ clipShape: any Shape) -> Surface {
+        var copy = Surface()
+        copy.primaryColor = primaryColor; copy.glassStyle = glassStyle
+        copy.layers = [ClipLayer(clipShape: clipShape, children: layers)]
+        return copy
+    }
+
+    public func scale(_ sx: Double, _ sy: Double? = nil) -> Surface {
+        var copy = Surface()
+        copy.primaryColor = primaryColor; copy.glassStyle = glassStyle
+        copy.layers = [TransformLayer(sx: sx, sy: sy ?? sx, children: layers)]
+        return copy
+    }
+
+    public func translate(_ dx: Double, _ dy: Double) -> Surface {
+        var copy = Surface()
+        copy.primaryColor = primaryColor; copy.glassStyle = glassStyle
+        copy.layers = [TransformLayer(tx: dx, ty: dy, children: layers)]
+        return copy
+    }
+
+    public func rotate(_ radians: Double) -> Surface {
+        var copy = Surface()
+        copy.primaryColor = primaryColor; copy.glassStyle = glassStyle
+        copy.layers = [TransformLayer(rotation: radians, children: layers)]
+        return copy
+    }
+
+    public func fade(_ alpha: Double) -> Surface {
+        var copy = Surface()
+        copy.primaryColor = primaryColor; copy.glassStyle = glassStyle
+        copy.layers = [FadeLayer(opacity: alpha, children: layers)]
+        return copy
+    }
+
+    public func blend(_ mode: BlendMode) -> Surface {
+        var copy = Surface()
+        copy.primaryColor = primaryColor; copy.glassStyle = glassStyle
+        copy.layers = [BlendLayer(mode: mode, children: layers)]
+        return copy
+    }
+
+    // MARK: - Equality & Lerp
+
+    public func isEqual(to other: Surface) -> Bool {
+        layersEqual(layers, other.layers) && primaryColor == other.primaryColor && glassStyle == other.glassStyle
+    }
+
+    public func lerp(to other: Surface, t: Double) -> Surface {
+        var result = Surface()
+        result.layers = lerpLayers(layers, other.layers, t: t)
+        if let a = primaryColor, let b = other.primaryColor {
+            result.primaryColor = a.lerp(to: b, t: t)
+        } else {
+            result.primaryColor = t < 0.5 ? primaryColor : other.primaryColor
+        }
+        result.glassStyle = t < 0.5 ? glassStyle : other.glassStyle
+        return result
     }
 }
 
@@ -396,213 +690,20 @@ public struct CustomLayer: Layer {
 
 public struct SurfaceRenderer {
     public let surface: Surface
-    public let shape: Shape
+    public let shape: any Shape
     public let bounds: Rect
 
-    public init(surface: Surface, shape: Shape, bounds: Rect) {
+    public init(surface: Surface, shape: any Shape, bounds: Rect) {
         self.surface = surface
         self.shape = shape
         self.bounds = bounds
     }
 
-    public func render(on canvas: Canvas) {
-        let layers = surface.build(shape: shape)
-        let basePath = shape.resolve(in: bounds)
-        for layer in layers {
-            layer.render(on: canvas, path: basePath, bounds: bounds)
+    public func render(on canvas: any Canvas) {
+        let basePath = shape.path(in: bounds)
+        let context = SurfaceContext(canvas: canvas, path: basePath, bounds: bounds)
+        for layer in surface.layers {
+            layer.render(in: context)
         }
     }
 }
-
-/// A styled surface. Records rendering operations via fluent methods.
-/// Layers are materialized by `build(shape:)` at render time when the
-/// actual shape is known.
-///
-/// ```swift
-/// let card = Surface()
-///     .color(.white)
-///     .shadow(color: .black, blur: 8)
-///     .border(.gray)
-///
-/// // Render:
-/// let renderer = SurfaceRenderer(surface: card, shape: .roundedRect(radius: 12), bounds: rect)
-/// renderer.render(in: ctx)
-/// ```
-public final class Surface {
-    private var operations: [(Shape) -> [any Layer]] = []
-
-    /// First solid fill color this Surface was configured with, if any.
-    /// Recorded alongside the layer operation for consumers that need
-    /// a plain `UIColor` at the UIKit boundary (nav bars, tab bars,
-    /// `backgroundColor` settings) without re-deriving it from the
-    /// operation closures. First-wins — subsequent `.color(...)` calls
-    /// layer on top but don't overwrite this.
-    public private(set) var primaryColor: Color?
-
-    /// Liquid-Glass style, if this Surface expresses one. Set via
-    /// `Surface.glass(...)` / `.glass(...)`. Consumers with UIKit
-    /// integration (nav bar appearance, sheets, custom controls)
-    /// can read this to configure their native glass effect; pure
-    /// Canvas consumers ignore it — the effect is view-composited,
-    /// not drawn.
-    public private(set) var glassStyle: GlassStyle?
-
-    public init() {}
-
-    public init(_ build: (Surface) -> Surface) {
-        _ = build(self)
-    }
-
-    nonisolated(unsafe) public static let empty = Surface()
-
-    // MARK: - Static factories
-
-    public static func color(_ color: Color) -> Surface { Surface().color(color) }
-    public static func gradient(_ gradient: Gradient) -> Surface { Surface().gradient(gradient) }
-    public static func border(_ color: Color, width: Double = 1) -> Surface { Surface().border(color, width: width) }
-    public static func shadow(color: Color = Color(0, 0, 0, 0.3), offset: Vec2 = Vec2(0, 4), blur: Double = 8) -> Surface { Surface().shadow(color: color, offset: offset, blur: blur) }
-    public static func glass(_ style: GlassStyle = .regular) -> Surface { Surface().glass(style) }
-
-    /// Materialize layers for a given shape.
-    public func build(shape: Shape) -> [any Layer] {
-        var layers: [any Layer] = []
-        for op in operations {
-            layers.append(contentsOf: op(shape))
-        }
-        return layers
-    }
-
-    // MARK: - Fill (uses base shape)
-
-    @discardableResult
-    public func color(_ color: Color) -> Surface {
-        if primaryColor == nil { primaryColor = color }
-        operations.append { shape in [ShapeLayer(shape, .color(color))] }; return self
-    }
-
-    /// Declare this Surface as a Liquid-Glass material. Does not add
-    /// a drawable layer — glass is rendered by the OS via a view-level
-    /// effect, not by painting to a Canvas. Consumers that render
-    /// Surfaces through a UIView hierarchy pick this up via
-    /// `glassStyle` and install a `UIVisualEffectView(UIGlassEffect())`
-    /// as a backing layer; Canvas-only renderers ignore it.
-    @discardableResult
-    public func glass(_ style: GlassStyle = .regular) -> Surface {
-        self.glassStyle = style
-        return self
-    }
-
-    @discardableResult
-    public func gradient(_ gradient: Gradient) -> Surface {
-        operations.append { shape in [ShapeLayer(shape, .gradient(gradient))] }; return self
-    }
-
-    @discardableResult
-    public func image(_ image: ImageSource, fit: ContentFit = .cover) -> Surface {
-        operations.append { shape in [ShapeLayer(shape, Paint(.image(image, fit: fit)))] }; return self
-    }
-
-    // MARK: - Shape (draw additional shape)
-
-    @discardableResult
-    public func shape(_ shape: @escaping (Shape) -> Shape, _ paint: Paint) -> Surface {
-        operations.append { baseShape in [ShapeLayer(shape(baseShape), paint)] }; return self
-    }
-
-    // MARK: - Stroke
-
-    @discardableResult
-    public func stroke(_ stroke: Stroke, _ paint: Paint) -> Surface {
-        operations.append { _ in [StrokeLayer(stroke, paint)] }; return self
-    }
-
-    @discardableResult
-    public func border(_ color: Color, width: Double = 1) -> Surface {
-        stroke(Stroke(width: width), .color(color))
-    }
-
-    // MARK: - Shadow
-
-    @discardableResult
-    public func shadow(color: Color = Color(0, 0, 0, 0.3), offset: Vec2 = Vec2(0, 4), blur: Double = 8) -> Surface {
-        operations.append { _ in [ShadowLayer(color: color, offset: offset, blur: blur)] }; return self
-    }
-
-    // MARK: - Transforms (consume all prior operations)
-
-    @discardableResult
-    public func clip(_ clipShape: Shape) -> Surface {
-        wrapPrior { ClipLayer(shape: clipShape, children: $0) }
-    }
-
-    @discardableResult
-    public func scale(_ sx: Double, _ sy: Double? = nil) -> Surface {
-        let ssy = sy ?? sx
-        return wrapPrior { ScaleLayer(sx: sx, sy: ssy, children: $0) }
-    }
-
-    @discardableResult
-    public func translate(_ dx: Double, _ dy: Double) -> Surface {
-        wrapPrior { TranslateLayer(dx: dx, dy: dy, children: $0) }
-    }
-
-    @discardableResult
-    public func rotate(_ radians: Double) -> Surface {
-        wrapPrior { RotateLayer(radians: radians, children: $0) }
-    }
-
-    @discardableResult
-    public func transform(_ t: Transform2D) -> Surface {
-        wrapPrior { AffineTransformLayer(transform: t, children: $0) }
-    }
-
-    @discardableResult
-    public func fade(_ alpha: Double) -> Surface {
-        wrapPrior { FadeLayer(opacity: alpha, children: $0) }
-    }
-
-    @discardableResult
-    public func blend(_ mode: BlendMode) -> Surface {
-        wrapPrior { BlendLayer(mode: mode, children: $0) }
-    }
-
-    @discardableResult
-    public func filter(_ filter: Filter) -> Surface {
-        return self // TODO
-    }
-
-    @discardableResult
-    public func blur(_ radius: Double) -> Surface {
-        return self // TODO: backdrop
-    }
-
-    // MARK: - Compose (isolated sub-surface)
-
-    @discardableResult
-    public func compose(_ build: (Surface) -> Surface) -> Surface {
-        let inner = Surface()
-        _ = build(inner)
-        let innerOps = inner.operations
-        operations.append { shape in
-            var children: [any Layer] = []
-            for op in innerOps { children.append(contentsOf: op(shape)) }
-            return [ComposeLayer(children: children)]
-        }
-        return self
-    }
-
-    // MARK: - Internal
-
-    @discardableResult
-    private func wrapPrior(_ wrap: @escaping ([any Layer]) -> any Layer) -> Surface {
-        let prior = operations
-        operations = [{ shape in
-            var children: [any Layer] = []
-            for op in prior { children.append(contentsOf: op(shape)) }
-            return [wrap(children)]
-        }]
-        return self
-    }
-}
-
-// MARK: - SurfaceRenderer

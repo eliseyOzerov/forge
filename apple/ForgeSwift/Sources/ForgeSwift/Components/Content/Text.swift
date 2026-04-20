@@ -7,21 +7,21 @@ import CoreText
 #endif
 
 public struct TextStyle: Sendable {
-    public var font: Font
+    public var font: Font?
     public var color: Color?
     public var maxLines: Int?
-    public var align: TextAlign
-    public var textCase: TextCase
-    public var overflow: TextOverflow
+    public var align: TextAlign?
+    public var textCase: TextCase?
+    public var overflow: TextOverflow?
     public var decoration: TextDecoration?
 
     public init(
-        font: Font = Font(),
+        font: Font? = nil,
         color: Color? = nil,
         maxLines: Int? = nil,
-        align: TextAlign = .leading,
-        textCase: TextCase = .none,
-        overflow: TextOverflow = .ellipsis,
+        align: TextAlign? = nil,
+        textCase: TextCase? = nil,
+        overflow: TextOverflow? = nil,
         decoration: TextDecoration? = nil
     ) {
         self.font = font
@@ -31,6 +31,20 @@ public struct TextStyle: Sendable {
         self.textCase = textCase
         self.overflow = overflow
         self.decoration = decoration
+    }
+
+    /// Merge this style over a base. Non-nil fields in `self` win;
+    /// nil fields fall through to `base`.
+    public func merged(over base: TextStyle) -> TextStyle {
+        TextStyle(
+            font: font ?? base.font,
+            color: color ?? base.color,
+            maxLines: maxLines ?? base.maxLines,
+            align: align ?? base.align,
+            textCase: textCase ?? base.textCase,
+            overflow: overflow ?? base.overflow,
+            decoration: decoration ?? base.decoration
+        )
     }
 }
 
@@ -390,7 +404,7 @@ public struct ShadowConfig: Sendable {
     }
 }
 
-public struct Text: LeafView {
+public struct Text: BuiltView {
     public let content: String
     public let style: TextStyle
 
@@ -399,7 +413,18 @@ public struct Text: LeafView {
         self.style = style
     }
 
-    public func makeRenderer() -> Renderer {
+    public func build(context: ViewContext) -> any View {
+        let provided = context.tryRead(TextStyle.self)
+        let resolved = provided != nil ? style.merged(over: provided!) : style
+        return TextLeaf(content: content, style: resolved)
+    }
+}
+
+struct TextLeaf: LeafView {
+    let content: String
+    let style: TextStyle
+
+    func makeRenderer() -> Renderer {
         #if canImport(UIKit)
         return UIKitTextRenderer(view: self)
         #elseif canImport(AppKit)
@@ -415,9 +440,9 @@ import UIKit
 
 final class UIKitTextRenderer: Renderer {
     private weak var label: UILabel?
-    private var view: Text
+    private var view: TextLeaf
 
-    init(view: Text) {
+    init(view: TextLeaf) {
         self.view = view
     }
 
@@ -429,42 +454,49 @@ final class UIKitTextRenderer: Renderer {
     }
 
     func update(from newView: any View) {
-        guard let text = newView as? Text, let label else { return }
+        guard let text = newView as? TextLeaf, let label else { return }
         let old = view
         view = text
 
         applyAttributedString()
 
+        let oldFont = old.style.font ?? Font()
+        let newFont = text.style.font ?? Font()
         let needsLayout = old.content != text.content
             || old.style.textCase != text.style.textCase
             || old.style.maxLines != text.style.maxLines
-            || old.style.font.size != text.style.font.size
-            || old.style.font.weight != text.style.font.weight
-            || old.style.font.family != text.style.font.family
-            || old.style.font.italic != text.style.font.italic
-            || old.style.font.tracking != text.style.font.tracking
-            || old.style.font.height != text.style.font.height
+            || oldFont.size != newFont.size
+            || oldFont.weight != newFont.weight
+            || oldFont.family != newFont.family
+            || oldFont.italic != newFont.italic
+            || oldFont.tracking != newFont.tracking
+            || oldFont.height != newFont.height
         if needsLayout { label.superview?.setNeedsLayout() }
     }
 
     private func applyAttributedString() {
         guard let label else { return }
-        let displayText = view.style.textCase.apply(to: view.content)
-        let font = view.style.font.resolvedFont
+        let style = view.style
+        let font = (style.font ?? Font()).resolvedFont
+        let align = style.align ?? .leading
+        let textCase = style.textCase ?? .none
+        let overflow = style.overflow ?? .ellipsis
+
+        let displayText = textCase.apply(to: view.content)
         let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.alignment = view.style.align.nsTextAlignment
-        paragraphStyle.lineBreakMode = view.style.overflow.lineBreakMode
-        paragraphStyle.lineSpacing = view.style.font.resolvedLineSpacing
+        paragraphStyle.alignment = align.nsTextAlignment
+        paragraphStyle.lineBreakMode = overflow.lineBreakMode
+        paragraphStyle.lineSpacing = (style.font ?? Font()).resolvedLineSpacing
 
         var attributes: [NSAttributedString.Key: Any] = [
             .font: font,
             .paragraphStyle: paragraphStyle,
-            .kern: view.style.font.tracking,
+            .kern: (style.font ?? Font()).tracking,
         ]
 
-        attributes[.foregroundColor] = view.style.color?.platformColor ?? UIColor.label
+        attributes[.foregroundColor] = style.color?.platformColor ?? UIColor.label
 
-        if let decoration = view.style.decoration {
+        if let decoration = style.decoration {
             if let line = decoration.line {
                 switch line.position {
                 case .underline:
@@ -485,7 +517,7 @@ final class UIKitTextRenderer: Renderer {
         }
 
         label.attributedText = NSAttributedString(string: displayText, attributes: attributes)
-        label.numberOfLines = view.style.maxLines ?? 0
+        label.numberOfLines = style.maxLines ?? 0
     }
 }
 

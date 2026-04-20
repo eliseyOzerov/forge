@@ -272,7 +272,7 @@ public struct CheckboxPainter: TogglePainter {
 
         if progress < 1 {
             var border = Path(); border.addRoundedRect(r, cornerWidth: cornerRadius, cornerHeight: cornerRadius)
-            canvas.draw(border.stroked(width: strokeWidth), with: Paint(.color(offColor.withAlpha(1 - progress)), opacity: 0.5))
+            canvas.draw(border.stroked(width: strokeWidth), with: Paint(ColorFill(offColor.withAlpha(1 - progress)), opacity: 0.5))
         }
 
         if progress > 0 {
@@ -280,7 +280,7 @@ public struct CheckboxPainter: TogglePainter {
             check.move(to: Point(r.x + r.width * 0.22, r.y + r.height * 0.52))
             check.line(to: Point(r.x + r.width * 0.42, r.y + r.height * 0.72))
             check.line(to: Point(r.x + r.width * 0.78, r.y + r.height * 0.32))
-            canvas.draw(check.stroked(width: strokeWidth * 1.5, cap: .round, join: .round), with: Paint(.color(.white), opacity: progress))
+            canvas.draw(check.stroked(width: strokeWidth * 1.5, cap: .round, join: .round), with: Paint(ColorFill(.white), opacity: progress))
         }
 
         if scale != 1.0 { canvas.restore() }
@@ -374,7 +374,7 @@ public struct HeartPainter: TogglePainter {
         let heart = Self.heartPath(center: Vec2(bounds.midX, bounds.midY), size: s)
 
         if progress > 0 {
-            canvas.draw(heart, with: Paint(.color(onColor), opacity: progress))
+            canvas.draw(heart, with: Paint(ColorFill(onColor), opacity: progress))
         }
         let outline = heart.stroked(width: s * 0.06, cap: .round, join: .round)
         canvas.draw(outline, with: .color(offColor.lerp(to: onColor, t: progress)))
