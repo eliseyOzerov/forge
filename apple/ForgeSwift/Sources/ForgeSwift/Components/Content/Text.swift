@@ -545,7 +545,9 @@ extension TextAlign {
     var nsTextAlignment: NSTextAlignment {
         switch self {
         case .leading: .natural
-        case .trailing: .right
+        case .trailing:
+            let isRTL = NSParagraphStyle.defaultWritingDirection(forLanguage: "") == .rightToLeft
+            return isRTL ? .left : .right
         case .center: .center
         case .justify: .justified
         }
