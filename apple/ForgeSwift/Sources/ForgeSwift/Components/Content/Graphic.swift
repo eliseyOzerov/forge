@@ -7,44 +7,29 @@ import UIKit
 
 // MARK: - Graphic
 
-/// Vector graphic component. Parses SVG data, builds a Surface from it,
-/// renders into a cached bitmap.
-///
-/// Constructors:
-/// - `Graphic(svg:)` — from SVG string (synchronous)
-/// - `Graphic(data:)` — from raw Data (synchronous)
-/// - `Graphic(asset:)` — from bundle asset name (synchronous, optional error)
-/// - `Graphic(file:)` — from file URL (async)
-/// - `Graphic(url:)` — from remote URL (async)
+/// Vector graphic component. Parses SVG data, renders into a cached bitmap.
 public struct Graphic: LeafView {
-    public let source: GraphicSource
-    public let overrides: [String: GraphicOverride]
-    public let color: Color?
-    public let size: CGSize?
+    public var source: GraphicSource
+    public var style: GraphicStyle
 
-    public init(svg: String, color: Color? = nil, size: CGSize? = nil, overrides: [String: GraphicOverride] = [:]) {
-        self.source = .string(svg)
-        self.color = color; self.size = size; self.overrides = overrides
+    public init(svg: String, style: GraphicStyle = GraphicStyle()) {
+        self.source = .string(svg); self.style = style
     }
 
-    public init(data: Data, color: Color? = nil, size: CGSize? = nil, overrides: [String: GraphicOverride] = [:]) {
-        self.source = .data(data)
-        self.color = color; self.size = size; self.overrides = overrides
+    public init(data: Data, style: GraphicStyle = GraphicStyle()) {
+        self.source = .data(data); self.style = style
     }
 
-    public init(asset name: String, color: Color? = nil, size: CGSize? = nil, overrides: [String: GraphicOverride] = [:]) {
-        self.source = .asset(name)
-        self.color = color; self.size = size; self.overrides = overrides
+    public init(asset name: String, style: GraphicStyle = GraphicStyle()) {
+        self.source = .asset(name); self.style = style
     }
 
-    public init(file url: URL, color: Color? = nil, size: CGSize? = nil, overrides: [String: GraphicOverride] = [:]) {
-        self.source = .file(url)
-        self.color = color; self.size = size; self.overrides = overrides
+    public init(file url: URL, style: GraphicStyle = GraphicStyle()) {
+        self.source = .file(url); self.style = style
     }
 
-    public init(url: URL, color: Color? = nil, size: CGSize? = nil, overrides: [String: GraphicOverride] = [:]) {
-        self.source = .url(url)
-        self.color = color; self.size = size; self.overrides = overrides
+    public init(url: URL, style: GraphicStyle = GraphicStyle()) {
+        self.source = .url(url); self.style = style
     }
 
     public func makeRenderer() -> Renderer {
@@ -54,6 +39,24 @@ public struct Graphic: LeafView {
         fatalError("Graphic not yet implemented for this platform")
         #endif
     }
+}
+
+public extension Graphic {
+    /// Configure style. The callback receives the current style for modification.
+    func style(_ build: (GraphicStyle) -> GraphicStyle) -> Graphic {
+        var copy = self
+        copy.style = build(style)
+        return copy
+    }
+}
+
+// MARK: - GraphicStyle
+
+@Init @Copy
+public struct GraphicStyle {
+    public var color: Color? = nil
+    public var size: CGSize? = nil
+    public var overrides: [String: GraphicOverride] = [:]
 }
 
 // MARK: - GraphicSource
@@ -102,24 +105,27 @@ final class GraphicUIKitRenderer: Renderer {
             graphicView.superview?.setNeedsLayout()
         }
 
+        let oldStyle = old.style
+        let newStyle = graphic.style
+
         // Size changed → relayout + redraw
-        if old.size != graphic.size {
-            graphicView.graphicSize = graphic.size
+        if oldStyle.size != newStyle.size {
+            graphicView.graphicSize = newStyle.size
             graphicView.invalidateIntrinsicContentSize()
             graphicView.setNeedsDisplay()
             graphicView.superview?.setNeedsLayout()
         }
 
         // Color/overrides changed → redraw only
-        let colorChanged = old.color != graphic.color
+        let colorChanged = oldStyle.color != newStyle.color
         if colorChanged {
-            graphicView.graphicColor = graphic.color
+            graphicView.graphicColor = newStyle.color
             graphicView.cachedImage = nil
             graphicView.setNeedsDisplay()
         }
 
         // Overrides — always apply (no Equatable)
-        graphicView.graphicOverrides = graphic.overrides
+        graphicView.graphicOverrides = newStyle.overrides
         if !sourceChanged && !colorChanged {
             graphicView.cachedImage = nil
             graphicView.setNeedsDisplay()
@@ -130,9 +136,9 @@ final class GraphicUIKitRenderer: Renderer {
         let gv = GraphicView()
         self.graphicView = gv
         applyDocument(to: gv)
-        gv.graphicColor = view.color
-        gv.graphicSize = view.size
-        gv.graphicOverrides = view.overrides
+        gv.graphicColor = view.style.color
+        gv.graphicSize = view.style.size
+        gv.graphicOverrides = view.style.overrides
         return gv
     }
 

@@ -41,6 +41,25 @@ Use Forge macros (defined in `ForgeSwiftMacros`) instead of writing boilerplate 
 
 - If convenience initializers are needed beyond what `@Init` generates, place them in an **extension** — not in the primary declaration.
 
+## View Data vs Style
+
+View structs separate **data** parameters (unique to the instance) from **style** parameters (reusable presentation).
+
+- **Data:** the content the view displays or binds to (e.g. `source`, `value`, `content`).
+- **Style:** visual / behavioral knobs collected in a `[Component]Style` struct (e.g. `GraphicStyle`, `ButtonStyle`).
+
+Every view that has a style must expose a `style(_:)` extension method that returns a copy with the style applied. The closure receives the default style (and, for inputs, the current `State`):
+
+```swift
+// Content view (no state)
+public func style(_ build: (IconStyle) -> IconStyle) -> Icon { … }
+
+// Input view (state-aware)
+func style(_ build: @escaping @MainActor (ButtonStyle, State) -> ButtonStyle) -> Button { … }
+```
+
+This lets callers keep defaults and override selectively. Utility/layout views that have no meaningful visual style may omit this.
+
 ## Swift File Ordering
 
 Each file must keep the main struct/type it represents at the top. If the filename is `Graphic.swift`, the first struct is `Graphic`. This does not apply to general library files that contain many types of equal importance.
