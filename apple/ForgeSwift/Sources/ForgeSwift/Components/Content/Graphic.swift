@@ -68,16 +68,13 @@ public enum GraphicSource {
 
 // MARK: - GraphicOverride
 
+@Init @Copy
 public struct GraphicOverride {
-    public var fill: Color?
-    public var stroke: Color?
-    public var strokeWidth: Double?
-    public var opacity: Double?
-    public var isHidden: Bool
-
-    public init(fill: Color? = nil, stroke: Color? = nil, strokeWidth: Double? = nil, opacity: Double? = nil, isHidden: Bool = false) {
-        self.fill = fill; self.stroke = stroke; self.strokeWidth = strokeWidth; self.opacity = opacity; self.isHidden = isHidden
-    }
+    public var fill: Color? = nil
+    public var stroke: Color? = nil
+    public var strokeWidth: Double? = nil
+    public var opacity: Double? = nil
+    public var isHidden: Bool = false
 }
 
 // MARK: - Renderer
@@ -237,16 +234,11 @@ final class GraphicView: UIView {
 
 /// Paints an SVGDocument directly onto a Canvas. No intermediate
 /// Surface or Layer tree — just immediate draw calls.
+@Init
 public struct SVGPainter {
     public let document: SVGDocument
-    public let overrides: [String: GraphicOverride]
-    public let globalColor: Color?
-
-    public init(document: SVGDocument, overrides: [String: GraphicOverride] = [:], globalColor: Color? = nil) {
-        self.document = document
-        self.overrides = overrides
-        self.globalColor = globalColor
-    }
+    public let overrides: [String: GraphicOverride] = [:]
+    public let globalColor: Color? = nil
 
     public func paint(on canvas: Canvas) {
         for element in document.elements {
@@ -349,6 +341,7 @@ public struct SVGPainter {
 
 // MARK: - SVG Document
 
+@Init
 public struct SVGDocument {
     public let viewBox: CGRect
     public let elements: [SVGElement]
@@ -386,20 +379,17 @@ public indirect enum SVGElement {
 
 // MARK: - Element Data
 
+@Init
 public struct SVGPaintAttributes {
-    public var fill: SVGPaint
-    public var stroke: SVGPaint
-    public var strokeWidth: CGFloat
-    public var strokeLineCap: CGLineCap
-    public var strokeLineJoin: CGLineJoin
-    public var opacity: Double
-    public var transform: CGAffineTransform
+    public var fill: SVGPaint = .color(.black)
+    public var stroke: SVGPaint = .none
+    public var strokeWidth: CGFloat = 1
+    public var strokeLineCap: CGLineCap = .butt
+    public var strokeLineJoin: CGLineJoin = .miter
+    public var opacity: Double = 1
+    public var transform: CGAffineTransform = .identity
 
-    nonisolated(unsafe) public static let defaults = SVGPaintAttributes(
-        fill: .color(.black), stroke: .none, strokeWidth: 1,
-        strokeLineCap: .butt, strokeLineJoin: .miter,
-        opacity: 1, transform: .identity
-    )
+    nonisolated(unsafe) public static let defaults = SVGPaintAttributes()
 }
 
 public enum SVGPaint {
@@ -408,13 +398,54 @@ public enum SVGPaint {
     case currentColor
 }
 
-public struct SVGPathData { public let id: String; public let d: String; public let attributes: SVGPaintAttributes }
-public struct SVGRectData { public let id: String; public let x, y, width, height, rx, ry: CGFloat; public let attributes: SVGPaintAttributes }
-public struct SVGCircleData { public let id: String; public let cx, cy, r: CGFloat; public let attributes: SVGPaintAttributes }
-public struct SVGEllipseData { public let id: String; public let cx, cy, rx, ry: CGFloat; public let attributes: SVGPaintAttributes }
-public struct SVGLineData { public let id: String; public let x1, y1, x2, y2: CGFloat; public let attributes: SVGPaintAttributes }
-public struct SVGPolygonData { public let id: String; public let points: [Point]; public let attributes: SVGPaintAttributes }
-public struct SVGGroupData { public let id: String; public let attributes: SVGPaintAttributes; public let children: [SVGElement] }
+@Init
+public struct SVGPathData {
+    public let id: String
+    public let d: String
+    public let attributes: SVGPaintAttributes
+}
+
+@Init
+public struct SVGRectData {
+    public let id: String
+    public let x, y, width, height, rx, ry: CGFloat
+    public let attributes: SVGPaintAttributes
+}
+
+@Init
+public struct SVGCircleData {
+    public let id: String
+    public let cx, cy, r: CGFloat
+    public let attributes: SVGPaintAttributes
+}
+
+@Init
+public struct SVGEllipseData {
+    public let id: String
+    public let cx, cy, rx, ry: CGFloat
+    public let attributes: SVGPaintAttributes
+}
+
+@Init
+public struct SVGLineData {
+    public let id: String
+    public let x1, y1, x2, y2: CGFloat
+    public let attributes: SVGPaintAttributes
+}
+
+@Init
+public struct SVGPolygonData {
+    public let id: String
+    public let points: [Point]
+    public let attributes: SVGPaintAttributes
+}
+
+@Init
+public struct SVGGroupData {
+    public let id: String
+    public let attributes: SVGPaintAttributes
+    public let children: [SVGElement]
+}
 
 // MARK: - Parser
 
