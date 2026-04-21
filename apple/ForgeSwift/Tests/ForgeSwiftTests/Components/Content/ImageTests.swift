@@ -8,204 +8,195 @@ final class ImageTests: XCTestCase {
 
     // MARK: - Helpers
 
-    /// Create a solid-color test image of given size.
-    private func testImage(width: Int = 100, height: Int = 100, color: UIColor = .red) -> UIImage {
+    private func testImageData(width: Int = 100, height: Int = 100, color: UIColor = .red) -> Data {
         let renderer = UIGraphicsImageRenderer(size: CGSize(width: width, height: height))
-        return renderer.image { ctx in
+        let image = renderer.image { ctx in
             color.setFill()
             ctx.fill(CGRect(x: 0, y: 0, width: width, height: height))
         }
+        return image.pngData()!
     }
 
-    // MARK: - Mount
-
-    func testMountProducesImageView() {
-        let img = Image(testImage())
-        let view = img.makeRenderer().mount()
-        XCTAssertTrue(view is UIImageView)
+    private func makeLeaf(
+        resolved: ResolvedImage? = nil,
+        style: ImageStyle = ImageStyle()
+    ) -> ImageLeaf {
+        ImageLeaf(resolved: resolved ?? .data(testImageData()), style: style)
     }
 
-    func testMountSetsImage() {
-        let uiImage = testImage()
-        let img = Image(uiImage)
-        let view = img.makeRenderer().mount() as! UIImageView
-        XCTAssertNotNil(view.image)
-        XCTAssertEqual(view.image?.size, uiImage.size)
+    // MARK: - ImageOrigin
+
+    func testImageOriginEquality() {
+        let url = URL(string: "https://example.com/img.png")!
+        let data = testImageData()
+
+        XCTAssertTrue(originEqual(.image("logo"), .image("logo")))
+        XCTAssertTrue(originEqual(.asset("data"), .asset("data")))
+        XCTAssertTrue(originEqual(.resource("file.png"), .resource("file.png")))
+        XCTAssertTrue(originEqual(.url(url), .url(url)))
+        XCTAssertTrue(originEqual(.file(url), .file(url)))
+        XCTAssertTrue(originEqual(.bytes(data), .bytes(data)))
+
+        XCTAssertFalse(originEqual(.image("a"), .image("b")))
+        XCTAssertFalse(originEqual(.image("x"), .asset("x")))
     }
 
-    func testMountWithInvalidName() {
-        let img = Image(named: "nonexistent_image_xyz")
-        let view = img.makeRenderer().mount() as! UIImageView
-        // UIImage(named:) returns nil → empty UIImage
-        XCTAssertNotNil(view.image)
-        XCTAssertEqual(view.image?.size, .zero)
+    private func originEqual(_ a: ImageOrigin, _ b: ImageOrigin) -> Bool {
+        switch (a, b) {
+        case (.image(let a), .image(let b)): return a == b
+        case (.asset(let a), .asset(let b)): return a == b
+        case (.resource(let a), .resource(let b)): return a == b
+        case (.file(let a), .file(let b)): return a == b
+        case (.url(let a), .url(let b)): return a == b
+        case (.bytes(let a), .bytes(let b)): return a == b
+        default: return false
+        }
     }
 
     // MARK: - Style Defaults
 
     func testDefaultStyle() {
         let style = ImageStyle()
-        XCTAssertEqual(style.fit, .aspectFit)
-        XCTAssertNil(style.tintColor)
-        XCTAssertEqual(style.cornerRadius, 0)
+        XCTAssertNil(style.size)
+        XCTAssertEqual(style.fit, .cover)
+        XCTAssertNil(style.state)
     }
 
-    // MARK: - Content Mode (Fit)
-
-    func testFitAspectFit() {
-        let img = Image(testImage(), style: ImageStyle(fit: .aspectFit))
-        let view = img.makeRenderer().mount() as! UIImageView
-        XCTAssertEqual(view.contentMode, .scaleAspectFit)
-    }
-
-    func testFitAspectFill() {
-        let img = Image(testImage(), style: ImageStyle(fit: .aspectFill))
-        let view = img.makeRenderer().mount() as! UIImageView
-        XCTAssertEqual(view.contentMode, .scaleAspectFill)
-    }
-
-    func testFitFill() {
-        let img = Image(testImage(), style: ImageStyle(fit: .fill))
-        let view = img.makeRenderer().mount() as! UIImageView
-        XCTAssertEqual(view.contentMode, .scaleToFill)
-    }
-
-    func testFitCenter() {
-        let img = Image(testImage(), style: ImageStyle(fit: .center))
-        let view = img.makeRenderer().mount() as! UIImageView
-        XCTAssertEqual(view.contentMode, .center)
-    }
-
-    // MARK: - ImageFit enum mapping
+    // MARK: - ImageFit Mapping
 
     func testImageFitMapping() {
-        XCTAssertEqual(ImageFit.aspectFit.uiContentMode, .scaleAspectFit)
-        XCTAssertEqual(ImageFit.aspectFill.uiContentMode, .scaleAspectFill)
+        XCTAssertEqual(ImageFit.cover.uiContentMode, .scaleAspectFill)
+        XCTAssertEqual(ImageFit.contain.uiContentMode, .scaleAspectFit)
         XCTAssertEqual(ImageFit.fill.uiContentMode, .scaleToFill)
         XCTAssertEqual(ImageFit.center.uiContentMode, .center)
     }
 
-    // MARK: - Tint Color
+    // MARK: - Renderer Mount
 
-    func testTintColorSetsTemplate() {
-        let img = Image(testImage(), style: ImageStyle(tintColor: .blue))
-        let view = img.makeRenderer().mount() as! UIImageView
-        XCTAssertEqual(view.image?.renderingMode, .alwaysTemplate)
-        XCTAssertEqual(view.tintColor, Color.blue.platformColor)
+    func testMountProducesImageView() {
+        let leaf = makeLeaf()
+        let view = leaf.makeRenderer().mount()
+        XCTAssertTrue(view is UIImageView)
     }
 
-    func testNoTintKeepsOriginal() {
-        let img = Image(testImage(), style: ImageStyle())
-        let view = img.makeRenderer().mount() as! UIImageView
-        XCTAssertNotEqual(view.image?.renderingMode, .alwaysTemplate)
+    func testMountSetsImage() {
+        let data = testImageData()
+        let leaf = makeLeaf(resolved: .data(data))
+        let view = leaf.makeRenderer().mount() as! UIImageView
+        XCTAssertNotNil(view.image)
     }
 
-    // MARK: - Corner Radius
-
-    func testCornerRadiusApplied() {
-        let img = Image(testImage(), style: ImageStyle(cornerRadius: 12))
-        let view = img.makeRenderer().mount() as! UIImageView
-        XCTAssertEqual(view.layer.cornerRadius, 12)
-    }
-
-    func testZeroCornerRadius() {
-        let img = Image(testImage(), style: ImageStyle(cornerRadius: 0))
-        let view = img.makeRenderer().mount() as! UIImageView
-        XCTAssertEqual(view.layer.cornerRadius, 0)
-    }
-
-    // MARK: - Clips to Bounds
-
-    func testClipsToBounds() {
-        let img = Image(testImage(), style: ImageStyle(fit: .aspectFill))
-        let view = img.makeRenderer().mount() as! UIImageView
+    func testMountClipsToBounds() {
+        let leaf = makeLeaf()
+        let view = leaf.makeRenderer().mount() as! UIImageView
         XCTAssertTrue(view.clipsToBounds)
     }
 
-    // MARK: - Update
+    // MARK: - Renderer Fit
+
+    func testFitCover() {
+        let leaf = makeLeaf(style: ImageStyle(fit: .cover))
+        let view = leaf.makeRenderer().mount() as! UIImageView
+        XCTAssertEqual(view.contentMode, .scaleAspectFill)
+    }
+
+    func testFitContain() {
+        let leaf = makeLeaf(style: ImageStyle(fit: .contain))
+        let view = leaf.makeRenderer().mount() as! UIImageView
+        XCTAssertEqual(view.contentMode, .scaleAspectFit)
+    }
+
+    func testFitFill() {
+        let leaf = makeLeaf(style: ImageStyle(fit: .fill))
+        let view = leaf.makeRenderer().mount() as! UIImageView
+        XCTAssertEqual(view.contentMode, .scaleToFill)
+    }
+
+    func testFitCenter() {
+        let leaf = makeLeaf(style: ImageStyle(fit: .center))
+        let view = leaf.makeRenderer().mount() as! UIImageView
+        XCTAssertEqual(view.contentMode, .center)
+    }
+
+    // MARK: - Renderer Size
+
+    func testSizeApplied() {
+        let leaf = makeLeaf(style: ImageStyle(size: Size(200, 150)))
+        let view = leaf.makeRenderer().mount() as! UIImageView
+        XCTAssertEqual(view.frame.size.width, 200)
+        XCTAssertEqual(view.frame.size.height, 150)
+    }
+
+    func testNoSizeDoesNotSetFrame() {
+        let leaf = makeLeaf(style: ImageStyle())
+        let view = leaf.makeRenderer().mount() as! UIImageView
+        XCTAssertEqual(view.frame.size, .zero)
+    }
+
+    // MARK: - Renderer Update
 
     func testUpdateChangesImage() {
-        let img1 = testImage(color: .red)
-        let img2 = testImage(color: .blue)
+        let data1 = testImageData(color: .red)
+        let data2 = testImageData(color: .blue)
 
-        let renderer = UIKitImageRenderer(view: Image(img1, style: ImageStyle()))
+        let renderer = UIKitImageRenderer(view: makeLeaf(resolved: .data(data1)))
         let view = renderer.mount() as! UIImageView
-        XCTAssertEqual(view.image?.size, img1.size)
+        let originalImage = view.image
 
-        renderer.update(from: Image(img2, style: ImageStyle()))
-        XCTAssertEqual(view.image?.size, img2.size)
+        renderer.update(from: ImageLeaf(resolved: .data(data2), style: ImageStyle()))
+        XCTAssertNotEqual(view.image?.pngData(), originalImage?.pngData())
     }
 
     func testUpdateChangesContentMode() {
-        let renderer = UIKitImageRenderer(view: Image(testImage(), style: ImageStyle(fit: .aspectFit)))
+        let renderer = UIKitImageRenderer(view: makeLeaf(style: ImageStyle(fit: .contain)))
         let view = renderer.mount() as! UIImageView
         XCTAssertEqual(view.contentMode, .scaleAspectFit)
 
-        renderer.update(from: Image(testImage(), style: ImageStyle(fit: .fill)))
+        renderer.update(from: makeLeaf(style: ImageStyle(fit: .fill)))
         XCTAssertEqual(view.contentMode, .scaleToFill)
     }
 
-    func testUpdateChangesCornerRadius() {
-        let renderer = UIKitImageRenderer(view: Image(testImage(), style: ImageStyle(cornerRadius: 0)))
+    func testUpdateChangesSize() {
+        let renderer = UIKitImageRenderer(view: makeLeaf(style: ImageStyle()))
         let view = renderer.mount() as! UIImageView
-        XCTAssertEqual(view.layer.cornerRadius, 0)
+        XCTAssertEqual(view.frame.size, .zero)
 
-        renderer.update(from: Image(testImage(), style: ImageStyle(cornerRadius: 20)))
-        XCTAssertEqual(view.layer.cornerRadius, 20)
+        renderer.update(from: makeLeaf(style: ImageStyle(size: Size(50, 50))))
+        XCTAssertEqual(view.frame.size, CGSize(width: 50, height: 50))
     }
 
-    func testUpdateChangesToTinted() {
-        let renderer = UIKitImageRenderer(view: Image(testImage(), style: ImageStyle()))
-        let view = renderer.mount() as! UIImageView
-        XCTAssertNotEqual(view.image?.renderingMode, .alwaysTemplate)
+    // MARK: - Named Image (Image Set)
 
-        renderer.update(from: Image(testImage(), style: ImageStyle(tintColor: .green)))
-        XCTAssertEqual(view.image?.renderingMode, .alwaysTemplate)
-        XCTAssertEqual(view.tintColor, Color.green.platformColor)
+    func testNamedResolution() {
+        let leaf = ImageLeaf(resolved: .named("nonexistent_image_xyz"), style: ImageStyle())
+        let view = leaf.makeRenderer().mount() as! UIImageView
+        XCTAssertNil(view.image)
     }
 
-    // MARK: - Layout: Size after fit
+    // MARK: - Bytes Source
 
-    func testAspectFitPreservesAspectRatio() {
-        // 200x100 image in 100x100 container → image should be 100x50
-        let uiImage = testImage(width: 200, height: 100)
-        let img = Image(uiImage, style: ImageStyle(fit: .aspectFit))
-        let view = img.makeRenderer().mount() as! UIImageView
-        view.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
-        view.layoutIfNeeded()
-        XCTAssertEqual(view.contentMode, .scaleAspectFit)
-        // The UIImageView itself is 100x100, but the image is aspect-fitted inside
-        XCTAssertEqual(view.frame.width, 100)
-        XCTAssertEqual(view.frame.height, 100)
-    }
-
-    func testFillStretchesFull() {
-        let uiImage = testImage(width: 200, height: 100)
-        let img = Image(uiImage, style: ImageStyle(fit: .fill))
-        let view = img.makeRenderer().mount() as! UIImageView
-        view.frame = CGRect(x: 0, y: 0, width: 50, height: 50)
-        view.layoutIfNeeded()
-        XCTAssertEqual(view.contentMode, .scaleToFill)
-        XCTAssertEqual(view.frame.width, 50)
-        XCTAssertEqual(view.frame.height, 50)
-    }
-
-    // MARK: - Different Image Sizes
-
-    func testSmallImage() {
-        let uiImage = testImage(width: 1, height: 1)
-        let img = Image(uiImage)
-        let view = img.makeRenderer().mount() as! UIImageView
+    func testBytesResolveImmediately() {
+        let data = testImageData()
+        let leaf = makeLeaf(resolved: .data(data))
+        let view = leaf.makeRenderer().mount() as! UIImageView
         XCTAssertNotNil(view.image)
-        XCTAssertEqual(view.image?.size, CGSize(width: 1, height: 1))
+        XCTAssertEqual(view.image?.size, CGSize(width: 100, height: 100))
     }
 
-    func testLargeImage() {
-        let uiImage = testImage(width: 4000, height: 3000)
-        let img = Image(uiImage)
-        let view = img.makeRenderer().mount() as! UIImageView
-        XCTAssertNotNil(view.image)
-        XCTAssertEqual(view.image?.size, CGSize(width: 4000, height: 3000))
+    // MARK: - Image Public API
+
+    func testImageInit() {
+        let img = Image(.url(URL(string: "https://example.com/img.png")!))
+        XCTAssertNotNil(img.source)
+    }
+
+    func testImageStyleClosure() {
+        let img = Image(.bytes(testImageData()))
+            .style { style, state in
+                style.copy { $0.fit = .fill }
+            }
+        let resolved = img.style(.idle)
+        XCTAssertEqual(resolved.fit, .fill)
     }
 }
 

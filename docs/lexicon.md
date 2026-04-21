@@ -238,12 +238,14 @@ One-sentence description of every Forge type. Paths are relative to `apple/Forge
 | `SymbolRole` | Named symbol role token. | `Components/Content/Symbol.swift` |
 | `SymbolTheme` | Theme for symbols with per-role defaults. | `Components/Content/Symbol.swift` |
 | `Weight` | Shared font/icon weight enum (ultraLight through black, plus numeric). | `Core/Data/Weight.swift` |
-| `Image` | Static image leaf view; styled via ImageStyle. | `Components/Content/Image.swift` |
-| `ImageStyle` | Visual styling for Image (fit, tint, corner radius). | `Components/Content/Image.swift` |
-| `ImageFit` | How an image fits its container (cover, contain, fill, etc.). | `Components/Content/Image.swift` |
-| `AsyncImage` | ModelView that loads and displays a remote image asynchronously. | `Components/Content/Image.swift` |
-| `AsyncImageModel` | Persistent state for AsyncImage handling load lifecycle. | `Components/Content/Image.swift` |
-| `AsyncImageBuilder` | Per-render builder for AsyncImage. | `Components/Content/Image.swift` |
+| `Image` | ModelView that loads and displays images from various sources (image set, data asset, bundle resource, file, URL, bytes); styled via ImageStyle. | `Components/Content/Image.swift` |
+| `ImageStyle` | Visual styling for Image (size, fit, state view builder for loading/error). | `Components/Content/Image.swift` |
+| `ImageOrigin` | Platform-agnostic image source enum (image, asset, resource, file, url, bytes). | `Components/Content/Image.swift` |
+| `ImageFit` | How an image fits its container (cover, contain, fill, center). | `Components/Content/Image.swift` |
+| `ResolvedImage` | Internal enum for resolved image data (named image set or raw data). | `Components/Content/Image.swift` |
+| `ImageLeaf` | Internal leaf view that renders a resolved image via platform renderer. | `Components/Content/Image.swift` |
+| `ImageModel` | Persistent state managing async image loading lifecycle. | `Components/Content/Image.swift` |
+| `ImageBuilder` | Per-render builder that shows state view or loaded image. | `Components/Content/Image.swift` |
 | `Loader` | Loading spinner/progress indicator leaf view. | `Components/Content/Loader.swift` |
 | `LoaderStyle` | Enum of built-in loader animation variants (circular, dots, pulse, bars, etc.). | `Components/Content/Loader.swift` |
 | `LoaderPainter` | Protocol for custom loader drawing implementations. | `Components/Content/Loader.swift` |
