@@ -298,8 +298,240 @@ final class SVGParserTests: XCTestCase {
             <svg viewBox="0 0 100 100"><rect opacity="0.5" fill-opacity="0.5" x="0" y="0" width="10" height="10"/></svg>
             """)!
         if case .rect(let data) = doc.elements[0] {
-            XCTAssertEqual(data.attributes.opacity, 0.25, accuracy: 1e-5)
+            XCTAssertEqual(data.attributes.opacity, 0.5, accuracy: 1e-5)
+            XCTAssertEqual(data.attributes.fillOpacity, 0.5, accuracy: 1e-5)
         } else { XCTFail() }
+    }
+
+    func testStrokeOpacity() {
+        let doc = SVGParser().parse("""
+            <svg viewBox="0 0 100 100"><rect stroke="red" stroke-opacity="0.3" x="0" y="0" width="10" height="10"/></svg>
+            """)!
+        if case .rect(let data) = doc.elements[0] {
+            XCTAssertEqual(data.attributes.strokeOpacity, 0.3, accuracy: 1e-5)
+        } else { XCTFail() }
+    }
+
+    func testStrokeDashArray() {
+        let doc = SVGParser().parse("""
+            <svg viewBox="0 0 100 100"><line stroke-dasharray="5,3,2" x1="0" y1="0" x2="100" y2="0"/></svg>
+            """)!
+        if case .line(let data) = doc.elements[0] {
+            XCTAssertEqual(data.attributes.strokeDashArray, [5, 3, 2])
+        } else { XCTFail() }
+    }
+
+    func testStrokeMiterLimit() {
+        let doc = SVGParser().parse("""
+            <svg viewBox="0 0 100 100"><path stroke-miterlimit="8" d="M0 0"/></svg>
+            """)!
+        if case .path(let data) = doc.elements[0] {
+            XCTAssertEqual(data.attributes.strokeMiterLimit, 8)
+        } else { XCTFail() }
+    }
+
+    func testFillRuleEvenOdd() {
+        let doc = SVGParser().parse("""
+            <svg viewBox="0 0 100 100"><path fill-rule="evenodd" d="M0 0"/></svg>
+            """)!
+        if case .path(let data) = doc.elements[0] {
+            XCTAssertEqual(data.attributes.fillRule, .evenOdd)
+        } else { XCTFail() }
+    }
+
+    func testVisibilityHidden() {
+        let doc = SVGParser().parse("""
+            <svg viewBox="0 0 100 100"><rect visibility="hidden" x="0" y="0" width="10" height="10"/></svg>
+            """)!
+        if case .rect(let data) = doc.elements[0] {
+            XCTAssertEqual(data.attributes.visibility, .hidden)
+        } else { XCTFail() }
+    }
+
+    func testDisplayNone() {
+        let doc = SVGParser().parse("""
+            <svg viewBox="0 0 100 100"><rect display="none" x="0" y="0" width="10" height="10"/></svg>
+            """)!
+        if case .rect(let data) = doc.elements[0] {
+            XCTAssertEqual(data.attributes.display, .none)
+        } else { XCTFail() }
+    }
+
+    // MARK: - Gradients
+
+    func testLinearGradient() {
+        let doc = SVGParser().parse("""
+            <svg viewBox="0 0 100 100">
+                <defs>
+                    <linearGradient id="grad1" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0" stop-color="red"/>
+                        <stop offset="1" stop-color="blue"/>
+                    </linearGradient>
+                </defs>
+                <rect fill="url(#grad1)" x="0" y="0" width="100" height="100"/>
+            </svg>
+            """)!
+        XCTAssertNotNil(doc.defs.linearGradients["grad1"])
+        let grad = doc.defs.linearGradients["grad1"]!
+        XCTAssertEqual(grad.stops.count, 2)
+        XCTAssertEqual(grad.x1, 0); XCTAssertEqual(grad.x2, 1)
+        if case .rect(let data) = doc.elements[0] {
+            XCTAssertEqual(data.attributes.fill, .url("grad1"))
+        } else { XCTFail() }
+    }
+
+    func testRadialGradient() {
+        let doc = SVGParser().parse("""
+            <svg viewBox="0 0 100 100">
+                <defs>
+                    <radialGradient id="rg" cx="0.5" cy="0.5" r="0.5">
+                        <stop offset="0" stop-color="white"/>
+                        <stop offset="1" stop-color="black"/>
+                    </radialGradient>
+                </defs>
+            </svg>
+            """)!
+        XCTAssertNotNil(doc.defs.radialGradients["rg"])
+        XCTAssertEqual(doc.defs.radialGradients["rg"]!.stops.count, 2)
+    }
+
+    func testGradientStopPercentOffset() {
+        let doc = SVGParser().parse("""
+            <svg viewBox="0 0 100 100">
+                <defs>
+                    <linearGradient id="g">
+                        <stop offset="50%" stop-color="red"/>
+                    </linearGradient>
+                </defs>
+            </svg>
+            """)!
+        XCTAssertEqual(doc.defs.linearGradients["g"]!.stops[0].offset, 0.5, accuracy: 1e-5)
+    }
+
+    // MARK: - Defs / Use
+
+    func testDefsUse() {
+        let doc = SVGParser().parse("""
+            <svg viewBox="0 0 100 100">
+                <defs>
+                    <rect id="myRect" x="0" y="0" width="50" height="50"/>
+                </defs>
+                <use href="#myRect" x="10" y="20"/>
+            </svg>
+            """)!
+        XCTAssertNotNil(doc.defs.reusableElements["myRect"])
+        XCTAssertEqual(doc.elements.count, 1)
+        if case .use(let data) = doc.elements[0] {
+            XCTAssertEqual(data.href, "myRect")
+            XCTAssertEqual(data.x, 10)
+            XCTAssertEqual(data.y, 20)
+        } else { XCTFail("expected use element") }
+    }
+
+    // MARK: - ClipPath
+
+    func testClipPath() {
+        let doc = SVGParser().parse("""
+            <svg viewBox="0 0 100 100">
+                <defs>
+                    <clipPath id="clip">
+                        <circle cx="50" cy="50" r="40"/>
+                    </clipPath>
+                </defs>
+                <rect clip-path="url(#clip)" x="0" y="0" width="100" height="100"/>
+            </svg>
+            """)!
+        XCTAssertEqual(doc.defs.clipPaths["clip"]?.count, 1)
+        if case .rect(let data) = doc.elements[0] {
+            XCTAssertEqual(data.attributes.clipPathID, "clip")
+        } else { XCTFail() }
+    }
+
+    // MARK: - Filter
+
+    func testFilterGaussianBlur() {
+        let doc = SVGParser().parse("""
+            <svg viewBox="0 0 100 100">
+                <defs>
+                    <filter id="blur"><feGaussianBlur stdDeviation="5"/></filter>
+                </defs>
+                <rect filter="url(#blur)" x="0" y="0" width="100" height="100"/>
+            </svg>
+            """)!
+        XCTAssertNotNil(doc.defs.filters["blur"])
+        XCTAssertEqual(doc.defs.filters["blur"]!.primitives.count, 1)
+        if case .rect(let data) = doc.elements[0] {
+            XCTAssertEqual(data.attributes.filterID, "blur")
+        } else { XCTFail() }
+    }
+
+    // MARK: - CSS
+
+    func testInlineStyle() {
+        let doc = SVGParser().parse("""
+            <svg viewBox="0 0 100 100"><rect style="fill:red;stroke:blue" x="0" y="0" width="10" height="10"/></svg>
+            """)!
+        if case .rect(let data) = doc.elements[0],
+           case .color(let fillColor) = data.attributes.fill,
+           case .color(let strokeColor) = data.attributes.stroke {
+            XCTAssertEqual(fillColor.red, 1, accuracy: 1e-2)
+            XCTAssertEqual(strokeColor.blue, 1, accuracy: 1e-2)
+        } else { XCTFail("expected style-parsed colors") }
+    }
+
+    func testStyleElement() {
+        let doc = SVGParser().parse("""
+            <svg viewBox="0 0 100 100">
+                <style>.red { fill: red; }</style>
+                <rect class="red" x="0" y="0" width="10" height="10"/>
+            </svg>
+            """)!
+        if case .rect(let data) = doc.elements[0],
+           case .color(let c) = data.attributes.fill {
+            XCTAssertEqual(c.red, 1, accuracy: 1e-2)
+        } else { XCTFail("expected class-based fill") }
+    }
+
+    func testInlineStyleOverridesClass() {
+        let doc = SVGParser().parse("""
+            <svg viewBox="0 0 100 100">
+                <style>.blue { fill: blue; }</style>
+                <rect class="blue" style="fill:red" x="0" y="0" width="10" height="10"/>
+            </svg>
+            """)!
+        if case .rect(let data) = doc.elements[0],
+           case .color(let c) = data.attributes.fill {
+            XCTAssertEqual(c.red, 1, accuracy: 1e-2)
+            XCTAssertEqual(c.blue, 0, accuracy: 1e-2)
+        } else { XCTFail("inline style should override class") }
+    }
+
+    // MARK: - Text
+
+    func testTextElement() {
+        let doc = SVGParser().parse("""
+            <svg viewBox="0 0 200 100"><text x="10" y="50" font-size="20">Hello</text></svg>
+            """)!
+        if case .text(let data) = doc.elements[0] {
+            XCTAssertEqual(data.x, 10)
+            XCTAssertEqual(data.y, 50)
+            XCTAssertEqual(data.fontSize, 20)
+            XCTAssertEqual(data.spans.count, 1)
+            XCTAssertEqual(data.spans[0].text, "Hello")
+        } else { XCTFail("expected text element") }
+    }
+
+    // MARK: - Image
+
+    func testImageElement() {
+        let doc = SVGParser().parse("""
+            <svg viewBox="0 0 100 100"><image href="data:image/png;base64,abc" x="10" y="20" width="50" height="50"/></svg>
+            """)!
+        if case .image(let data) = doc.elements[0] {
+            XCTAssertEqual(data.x, 10)
+            XCTAssertEqual(data.width, 50)
+            XCTAssertTrue(data.href.hasPrefix("data:"))
+        } else { XCTFail("expected image element") }
     }
 
     // MARK: - Transforms
