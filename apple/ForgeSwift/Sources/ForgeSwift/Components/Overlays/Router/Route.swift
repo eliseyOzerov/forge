@@ -65,7 +65,7 @@ public extension RouteHandle {
 @MainActor
 public final class RouteModel: Notifier, RouteHandle {
     let id: UUID
-    let route: any Route
+    var route: any Route
     weak var router: RouterModel?
 
     public private(set) var phase: RoutePhase = .hidden

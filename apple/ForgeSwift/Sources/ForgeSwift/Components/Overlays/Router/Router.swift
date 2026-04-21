@@ -91,8 +91,7 @@ public final class RouterModel: ViewModel<Router>, RouterHandle {
               entries.count > 1 else { return }
         rebuild {
             let removed = entries.remove(at: idx)
-            removed.dispose()
-            resolveResult(for: removed.id, with: result)
+            finalizeRemoval(of: removed, result: result)
             updateCoverState()
         }
     }
@@ -119,14 +118,14 @@ public final class RouterModel: ViewModel<Router>, RouterHandle {
     public override func didUpdate(newView: Router) {
         super.didUpdate(newView: newView)
         if !entries.isEmpty {
-            let firstView = newView.root
-            let first = entries[0]
-            entries[0] = RouteModel(id: first.id, route: Screen { firstView }, router: self)
+            entries[0].route = Screen { newView.root }
         }
     }
 
     public override func didDispose() {
         for entry in entries { entry.dispose() }
+        navItems.removeAll()
+        pendingResults.removeAll()
         super.didDispose()
     }
 
@@ -176,8 +175,7 @@ public final class RouterModel: ViewModel<Router>, RouterHandle {
         rebuild {
             while entries.count > 1, let top = entries.last, !predicate(top.route) {
                 let r = entries.removeLast()
-                r.dispose()
-                resolveResult(for: r.id, with: nil)
+                finalizeRemoval(of: r, result: nil)
             }
             updateCoverState()
         }
@@ -188,8 +186,7 @@ public final class RouterModel: ViewModel<Router>, RouterHandle {
         rebuild {
             while entries.count > 1 {
                 let r = entries.removeLast()
-                r.dispose()
-                resolveResult(for: r.id, with: nil)
+                finalizeRemoval(of: r, result: nil)
             }
             updateCoverState()
         }
@@ -222,21 +219,27 @@ public final class RouterModel: ViewModel<Router>, RouterHandle {
     public func remove(where predicate: (any Route) -> Bool, result: Any? = nil, animated: Bool = true) {
         guard let idx = entries.firstIndex(where: { predicate($0.route) }),
               entries.count > 1 else { return }
-        rebuild {
-            let removed = entries.remove(at: idx)
-            removed.dispose()
-            resolveResult(for: removed.id, with: result)
-            updateCoverState()
+        if animated {
+            Task { await entries[idx].dismiss(result: result) }
+        } else {
+            rebuild {
+                let removed = entries.remove(at: idx)
+                finalizeRemoval(of: removed, result: result)
+                updateCoverState()
+            }
         }
     }
 
     public func remove(at index: Int, result: Any? = nil, animated: Bool = true) {
         guard entries.indices.contains(index), entries.count > 1 else { return }
-        rebuild {
-            let removed = entries.remove(at: index)
-            removed.dispose()
-            resolveResult(for: removed.id, with: result)
-            updateCoverState()
+        if animated {
+            Task { await entries[index].dismiss(result: result) }
+        } else {
+            rebuild {
+                let removed = entries.remove(at: index)
+                finalizeRemoval(of: removed, result: result)
+                updateCoverState()
+            }
         }
     }
 
@@ -244,8 +247,7 @@ public final class RouterModel: ViewModel<Router>, RouterHandle {
         guard !routes.isEmpty else { return }
         rebuild {
             for entry in entries {
-                entry.dispose()
-                resolveResult(for: entry.id, with: nil)
+                finalizeRemoval(of: entry, result: nil)
             }
             entries = routes.map { makeEntry($0) }
             updateCoverState()
@@ -256,8 +258,7 @@ public final class RouterModel: ViewModel<Router>, RouterHandle {
         rebuild {
             if !entries.isEmpty {
                 let popped = entries.removeLast()
-                popped.dispose()
-                resolveResult(for: popped.id, with: nil)
+                finalizeRemoval(of: popped, result: nil)
             }
             entries.append(makeEntry(route))
             updateCoverState()
@@ -271,6 +272,12 @@ public final class RouterModel: ViewModel<Router>, RouterHandle {
         return true
     }
 
+    private func finalizeRemoval(of entry: RouteModel, result: Any?) {
+        entry.dispose()
+        navItems.removeValue(forKey: entry.id)
+        resolveResult(for: entry.id, with: result)
+    }
+
     private func resolveResult(for id: UUID, with value: Any?) {
         guard let resolver = pendingResults.removeValue(forKey: id) else { return }
         resolver(value)
@@ -279,29 +286,10 @@ public final class RouterModel: ViewModel<Router>, RouterHandle {
 
 // MARK: - RouterBuilder
 
-/// Applies the covering route's transform to the child beneath it.
-fileprivate struct CoverTransform: BuiltView {
-    let child: any View
-
-    init(@ChildBuilder child: () -> any View) {
-        self.child = child()
-    }
-
-    func build(context: ViewContext) -> any View {
-        if let route = context.tryRead(RouteHandle.self),
-           let above = route.above {
-            return above.transform(child)
-        }
-        return child
-    }
-}
-
-/// Builds the visible route stack into a layered Box with navigation bar.
+/// Builds the visible route stack into a layered Box.
 public final class RouterBuilder: ViewBuilder<RouterModel> {
     public override func build(context: ViewContext) -> any View {
         let entries = model.entries
-        let topID = entries.last?.id
-        let topNavItem: Observable<NavigationItem>? = topID.map { model.navItem(for: $0) }
 
         // Find the lowest opaque + settled route — everything below it is offstage
         var lowestVisible = 0
@@ -320,21 +308,6 @@ public final class RouterBuilder: ViewBuilder<RouterModel> {
                     Box(frame: .fill) { entry.route }
                 }
             }.id(entry.id)
-        }
-
-        let navbar: any View = Buildable { ctx in
-            guard let obs = topNavItem else { return EmptyView() }
-            let item = ctx.watch(obs)
-            if item.hidden { return EmptyView() }
-            return NavigationBar(
-                leading: item.leading,
-                main: item.main ?? item.title.map { Text($0) },
-                trailing: item.trailing,
-                bottom: item.bottom,
-                alignment: item.alignment,
-                padding: item.padding ?? .zero,
-                hidden: item.hidden
-            )
         }
 
         let handle: any RouterHandle = model
