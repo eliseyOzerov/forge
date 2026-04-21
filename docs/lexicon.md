@@ -295,7 +295,7 @@ One-sentence description of every Forge type. Paths are relative to `apple/Forge
 | `FontFeatures` | Advanced OpenType font feature settings. | `Components/Content/Text.swift` |
 | `FontAxis` | Variable font axes (weight, width, slant, optical size, grade, etc.). | `Components/Content/Text.swift` |
 | `TextAlign` | Text alignment (leading, trailing, center, justify). | `Components/Content/Text.swift` |
-| `TextOverflow` | Text overflow mode (clip, fade, ellipsis). | `Components/Content/Text.swift` |
+| `TextOverflow` | Text overflow mode (clip, ellipsis). | `Components/Content/Text.swift` |
 | `TextCase` | Text case transformation (plain, uppercase, lowercase, capitalize, title, pascal, camel, snake, kebab, dot, sponge). | `Components/Content/Text.swift` |
 | `TextDecoration` | Text decoration with separate underline, strikethrough, and shadow. | `Components/Content/Text.swift` |
 | `TextLineStyle` | Visual style for an underline or strikethrough line (color, style). | `Components/Content/Text.swift` |

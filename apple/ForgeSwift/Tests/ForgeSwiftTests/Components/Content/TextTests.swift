@@ -172,7 +172,6 @@ final class TextTests: XCTestCase {
 
     func testTextOverflowLineBreakMode() {
         XCTAssertEqual(TextOverflow.clip.lineBreakMode, .byClipping)
-        XCTAssertEqual(TextOverflow.fade.lineBreakMode, .byClipping)
         XCTAssertEqual(TextOverflow.ellipsis.lineBreakMode, .byTruncatingTail)
     }
 

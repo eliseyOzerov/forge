@@ -95,7 +95,6 @@ public enum TextAlign: String, Sendable {
 /// How text is clipped when it overflows its container.
 public enum TextOverflow: String, Sendable {
     case clip
-    case fade
     case ellipsis
 }
 
@@ -550,7 +549,6 @@ extension TextOverflow {
     var lineBreakMode: NSLineBreakMode {
         switch self {
         case .clip: .byClipping
-        case .fade: .byClipping
         case .ellipsis: .byTruncatingTail
         }
     }
