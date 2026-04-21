@@ -658,7 +658,7 @@ final class UIKitTextRenderer: Renderer {
     private func applyAttributedString() {
         guard let label else { return }
         let style = view.style
-        let font = (style.font ?? Font()).resolvedFont
+        let forgeFont = style.font ?? Font()
         let align = style.align ?? .leading
         let textCase = style.textCase ?? .plain
         let overflow = style.overflow ?? .ellipsis
@@ -667,12 +667,12 @@ final class UIKitTextRenderer: Renderer {
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.alignment = align.nsTextAlignment
         paragraphStyle.lineBreakMode = overflow.lineBreakMode
-        paragraphStyle.lineSpacing = (style.font ?? Font()).resolvedLineSpacing
+        paragraphStyle.lineSpacing = forgeFont.resolvedLineSpacing
 
         var attributes: [NSAttributedString.Key: Any] = [
-            .font: font,
+            .font: forgeFont.resolvedFont,
             .paragraphStyle: paragraphStyle,
-            .kern: (style.font ?? Font()).tracking,
+            .kern: forgeFont.tracking,
         ]
 
         attributes[.foregroundColor] = style.color?.platformColor ?? UIColor.label
