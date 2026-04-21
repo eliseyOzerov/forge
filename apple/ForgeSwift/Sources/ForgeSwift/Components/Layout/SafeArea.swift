@@ -129,13 +129,34 @@ class SafeAreaView: UIView {
 
     private func resolveInsets() -> UIEdgeInsets {
         let s = safeAreaInsets
+        let a = findSafeAreaAdjustment()
         return UIEdgeInsets(
-            top: edges.hasTop ? s.top : 0,
-            left: edges.hasLeading ? s.left : 0,
-            bottom: edges.hasBottom ? s.bottom : 0,
-            right: edges.hasTrailing ? s.right : 0
+            top: edges.hasTop ? s.top + a.top : 0,
+            left: edges.hasLeading ? s.left + a.left : 0,
+            bottom: edges.hasBottom ? s.bottom + a.bottom : 0,
+            right: edges.hasTrailing ? s.right + a.right : 0
         )
     }
+
+    private func findSafeAreaAdjustment() -> UIEdgeInsets {
+        var view: UIView? = superview
+        while let v = view {
+            if let provider = v as? SafeAreaAdjustmentProvider {
+                return provider.safeAreaAdjustment
+            }
+            view = v.superview
+        }
+        return .zero
+    }
+}
+
+// MARK: - SafeAreaAdjustmentProvider
+
+/// Ancestor UIView that provides additional safe-area insets on top of the
+/// device safe area. SafeAreaView walks the superview chain to find the
+/// nearest provider and adds its adjustment to the resolved insets.
+@MainActor protocol SafeAreaAdjustmentProvider: AnyObject {
+    var safeAreaAdjustment: UIEdgeInsets { get }
 }
 
 #endif
