@@ -314,6 +314,7 @@ public struct SVGPainter {
     public var document: SVGDocument
     public var overrides: [String: SVGOverride] = [:]
     public var globalColor: Color? = nil
+    public var globalStrokeWidth: Double? = nil
 
     public func paint(on canvas: Canvas) {
         for element in document.elements {
@@ -402,7 +403,7 @@ public struct SVGPainter {
         // Stroke
         let strokePaint = ov?.stroke.map { SVGPaint.color($0) } ?? attrs.stroke
         let strokeOpacity = ov?.strokeOpacity ?? attrs.strokeOpacity
-        let strokeWidth = ov?.strokeWidth.map { CGFloat($0) } ?? attrs.strokeWidth
+        let strokeWidth = ov?.strokeWidth.map { CGFloat($0) } ?? globalStrokeWidth.map { CGFloat($0) } ?? attrs.strokeWidth
         let dashArray = ov?.dashArray ?? attrs.strokeDashArray
         paintStroke(strokePaint, opacity: strokeOpacity, path: path, width: strokeWidth,
                     cap: attrs.strokeLineCap, join: attrs.strokeLineJoin, miterLimit: attrs.strokeMiterLimit,

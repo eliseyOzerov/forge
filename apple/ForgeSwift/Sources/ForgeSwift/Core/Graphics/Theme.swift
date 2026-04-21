@@ -35,6 +35,10 @@ public extension ThemeSlot where T == TextTheme {
     static var text: ThemeSlot<TextTheme> { .init(TextTheme.self) }
 }
 
+public extension ThemeSlot where T == WeightScale {
+    static var weight: ThemeSlot<WeightScale> { .init(WeightScale.self) }
+}
+
 // MARK: - BuildContext accessor
 
 public extension ViewContext {
@@ -61,11 +65,13 @@ public struct TokenTheme: Sendable, Copyable {
     public var color: ColorTheme
     public var spacing: SpacingTheme
     public var text: TextTheme
+    public var weight: WeightScale
 
-    public init(color: ColorTheme, spacing: SpacingTheme, text: TextTheme) {
+    public init(color: ColorTheme, spacing: SpacingTheme, text: TextTheme, weight: WeightScale = .standard()) {
         self.color = color
         self.spacing = spacing
         self.text = text
+        self.weight = weight
     }
 
     public static func light(brand: Color? = nil) -> TokenTheme {

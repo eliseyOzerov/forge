@@ -6,7 +6,7 @@
 //  with optional intrinsic defaults, sparse override storage, and the
 //  priority/status bundles that compose on top.
 //
-//  Nothing here depends on UIKit; lives in Core/View so any subsystem
+//  Nothing here depends on UIKit; lives in Core/Graphics so any subsystem
 //  (theme, component style, app config) can key off the same shape.
 //
 
@@ -184,5 +184,154 @@ public extension Dictionary where Key: NamedKey {
             if let v = self[chain[i]] { return v }
         }
         return nil
+    }
+}
+
+// MARK: - SpacingToken
+
+/// Named spacing value token for the spacing ramp.
+public struct SpacingToken: TokenKey {
+    public let name: String
+    public let defaultValue: Double
+
+    public init(_ name: String, _ defaultValue: Double) {
+        self.name = name
+        self.defaultValue = defaultValue
+    }
+}
+
+public extension SpacingToken {
+    static let xxs = SpacingToken("xxs",   4)
+    static let xs  = SpacingToken("xs",    8)
+    static let sm  = SpacingToken("sm",   12)
+    static let rg  = SpacingToken("rg",   16)
+    static let md  = SpacingToken("md",   20)
+    static let lg  = SpacingToken("lg",   24)
+    static let xl  = SpacingToken("xl",   32)
+    static let xl2 = SpacingToken("xl2",  48)
+    static let xl3 = SpacingToken("xl3",  64)
+    static let xl4 = SpacingToken("xl4",  96)
+    static let xl5 = SpacingToken("xl5", 128)
+}
+
+/// Theme collection of spacing tokens.
+public struct SpacingTheme: Sendable, Copyable {
+    public var values: TokenMap<SpacingToken>
+
+    public init(values: TokenMap<SpacingToken> = TokenMap()) {
+        self.values = values
+    }
+
+    public subscript(_ token: SpacingToken) -> Double { values[token] }
+
+    public var xxs: Double { self[.xxs] }
+    public var xs:  Double { self[.xs] }
+    public var sm:  Double { self[.sm] }
+    public var rg:  Double { self[.rg] }
+    public var md:  Double { self[.md] }
+    public var lg:  Double { self[.lg] }
+    public var xl:  Double { self[.xl] }
+    public var xl2: Double { self[.xl2] }
+    public var xl3: Double { self[.xl3] }
+    public var xl4: Double { self[.xl4] }
+    public var xl5: Double { self[.xl5] }
+
+    /// Built-in ramp — every named token populated with its default.
+    public static func standard() -> SpacingTheme {
+        var map: [SpacingToken: Double] = [:]
+        for token in [SpacingToken.xxs, .xs, .sm, .rg, .md, .lg, .xl, .xl2, .xl3, .xl4, .xl5] {
+            map[token] = token.defaultValue
+        }
+        return SpacingTheme(values: TokenMap(map))
+    }
+}
+
+// MARK: - WeightToken
+
+/// Named weight token mapping a semantic Weight case to a numeric value (CSS-style 100–900).
+public struct WeightToken: TokenKey {
+    public let name: String
+    public let defaultValue: Int
+
+    public init(_ name: String, _ defaultValue: Int) {
+        self.name = name
+        self.defaultValue = defaultValue
+    }
+}
+
+public extension WeightToken {
+    static let ultraLight = WeightToken("ultraLight", 100)
+    static let thin       = WeightToken("thin",       200)
+    static let light      = WeightToken("light",      300)
+    static let regular    = WeightToken("regular",    400)
+    static let medium     = WeightToken("medium",     500)
+    static let semibold   = WeightToken("semibold",   600)
+    static let bold       = WeightToken("bold",       700)
+    static let heavy      = WeightToken("heavy",      800)
+    static let black      = WeightToken("black",      900)
+}
+
+// MARK: - WeightScale
+
+/// Maps Weight → numeric value → stroke thickness in points.
+/// Semantic weights resolve through `values` (a TokenMap of WeightToken).
+/// Numeric weights resolve through `thicknessMap` with linear interpolation
+/// between entries.
+public struct WeightScale: Sendable, Copyable {
+    public var values: TokenMap<WeightToken>
+    public var thicknessMap: [Int: Double]
+
+    public init(
+        values: TokenMap<WeightToken> = TokenMap(),
+        thicknessMap: [Int: Double] = [100: 0.5, 400: 1.5, 700: 2.5, 900: 3.5]
+    ) {
+        self.values = values
+        self.thicknessMap = thicknessMap
+    }
+
+    /// Resolve a Weight to its numeric value via the token map.
+    public func numericValue(for weight: Weight) -> Int {
+        switch weight {
+        case .ultraLight: values[.ultraLight]
+        case .thin:       values[.thin]
+        case .light:      values[.light]
+        case .regular:    values[.regular]
+        case .medium:     values[.medium]
+        case .semibold:   values[.semibold]
+        case .bold:       values[.bold]
+        case .heavy:      values[.heavy]
+        case .black:      values[.black]
+        case .numeric(let n): n
+        }
+    }
+
+    /// Resolve a Weight to stroke thickness in points. Interpolates
+    /// linearly between the nearest entries in `thicknessMap`.
+    public func thickness(for weight: Weight) -> Double {
+        let numeric = numericValue(for: weight)
+        return interpolateThickness(numeric)
+    }
+
+    private func interpolateThickness(_ numeric: Int) -> Double {
+        let sorted = thicknessMap.sorted { $0.key < $1.key }
+        guard !sorted.isEmpty else { return 1.5 }
+
+        if let exact = thicknessMap[numeric] { return exact }
+        if numeric <= sorted.first!.key { return sorted.first!.value }
+        if numeric >= sorted.last!.key { return sorted.last!.value }
+
+        var lower = sorted[0]
+        var upper = sorted[sorted.count - 1]
+        for entry in sorted {
+            if entry.key <= numeric { lower = entry }
+            if entry.key >= numeric { upper = entry; break }
+        }
+
+        let t = Double(numeric - lower.key) / Double(upper.key - lower.key)
+        return lower.value + t * (upper.value - lower.value)
+    }
+
+    public static func standard() -> WeightScale {
+        WeightScale()
     }
 }
