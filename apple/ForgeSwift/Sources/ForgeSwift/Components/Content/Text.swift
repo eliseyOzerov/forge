@@ -101,20 +101,65 @@ public enum TextOverflow: String, Sendable {
 
 // MARK: - TextCase
 
-/// Text casing transform (uppercase, lowercase, capitalize).
+/// Text casing transform.
 public enum TextCase: String, Sendable {
-    case none
+    case plain
     case uppercase
     case lowercase
     case capitalize
+    case title
+    case pascal
+    case camel
+    case snake
+    case kebab
+    case dot
+    case sponge
 
     public func apply(to text: String) -> String {
         switch self {
-        case .none: text
-        case .uppercase: text.uppercased()
-        case .lowercase: text.lowercased()
-        case .capitalize: text.prefix(1).uppercased() + text.dropFirst()
+        case .plain: return text
+        case .uppercase: return text.uppercased()
+        case .lowercase: return text.lowercased()
+        case .capitalize: return text.prefix(1).uppercased() + text.dropFirst()
+        case .title: return text.capitalized
+        case .pascal: return text.splitWords().map(\.capitalized).joined()
+        case .camel:
+            let words = text.splitWords()
+            guard let first = words.first else { return text }
+            return first.lowercased() + words.dropFirst().map(\.capitalized).joined()
+        case .snake: return text.splitWords().map { $0.lowercased() }.joined(separator: "_")
+        case .kebab: return text.splitWords().map { $0.lowercased() }.joined(separator: "-")
+        case .dot: return text.splitWords().map { $0.lowercased() }.joined(separator: ".")
+        case .sponge: return String(text.enumerated().map { i, c in i.isMultiple(of: 2)
+            ? Character(c.lowercased())
+            : Character(c.uppercased()) })
         }
+    }
+}
+
+private extension String {
+    func splitWords() -> [String] {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+
+        // Already delimited by non-alphanumeric characters
+        let explicit = trimmed.components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+        if explicit.count > 1 { return explicit }
+
+        // camelCase / PascalCase boundary split
+        var words: [String] = []
+        var current = ""
+        for char in trimmed {
+            if char.isUppercase && !current.isEmpty {
+                words.append(current)
+                current = String(char)
+            } else {
+                current.append(char)
+            }
+        }
+        if !current.isEmpty { words.append(current) }
+        return words
     }
 }
 
@@ -613,7 +658,7 @@ final class UIKitTextRenderer: Renderer {
         let style = view.style
         let font = (style.font ?? Font()).resolvedFont
         let align = style.align ?? .leading
-        let textCase = style.textCase ?? .none
+        let textCase = style.textCase ?? .plain
         let overflow = style.overflow ?? .ellipsis
 
         let displayText = textCase.apply(to: view.content)

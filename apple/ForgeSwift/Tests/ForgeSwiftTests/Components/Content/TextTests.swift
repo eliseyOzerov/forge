@@ -26,8 +26,8 @@ final class TextTests: XCTestCase {
 
     // TextCase
 
-    func testTextCaseNone() {
-        XCTAssertEqual(TextCase.none.apply(to: "Hello World"), "Hello World")
+    func testTextCasePlain() {
+        XCTAssertEqual(TextCase.plain.apply(to: "Hello World"), "Hello World")
     }
 
     func testTextCaseUppercase() {
@@ -42,8 +42,41 @@ final class TextTests: XCTestCase {
         XCTAssertEqual(TextCase.capitalize.apply(to: "hello world"), "Hello world")
     }
 
+    func testTextCaseTitle() {
+        XCTAssertEqual(TextCase.title.apply(to: "hello world"), "Hello World")
+    }
+
+    func testTextCasePascal() {
+        XCTAssertEqual(TextCase.pascal.apply(to: "hello world"), "HelloWorld")
+        XCTAssertEqual(TextCase.pascal.apply(to: "some-kebab-case"), "SomeKebabCase")
+        XCTAssertEqual(TextCase.pascal.apply(to: "camelCase"), "CamelCase")
+    }
+
+    func testTextCaseCamel() {
+        XCTAssertEqual(TextCase.camel.apply(to: "hello world"), "helloWorld")
+        XCTAssertEqual(TextCase.camel.apply(to: "PascalCase"), "pascalCase")
+    }
+
+    func testTextCaseSnake() {
+        XCTAssertEqual(TextCase.snake.apply(to: "Hello World"), "hello_world")
+        XCTAssertEqual(TextCase.snake.apply(to: "camelCase"), "camel_case")
+    }
+
+    func testTextCaseKebab() {
+        XCTAssertEqual(TextCase.kebab.apply(to: "Hello World"), "hello-world")
+        XCTAssertEqual(TextCase.kebab.apply(to: "camelCase"), "camel-case")
+    }
+
+    func testTextCaseDot() {
+        XCTAssertEqual(TextCase.dot.apply(to: "Hello World"), "hello.world")
+    }
+
+    func testTextCaseSponge() {
+        XCTAssertEqual(TextCase.sponge.apply(to: "hello"), "hElLo")
+    }
+
     func testTextCaseEmptyString() {
-        XCTAssertEqual(TextCase.none.apply(to: ""), "")
+        XCTAssertEqual(TextCase.plain.apply(to: ""), "")
         XCTAssertEqual(TextCase.uppercase.apply(to: ""), "")
         XCTAssertEqual(TextCase.lowercase.apply(to: ""), "")
         XCTAssertEqual(TextCase.capitalize.apply(to: ""), "")
@@ -81,7 +114,7 @@ final class TextTests: XCTestCase {
         XCTAssertNil(style.color)
         XCTAssertNil(style.maxLines)
         XCTAssertEqual(style.align, .leading)
-        XCTAssertEqual(style.textCase, .none)
+        XCTAssertEqual(style.textCase, .plain)
         XCTAssertEqual(style.overflow, .ellipsis)
         XCTAssertNil(style.decoration)
     }
