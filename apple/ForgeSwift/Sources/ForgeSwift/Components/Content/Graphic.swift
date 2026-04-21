@@ -1,10 +1,11 @@
 import Foundation
 import CoreGraphics
 
-// MARK: - Graphic
-
 #if canImport(UIKit)
 import UIKit
+#endif
+
+// MARK: - Graphic
 
 /// Vector graphic component. Parses SVG data, builds a Surface from it,
 /// renders into a cached bitmap.
@@ -47,18 +48,13 @@ public struct Graphic: LeafView {
     }
 
     public func makeRenderer() -> Renderer {
-        GraphicRenderer(view: self)
+        #if canImport(UIKit)
+        GraphicUIKitRenderer(view: self)
+        #else
+        fatalError("Graphic not yet implemented for this platform")
+        #endif
     }
 }
-
-#else
-
-public struct Graphic: BuiltView {
-    public init() {}
-    public func build(context: ViewContext) -> any View { Text("TODO: Graphic") }
-}
-
-#endif
 
 // MARK: - GraphicSource
 
@@ -88,7 +84,7 @@ public struct GraphicOverride {
 
 #if canImport(UIKit)
 
-final class GraphicRenderer: Renderer {
+final class GraphicUIKitRenderer: Renderer {
     private weak var graphicView: GraphicView?
     private var view: Graphic
 
