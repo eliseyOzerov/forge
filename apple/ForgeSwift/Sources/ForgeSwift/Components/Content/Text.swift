@@ -535,12 +535,12 @@ extension Font {
 extension TextAlign {
     var nsTextAlignment: NSTextAlignment {
         switch self {
-        case .leading: .natural
+        case .leading: return .natural
         case .trailing:
             let isRTL = NSParagraphStyle.defaultWritingDirection(forLanguage: "") == .rightToLeft
             return isRTL ? .left : .right
-        case .center: .center
-        case .justify: .justified
+        case .center: return .center
+        case .justify: return .justified
         }
     }
 }
@@ -560,7 +560,7 @@ struct FontInfo {
 
     var hasWeightAxis: Bool { variationAxes.contains { $0.tag == "wght" } }
 
-    private static var cache: [String: FontInfo] = [:]
+    private nonisolated(unsafe) static var cache: [String: FontInfo] = [:]
     private static let cacheKey = "__system__"
 
     static func query(family: String?) -> FontInfo {

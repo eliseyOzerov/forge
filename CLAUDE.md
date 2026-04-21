@@ -10,9 +10,12 @@
   - The code is in a broken intermediate state.
   - The next change is trivially related to the current one.
 
-## Testing
+## Building & Testing
 
-- **Always** build (`swift build`) and run tests (`swift test`) before considering a task complete — no exceptions.
+- **Always** build and run tests before considering a task complete — no exceptions.
+- **Never use `swift build` or `swift test`** — they target macOS and skip all `#if canImport(UIKit)` code, giving false confidence.
+- Build for iOS Simulator: `xcodebuild build -scheme ForgeSwift -destination 'platform=iOS Simulator,name=iPhone 17 Pro'`
+- Run tests for iOS Simulator: `xcodebuild test -scheme ForgeSwift -destination 'platform=iOS Simulator,name=iPhone 17 Pro'`
 - Never commit code that doesn't compile or has failing tests.
 - If implementation code was changed or added, add or update tests for that code.
 
