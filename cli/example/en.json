@@ -1,0 +1,40 @@
+{
+  "settingsView": {
+    "title": "Settings",
+    "subtitle": "Manage your preferences",
+    "greeting": "Hello, {name}",
+    "itemCount(plural)": {
+      "one": "{n} item",
+      "other": "{n} items"
+    },
+    "fileCount(plural)": {
+      "one": "{n} file in {folder}",
+      "other": "{n} files in {folder}"
+    },
+    "profileHeader(gender)": {
+      "male": "{name} updated his profile",
+      "female": "{name} updated her profile",
+      "other": "{name} updated their profile"
+    },
+    "profile": {
+      "name": "Name",
+      "bio": "Bio",
+      "stats": {
+        "followers": "{n} followers",
+        "posts": "{n} posts"
+      }
+    },
+    "steps": ["First step", "Second step", "Third step"],
+    "onboarding": [
+      { "title": "Welcome", "body": "Get started with Forge" },
+      { "title": "Profile", "body": "Set up your profile" },
+      { "title": "Done", "body": "You're all set" }
+    ],
+    "save": "@:common.save"
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "ok": "OK"
+  }
+}
