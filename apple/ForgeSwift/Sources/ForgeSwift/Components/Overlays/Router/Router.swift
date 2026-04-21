@@ -284,12 +284,33 @@ public final class RouterModel: ViewModel<Router>, RouterHandle {
     }
 }
 
+// MARK: - CoverTransform
+
+/// Applies the covering route's transform to the child beneath it.
+struct CoverTransform: BuiltView {
+    let child: any View
+
+    init(@ChildBuilder child: () -> any View) {
+        self.child = child()
+    }
+
+    func build(context: ViewContext) -> any View {
+        if let route = context.tryRead(RouteHandle.self),
+           let above = route.above {
+            return above.transform(child)
+        }
+        return child
+    }
+}
+
 // MARK: - RouterBuilder
 
-/// Builds the visible route stack into a layered Box.
+/// Builds the visible route stack into a layered Box with navigation bar.
 public final class RouterBuilder: ViewBuilder<RouterModel> {
     public override func build(context: ViewContext) -> any View {
         let entries = model.entries
+        let topID = entries.last?.id
+        let topNavItem: Observable<NavigationItem>? = topID.map { model.navItem(for: $0) }
 
         // Find the lowest opaque + settled route — everything below it is offstage
         var lowestVisible = 0
@@ -305,14 +326,36 @@ public final class RouterBuilder: ViewBuilder<RouterModel> {
             let navItemObs = model.navItem(for: entry.id)
             return Offstage(offstage: i < lowestVisible) {
                 Provided(entry as RouteHandle, navItemObs) {
-                    Box(frame: .fill) { entry.route }
+                    CoverTransform {
+                        Box(frame: .fill) { entry.route }
+                    }
                 }
             }.id(entry.id)
         }
 
+        let navbar: any View = Buildable { ctx in
+            guard let obs = topNavItem else { return EmptyView() }
+            let item = ctx.watch(obs)
+            if item.hidden { return EmptyView() }
+            return NavigationBar(
+                leading: item.leading,
+                main: item.main ?? item.title.map { Text($0) },
+                trailing: item.trailing,
+                bottom: item.bottom,
+                alignment: item.alignment,
+                padding: item.padding ?? .zero,
+                hidden: item.hidden
+            )
+        }
+
         let handle: any RouterHandle = model
         return Provided(handle, model) {
-            Box(frame: .fill, children: routeViews)
+            Box(frame: .fill) {
+                Column {
+                    navbar
+                    Box(frame: .fill, children: routeViews)
+                }
+            }
         }
     }
 }
