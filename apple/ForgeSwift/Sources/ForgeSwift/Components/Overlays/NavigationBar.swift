@@ -8,7 +8,7 @@ import Foundation
 ///
 ///     NavigationBar(
 ///         main: Text("Home"),
-///         trailing: Button(onTap: { ... }) { Icon("plus") },
+///         trailing: Button(onTap: { ... }) { Symbol("plus") },
 ///         surface: .color(.systemBackground)
 ///     )
 ///

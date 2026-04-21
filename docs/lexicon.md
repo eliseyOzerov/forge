@@ -231,12 +231,13 @@ One-sentence description of every Forge type. Paths are relative to `apple/Forge
 | `SVGGroupData` | Data for an SVG group element. | `Components/Content/Graphic.swift` |
 | `SVGGroupBuilder` | Private XML parser delegate helper for building SVG groups. | `Components/Content/Graphic.swift` |
 | `SVGPathDataParser` | Internal enum namespace for parsing SVG path `d` attribute strings. | `Components/Content/Graphic.swift` |
-| `Icon` | Icon rendering leaf view; styled via IconStyle. | `Components/Content/Icon.swift` |
-| `IconStyle` | Visual styling for Icon (size, color, weight, rendering mode). | `Components/Content/Icon.swift` |
-| `IconWeight` | Icon weight variants (thin through black). | `Components/Content/Icon.swift` |
-| `IconRenderingMode` | How an icon's colors are applied (template, original, etc.). | `Components/Content/Icon.swift` |
-| `IconRole` | Named icon role token. | `Components/Content/Icon.swift` |
-| `IconTheme` | Theme for icons with per-role defaults. | `Components/Content/Icon.swift` |
+| `Symbol` | Platform system icon leaf view (SF Symbols on Apple, Material Symbols on Android); styled via SymbolStyle. | `Components/Content/Symbol.swift` |
+| `SymbolStyle` | Visual styling for Symbol (size, weight, color, scale, mode, variable value). | `Components/Content/Symbol.swift` |
+| `SymbolScale` | Symbol scale relative to adjacent text (small, medium, large). | `Components/Content/Symbol.swift` |
+| `SymbolMode` | How a symbol's colors are applied (monochrome, hierarchical, palette, multicolor). | `Components/Content/Symbol.swift` |
+| `SymbolRole` | Named symbol role token. | `Components/Content/Symbol.swift` |
+| `SymbolTheme` | Theme for symbols with per-role defaults. | `Components/Content/Symbol.swift` |
+| `Weight` | Shared font/icon weight enum (ultraLight through black, plus numeric). | `Core/Data/Weight.swift` |
 | `Image` | Static image leaf view; styled via ImageStyle. | `Components/Content/Image.swift` |
 | `ImageStyle` | Visual styling for Image (fit, tint, corner radius). | `Components/Content/Image.swift` |
 | `ImageFit` | How an image fits its container (cover, contain, fill, etc.). | `Components/Content/Image.swift` |
