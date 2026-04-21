@@ -562,7 +562,18 @@ struct FontInfo {
 
     var hasWeightAxis: Bool { variationAxes.contains { $0.tag == "wght" } }
 
+    private static var cache: [String: FontInfo] = [:]
+    private static let cacheKey = "__system__"
+
     static func query(family: String?) -> FontInfo {
+        let key = family ?? cacheKey
+        if let cached = cache[key] { return cached }
+        let result = resolve(family: family)
+        cache[key] = result
+        return result
+    }
+
+    private static func resolve(family: String?) -> FontInfo {
         let uiFont: UIFont
         if let family {
             let descriptor = UIFontDescriptor(fontAttributes: [.family: family])
