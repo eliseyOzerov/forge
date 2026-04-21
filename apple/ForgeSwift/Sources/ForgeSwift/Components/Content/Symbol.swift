@@ -202,15 +202,12 @@ final class UIKitSymbolRenderer: Renderer {
             scale: view.style.scale.uiSymbolScale
         )
 
-        if let value = view.style.value {
-            config = config.applying(UIImage.SymbolConfiguration(variableValue: value))
-        }
-
         switch view.style.mode {
         case .monochrome:
             config = config.applying(UIImage.SymbolConfiguration.preferringMonochrome())
         case .hierarchical:
-            config = config.applying(UIImage.SymbolConfiguration.preferringHierarchical())
+            let color = view.style.color?.platformColor ?? .label
+            config = config.applying(UIImage.SymbolConfiguration(hierarchicalColor: color))
         case .multicolor:
             config = config.applying(UIImage.SymbolConfiguration.preferringMulticolor())
         case .palette(let primary, let secondary, let tertiary):
@@ -220,15 +217,18 @@ final class UIKitSymbolRenderer: Renderer {
             } else {
                 colors = [primary.platformColor, secondary.platformColor]
             }
-            config = config.applying(UIImage.SymbolConfiguration.init(paletteColors: colors))
+            config = config.applying(UIImage.SymbolConfiguration(paletteColors: colors))
         }
 
-        var image = UIImage(systemName: view.name, withConfiguration: config)
+        var image: UIImage?
+        if let value = view.style.value {
+            image = UIImage(systemName: view.name, variableValue: value, configuration: config)
+        } else {
+            image = UIImage(systemName: view.name, withConfiguration: config)
+        }
 
         if case .monochrome = view.style.mode {
             image = image?.withRenderingMode(.alwaysTemplate)
-            imageView.tintColor = view.style.color?.platformColor ?? .label
-        } else if case .hierarchical = view.style.mode {
             imageView.tintColor = view.style.color?.platformColor ?? .label
         } else {
             image = image?.withRenderingMode(.alwaysOriginal)
