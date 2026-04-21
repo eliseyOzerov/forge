@@ -28,7 +28,7 @@ Use Forge macros (defined in `ForgeSwiftMacros`) instead of writing boilerplate 
 
 | Macro | When to use |
 |-------|-------------|
-| `@Init` | Almost all structs and classes — skip only when a manual init is genuinely needed. |
+| `@Init` | Almost all structs and classes — skip only when a memberwise init doesn't make sense (rare). |
 | `@Copy` | Most structs (not classes — they're mutable). |
 | `@Merge` | Predominantly style structs, though `@Style` already includes it. |
 | `@Data` | Combines `@Init` + `@Copy` + `@Merge`. Use on non-style data structs that need all three. |
