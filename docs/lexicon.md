@@ -296,10 +296,9 @@ One-sentence description of every Forge type. Paths are relative to `apple/Forge
 | `FontAxis` | Variable font axes (weight, width, slant, optical size, grade, etc.). | `Components/Content/Text.swift` |
 | `TextAlign` | Text alignment (leading, trailing, center, justify). | `Components/Content/Text.swift` |
 | `TextOverflow` | Text overflow mode (clip, fade, ellipsis). | `Components/Content/Text.swift` |
-| `TextCase` | Text case transformation (none, uppercase, lowercase, capitalize). | `Components/Content/Text.swift` |
-| `TextDecoration` | Text decoration (underline, overline, strikethrough). | `Components/Content/Text.swift` |
-| `TextLineConfig` | Configuration for a text decoration line (style, color). | `Components/Content/Text.swift` |
-| `TextLinePosition` | Position of a line decoration (under, over, through). | `Components/Content/Text.swift` |
+| `TextCase` | Text case transformation (plain, uppercase, lowercase, capitalize, title, pascal, camel, snake, kebab, dot, sponge). | `Components/Content/Text.swift` |
+| `TextDecoration` | Text decoration with separate underline, strikethrough, and shadow. | `Components/Content/Text.swift` |
+| `TextLineStyle` | Visual style for an underline or strikethrough line (color, style). | `Components/Content/Text.swift` |
 | `ShadowConfig` | Shadow configuration for text (color, offset, blur). | `Components/Content/Text.swift` |
 | `Text` | Text display composite view; styled via TextStyle. | `Components/Content/Text.swift` |
 | `TextLeaf` | Internal leaf view that renders text to a platform label. | `Components/Content/Text.swift` |

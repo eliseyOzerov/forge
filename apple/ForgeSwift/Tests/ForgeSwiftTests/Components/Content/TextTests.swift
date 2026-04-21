@@ -273,16 +273,16 @@ final class TextTests: XCTestCase {
     }
 
     func testMountUnderline() {
-        let decoration = TextDecoration(line: TextLineConfig(position: .underline, style: TextLineConfig.single))
+        let decoration = TextDecoration(underline: TextLineStyle(style: TextLineStyle.single))
         let style = TextStyle(decoration: decoration)
         let label = mount(Text("Hi", style: style))
         let attrs = attributes(of: label)
-        XCTAssertEqual(attrs[.underlineStyle] as? Int, TextLineConfig.single)
+        XCTAssertEqual(attrs[.underlineStyle] as? Int, TextLineStyle.single)
         XCTAssertNil(attrs[.strikethroughStyle])
     }
 
     func testMountUnderlineWithColor() {
-        let decoration = TextDecoration(line: TextLineConfig(color: .blue, position: .underline))
+        let decoration = TextDecoration(underline: TextLineStyle(color: .blue))
         let style = TextStyle(decoration: decoration)
         let label = mount(Text("Hi", style: style))
         let attrs = attributes(of: label)
@@ -290,11 +290,11 @@ final class TextTests: XCTestCase {
     }
 
     func testMountStrikethrough() {
-        let decoration = TextDecoration(line: TextLineConfig(position: .strikethrough, style: TextLineConfig.double))
+        let decoration = TextDecoration(strikethrough: TextLineStyle(style: TextLineStyle.double))
         let style = TextStyle(decoration: decoration)
         let label = mount(Text("Hi", style: style))
         let attrs = attributes(of: label)
-        XCTAssertEqual(attrs[.strikethroughStyle] as? Int, TextLineConfig.double)
+        XCTAssertEqual(attrs[.strikethroughStyle] as? Int, TextLineStyle.double)
         XCTAssertNil(attrs[.underlineStyle])
     }
 
@@ -359,13 +359,13 @@ final class TextTests: XCTestCase {
         let label = renderer.mount() as! UILabel
         XCTAssertNil(attributes(of: label)[.underlineStyle])
 
-        let decoration = TextDecoration(line: TextLineConfig(position: .underline))
+        let decoration = TextDecoration(underline: TextLineStyle())
         renderer.update(from: Text("Hi", style: TextStyle(decoration: decoration)))
         XCTAssertNotNil(attributes(of: label)[.underlineStyle])
     }
 
     func testUpdateRemovesDecoration() {
-        let decoration = TextDecoration(line: TextLineConfig(position: .underline))
+        let decoration = TextDecoration(underline: TextLineStyle())
         let renderer = UIKitTextRenderer(view: Text("Hi", style: TextStyle(decoration: decoration)))
         let label = renderer.mount() as! UILabel
         XCTAssertNotNil(attributes(of: label)[.underlineStyle])

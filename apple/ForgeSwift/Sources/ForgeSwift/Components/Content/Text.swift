@@ -168,7 +168,8 @@ private extension String {
 /// Decorations applied to text (underline, strikethrough, shadow).
 @Init
 public struct TextDecoration: Sendable, Equatable {
-    public var line: TextLineConfig?
+    public var underline: TextLineStyle?
+    public var strikethrough: TextLineStyle?
     public var shadow: ShadowConfig?
 }
 
@@ -203,13 +204,12 @@ public enum FontAxis: String, CaseIterable, Sendable {
     public var code: String { rawValue }
 }
 
-// MARK: - TextLineConfig
+// MARK: - TextLineStyle
 
-/// Configuration for an underline or strikethrough line.
+/// Visual style for an underline or strikethrough line.
 @Init
-public struct TextLineConfig: Sendable, Equatable {
+public struct TextLineStyle: Sendable, Equatable {
     public var color: Color?
-    public var position: TextLinePosition = .underline
     public var style: Int = 0x01
 
     public static let single = 0x01
@@ -225,14 +225,6 @@ public struct ShadowConfig: Sendable, Equatable {
     public var color: Color = Color.black.withAlpha(0.33)
     public var radius: Double = 1
     public var offset: Size = Size(0, 1)
-}
-
-// MARK: - TextLinePosition
-
-/// Whether a text decoration line is an underline or strikethrough.
-public enum TextLinePosition: String, Sendable {
-    case underline
-    case strikethrough
 }
 
 // MARK: - TextSize
@@ -678,15 +670,13 @@ final class UIKitTextRenderer: Renderer {
         attributes[.foregroundColor] = style.color?.platformColor ?? UIColor.label
 
         if let decoration = style.decoration {
-            if let line = decoration.line {
-                switch line.position {
-                case .underline:
-                    attributes[.underlineStyle] = line.style
-                    if let color = line.color { attributes[.underlineColor] = color.platformColor }
-                case .strikethrough:
-                    attributes[.strikethroughStyle] = line.style
-                    if let color = line.color { attributes[.strikethroughColor] = color.platformColor }
-                }
+            if let underline = decoration.underline {
+                attributes[.underlineStyle] = underline.style
+                if let color = underline.color { attributes[.underlineColor] = color.platformColor }
+            }
+            if let strikethrough = decoration.strikethrough {
+                attributes[.strikethroughStyle] = strikethrough.style
+                if let color = strikethrough.color { attributes[.strikethroughColor] = color.platformColor }
             }
             if let shadow = decoration.shadow {
                 let nsShadow = NSShadow()
