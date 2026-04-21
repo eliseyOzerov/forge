@@ -14,6 +14,9 @@ public protocol Canvas: AnyObject {
     /// Fill a path with a solid color.
     func fillColor(_ path: Path, _ color: Color)
 
+    /// Fill a path with a solid color using the specified fill rule.
+    func fillColor(_ path: Path, _ color: Color, rule: FillRule)
+
     /// Draw a linear gradient within bounds. Caller is responsible for clipping first.
     func drawLinearGradient(stops: [GradientStop], start: Vec2, end: Vec2, in bounds: Rect)
 
@@ -68,6 +71,11 @@ public enum Filter {
 // MARK: - Convenience: draw with Paint
 
 public extension Canvas {
+
+    /// Default fill rule implementation delegates to the winding rule variant.
+    func fillColor(_ path: Path, _ color: Color, rule: FillRule) {
+        fillColor(path, color)
+    }
 
     /// Draw a filled path with full paint (fill + blend + opacity).
     /// Delegates to `paint.fill.draw(on:path:)` after setting up state.
@@ -151,9 +159,16 @@ public final class CGCanvas: Canvas {
     // MARK: Drawing primitives
 
     public func fillColor(_ path: Path, _ color: Color) {
+        fillColor(path, color, rule: .winding)
+    }
+
+    public func fillColor(_ path: Path, _ color: Color, rule: FillRule) {
         ctx.addPath(path.cgPath)
         ctx.setFillColor(color.cgColor)
-        ctx.fillPath()
+        switch rule {
+        case .winding: ctx.fillPath()
+        case .evenOdd: ctx.fillPath(using: .evenOdd)
+        }
     }
 
     public func drawLinearGradient(stops: [GradientStop], start: Vec2, end: Vec2, in bounds: Rect) {

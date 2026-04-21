@@ -1,22 +1,44 @@
 import Foundation
 import CoreGraphics
 
+#if canImport(UIKit)
+import UIKit
+#endif
+
+#if canImport(CoreText)
+import CoreText
+#endif
+
 // MARK: - SVG Document
 
-/// Parsed SVG document with a viewBox and a tree of elements.
+/// Parsed SVG document with a viewBox, element tree, and definitions registry.
 @Init
 public struct SVGDocument {
-    public let viewBox: CGRect
-    public let elements: [SVGElement]
+    public var viewBox: CGRect
+    public var elements: [SVGElement]
+    public var defs: SVGDefs = SVGDefs()
 
     public var elementIDs: [String] {
         elements.flatMap { $0.collectIDs() }
     }
 }
 
+// MARK: - SVGDefs
+
+/// Registry of reusable definitions (<defs>, gradients, clipPaths, filters, masks).
+public struct SVGDefs {
+    public var linearGradients: [String: SVGLinearGradientDef] = [:]
+    public var radialGradients: [String: SVGRadialGradientDef] = [:]
+    public var clipPaths: [String: [SVGElement]] = [:]
+    public var filters: [String: SVGFilterDef] = [:]
+    public var masks: [String: SVGMaskDef] = [:]
+    public var reusableElements: [String: [SVGElement]] = [:]
+    public init() {}
+}
+
 // MARK: - SVGElement
 
-/// A single SVG shape or group element.
+/// A single SVG shape, group, text, image, or use element.
 public indirect enum SVGElement {
     case path(SVGPathData)
     case rect(SVGRectData)
@@ -26,6 +48,9 @@ public indirect enum SVGElement {
     case polygon(SVGPolygonData)
     case polyline(SVGPolygonData)
     case group(SVGGroupData)
+    case use(SVGUseData)
+    case image(SVGImageData)
+    case text(SVGTextData)
 
     func collectIDs() -> [String] {
         switch self {
@@ -37,32 +62,59 @@ public indirect enum SVGElement {
         case .polygon(let d): [d.id]
         case .polyline(let d): [d.id]
         case .group(let d): [d.id] + d.children.flatMap { $0.collectIDs() }
+        case .use(let d): [d.id]
+        case .image(let d): [d.id]
+        case .text(let d): [d.id]
         }
     }
 }
 
-// MARK: - Element Data
+// MARK: - Paint Attributes
 
-/// Common SVG paint attributes (fill, stroke, opacity, transform).
+/// Common SVG presentation attributes for fill, stroke, opacity, and transform.
 @Init
 public struct SVGPaintAttributes {
+    // Fill
     public var fill: SVGPaint = .color(.black)
+    public var fillOpacity: Double = 1
+    public var fillRule: FillRule = .winding
+    // Stroke
     public var stroke: SVGPaint = .none
     public var strokeWidth: CGFloat = 1
     public var strokeLineCap: CGLineCap = .butt
     public var strokeLineJoin: CGLineJoin = .miter
+    public var strokeMiterLimit: CGFloat = 4
+    public var strokeDashArray: [CGFloat] = []
+    public var strokeDashOffset: CGFloat = 0
+    public var strokeOpacity: Double = 1
+    // Shared
     public var opacity: Double = 1
     public var transform: CGAffineTransform = .identity
+    public var visibility: SVGVisibility = .visible
+    public var display: SVGDisplay = .inline
+    // References
+    public var clipPathID: String? = nil
+    public var filterID: String? = nil
+    public var maskID: String? = nil
 
     nonisolated(unsafe) public static let defaults = SVGPaintAttributes()
 }
 
-/// SVG paint value: none, a specific color, or currentColor.
-public enum SVGPaint {
+/// SVG paint value: none, solid color, currentColor, or a url reference (gradient/pattern).
+public enum SVGPaint: Equatable {
     case none
     case color(Color)
     case currentColor
+    case url(String)
 }
+
+/// SVG visibility property.
+public enum SVGVisibility: Sendable, Equatable { case visible, hidden, collapse }
+
+/// SVG display property.
+public enum SVGDisplay: Sendable, Equatable { case inline, none }
+
+// MARK: - Element Data
 
 /// Data for an SVG `<path>` element.
 @Init
@@ -120,6 +172,124 @@ public struct SVGGroupData {
     public let children: [SVGElement]
 }
 
+/// Data for an SVG `<use>` element referencing a defs entry.
+@Init
+public struct SVGUseData {
+    public let id: String
+    public let href: String
+    public let x: CGFloat
+    public let y: CGFloat
+    public let attributes: SVGPaintAttributes
+}
+
+/// Data for an SVG `<image>` element.
+@Init
+public struct SVGImageData {
+    public let id: String
+    public let x: CGFloat
+    public let y: CGFloat
+    public let width: CGFloat
+    public let height: CGFloat
+    public let href: String
+    public let attributes: SVGPaintAttributes
+}
+
+/// Data for an SVG `<text>` element.
+@Init
+public struct SVGTextData {
+    public let id: String
+    public let x: CGFloat
+    public let y: CGFloat
+    public let fontSize: CGFloat
+    public let fontFamily: String
+    public let fontWeight: String
+    public let textAnchor: SVGTextAnchor
+    public let attributes: SVGPaintAttributes
+    public let spans: [SVGTextSpan]
+}
+
+/// A span of text within an SVG `<text>` element.
+@Init
+public struct SVGTextSpan {
+    public let text: String
+    public let x: CGFloat?
+    public let y: CGFloat?
+    public let dx: CGFloat
+    public let dy: CGFloat
+    public let fontSize: CGFloat?
+    public let fontWeight: String?
+    public let attributes: SVGPaintAttributes?
+}
+
+/// Text alignment anchor.
+public enum SVGTextAnchor: Sendable, Equatable { case start, middle, end }
+
+// MARK: - Gradient Definitions
+
+/// A parsed gradient stop.
+@Init
+public struct SVGGradientStop {
+    public let offset: Double
+    public let color: Color
+    public let opacity: Double
+}
+
+/// Parsed `<linearGradient>` definition.
+public struct SVGLinearGradientDef {
+    public var id: String
+    public var x1: Double = 0
+    public var y1: Double = 0
+    public var x2: Double = 1
+    public var y2: Double = 0
+    public var gradientUnits: SVGGradientUnits = .objectBoundingBox
+    public var gradientTransform: CGAffineTransform = .identity
+    public var stops: [SVGGradientStop] = []
+    public var href: String? = nil
+    public init(id: String) { self.id = id }
+}
+
+/// Parsed `<radialGradient>` definition.
+public struct SVGRadialGradientDef {
+    public var id: String
+    public var cx: Double = 0.5
+    public var cy: Double = 0.5
+    public var r: Double = 0.5
+    public var fx: Double? = nil
+    public var fy: Double? = nil
+    public var gradientUnits: SVGGradientUnits = .objectBoundingBox
+    public var gradientTransform: CGAffineTransform = .identity
+    public var stops: [SVGGradientStop] = []
+    public var href: String? = nil
+    public init(id: String) { self.id = id }
+}
+
+/// Gradient coordinate space.
+public enum SVGGradientUnits: Sendable, Equatable { case objectBoundingBox, userSpaceOnUse }
+
+// MARK: - Filter Definitions
+
+/// Parsed `<filter>` definition.
+public struct SVGFilterDef {
+    public var id: String
+    public var primitives: [SVGFilterPrimitive] = []
+    public init(id: String, primitives: [SVGFilterPrimitive] = []) { self.id = id; self.primitives = primitives }
+}
+
+/// Supported SVG filter primitives.
+public enum SVGFilterPrimitive {
+    case gaussianBlur(stdDeviation: Double)
+    case dropShadow(dx: Double, dy: Double, stdDeviation: Double, color: Color)
+}
+
+// MARK: - Mask Definition
+
+/// Parsed `<mask>` definition.
+public struct SVGMaskDef {
+    public let id: String
+    public let children: [SVGElement]
+    public init(id: String, children: [SVGElement]) { self.id = id; self.children = children }
+}
+
 // MARK: - SVG Override
 
 /// Per-element style override applied at render time.
@@ -129,13 +299,16 @@ public struct SVGOverride {
     public var stroke: Color? = nil
     public var strokeWidth: Double? = nil
     public var opacity: Double? = nil
+    public var fillOpacity: Double? = nil
+    public var strokeOpacity: Double? = nil
+    public var dashArray: [CGFloat]? = nil
+    public var visibility: SVGVisibility? = nil
     public var isHidden: Bool = false
 }
 
 // MARK: - SVG Painter
 
-/// Paints an SVGDocument directly onto a Canvas. No intermediate
-/// Surface or Layer tree — just immediate draw calls.
+/// Paints an SVGDocument directly onto a Canvas.
 @Init
 public struct SVGPainter {
     public var document: SVGDocument
@@ -148,96 +321,389 @@ public struct SVGPainter {
         }
     }
 
-    // MARK: - Element → Canvas calls
+    // MARK: - Element dispatch
 
     private func paintElement(_ element: SVGElement, on canvas: Canvas) {
         switch element {
         case .path(let data):
             let path = SVGPathDataParser.parse(data.d)
-            paintDrawn(path, attributes: data.attributes, id: data.id, on: canvas)
+            paintShape(path, attributes: data.attributes, id: data.id, on: canvas)
 
         case .rect(let data):
             let r = Rect(x: data.x, y: data.y, width: data.width, height: data.height)
             let path = data.rx > 0 || data.ry > 0
                 ? RoundedModifiedShape(base: RectShape().erased, radii: [data.rx > 0 ? data.rx : data.ry], smooth: 0).path(in: r)
                 : RectShape().path(in: r)
-            paintDrawn(path, attributes: data.attributes, id: data.id, on: canvas)
+            paintShape(path, attributes: data.attributes, id: data.id, on: canvas)
 
         case .circle(let data):
             let r = Rect.fromCircle(center: Point(data.cx, data.cy), radius: data.r)
-            let path = EllipseShape().path(in: r)
-            paintDrawn(path, attributes: data.attributes, id: data.id, on: canvas)
+            paintShape(EllipseShape().path(in: r), attributes: data.attributes, id: data.id, on: canvas)
 
         case .ellipse(let data):
             let r = Rect(x: data.cx - data.rx, y: data.cy - data.ry, width: data.rx * 2, height: data.ry * 2)
-            let path = EllipseShape().path(in: r)
-            paintDrawn(path, attributes: data.attributes, id: data.id, on: canvas)
+            paintShape(EllipseShape().path(in: r), attributes: data.attributes, id: data.id, on: canvas)
 
         case .line(let data):
             var attrs = data.attributes; attrs.fill = .none
             if case .none = attrs.stroke { attrs.stroke = .color(.black) }
             let path = Path.line(from: Point(Double(data.x1), Double(data.y1)), to: Point(Double(data.x2), Double(data.y2)))
-            paintDrawn(path, attributes: attrs, id: data.id, on: canvas)
+            paintShape(path, attributes: attrs, id: data.id, on: canvas)
 
         case .polygon(let data):
             guard !data.points.isEmpty else { return }
-            paintDrawn(Path.polygon(data.points), attributes: data.attributes, id: data.id, on: canvas)
+            paintShape(Path.polygon(data.points), attributes: data.attributes, id: data.id, on: canvas)
 
         case .polyline(let data):
             guard !data.points.isEmpty else { return }
-            paintDrawn(Path.polyline(data.points), attributes: data.attributes, id: data.id, on: canvas)
+            paintShape(Path.polyline(data.points), attributes: data.attributes, id: data.id, on: canvas)
 
         case .group(let data):
-            if overrides[data.id]?.isHidden == true { return }
-            let opacity = overrides[data.id]?.opacity ?? Double(data.attributes.opacity)
-            let hasTransform = data.attributes.transform != .identity
+            paintGroup(data, on: canvas)
 
-            canvas.save()
-            if hasTransform { canvas.transform(Transform2D(data.attributes.transform)) }
-            if opacity < 1 { canvas.setAlpha(opacity) }
-            for child in data.children { paintElement(child, on: canvas) }
-            canvas.restore()
+        case .use(let data):
+            paintUse(data, on: canvas)
+
+        case .image(let data):
+            paintImage(data, on: canvas)
+
+        case .text(let data):
+            paintText(data, on: canvas)
         }
     }
 
-    private func paintDrawn(_ path: Path, attributes: SVGPaintAttributes, id: String, on canvas: Canvas) {
+    // MARK: - Shape rendering
+
+    private func paintShape(_ path: Path, attributes attrs: SVGPaintAttributes, id: String, on canvas: Canvas) {
         let ov = overrides[id]
         if ov?.isHidden == true { return }
+        if (ov?.visibility ?? attrs.visibility) != .visible || attrs.display == .none { return }
 
-        let opacity = ov?.opacity ?? Double(attributes.opacity)
-        let hasTransform = attributes.transform != .identity
+        let opacity = ov?.opacity ?? attrs.opacity
 
         canvas.save()
-        if hasTransform { canvas.transform(Transform2D(attributes.transform)) }
+        if attrs.transform != .identity { canvas.transform(Transform2D(attrs.transform)) }
         if opacity < 1 { canvas.setAlpha(opacity) }
 
-        if let fillColor = resolveFill(attributes, override: ov) {
-            canvas.draw(path, with: .color(fillColor))
+        // Clip path
+        if let clipID = attrs.clipPathID, let clipElements = document.defs.clipPaths[clipID] {
+            let clipPath = buildClipPath(from: clipElements)
+            canvas.clip(clipPath)
         }
-        if let strokeColor = resolveStroke(attributes, override: ov) {
-            let width = ov?.strokeWidth ?? attributes.strokeWidth
-            let stroked = path.stroked(width: width, cap: StrokeCap(attributes.strokeLineCap), join: StrokeJoin(attributes.strokeLineJoin))
-            canvas.draw(stroked, with: .color(strokeColor))
+
+        // Filter
+        applyFilter(attrs, on: canvas)
+
+        // Fill
+        let fillPaint = ov?.fill.map { SVGPaint.color($0) } ?? attrs.fill
+        let fillOpacity = ov?.fillOpacity ?? attrs.fillOpacity
+        paintFill(fillPaint, opacity: fillOpacity, path: path, rule: attrs.fillRule, on: canvas)
+
+        // Stroke
+        let strokePaint = ov?.stroke.map { SVGPaint.color($0) } ?? attrs.stroke
+        let strokeOpacity = ov?.strokeOpacity ?? attrs.strokeOpacity
+        let strokeWidth = ov?.strokeWidth.map { CGFloat($0) } ?? attrs.strokeWidth
+        let dashArray = ov?.dashArray ?? attrs.strokeDashArray
+        paintStroke(strokePaint, opacity: strokeOpacity, path: path, width: strokeWidth,
+                    cap: attrs.strokeLineCap, join: attrs.strokeLineJoin, miterLimit: attrs.strokeMiterLimit,
+                    dashArray: dashArray, dashOffset: attrs.strokeDashOffset, on: canvas)
+
+        canvas.restore()
+    }
+
+    // MARK: - Fill
+
+    private func paintFill(_ paint: SVGPaint, opacity: Double, path: Path, rule: FillRule, on canvas: Canvas) {
+        switch paint {
+        case .none:
+            return
+        case .color(let c):
+            let resolved = globalColor.map { _ in globalColor! } ?? c
+            let color = opacity < 1 ? resolved.withAlpha(resolved.alpha * opacity) : resolved
+            canvas.fillColor(path, color, rule: rule)
+        case .currentColor:
+            let c = globalColor ?? .black
+            let color = opacity < 1 ? c.withAlpha(c.alpha * opacity) : c
+            canvas.fillColor(path, color, rule: rule)
+        case .url(let id):
+            paintGradientFill(id: id, opacity: opacity, path: path, on: canvas)
+        }
+    }
+
+    private func paintGradientFill(id: String, opacity: Double, path: Path, on canvas: Canvas) {
+        let bounds = path.boundingBox
+        canvas.save()
+        canvas.clip(path)
+        if opacity < 1 { canvas.setAlpha(opacity) }
+
+        if let linear = resolveLinearGradient(id) {
+            let stops = resolveStops(linear.stops, gradientID: id)
+            let forgeStops = stops.map { GradientStop($0.color.withAlpha($0.color.alpha * $0.opacity), at: $0.offset) }
+            if linear.gradientUnits == .objectBoundingBox {
+                canvas.drawLinearGradient(stops: forgeStops, start: Vec2(linear.x1, linear.y1), end: Vec2(linear.x2, linear.y2), in: bounds)
+            } else {
+                canvas.drawLinearGradient(stops: forgeStops,
+                    start: Vec2((linear.x1 - bounds.x) / bounds.width, (linear.y1 - bounds.y) / bounds.height),
+                    end: Vec2((linear.x2 - bounds.x) / bounds.width, (linear.y2 - bounds.y) / bounds.height), in: bounds)
+            }
+        } else if let radial = resolveRadialGradient(id) {
+            let stops = resolveStops(radial.stops, gradientID: id)
+            let forgeStops = stops.map { GradientStop($0.color.withAlpha($0.color.alpha * $0.opacity), at: $0.offset) }
+            if radial.gradientUnits == .objectBoundingBox {
+                canvas.drawRadialGradient(stops: forgeStops, center: Vec2(radial.cx, radial.cy), radius: radial.r, in: bounds)
+            } else {
+                canvas.drawRadialGradient(stops: forgeStops,
+                    center: Vec2((radial.cx - bounds.x) / bounds.width, (radial.cy - bounds.y) / bounds.height),
+                    radius: radial.r / max(bounds.width, bounds.height), in: bounds)
+            }
         }
 
         canvas.restore()
     }
 
-    // MARK: - Color Resolution
+    // MARK: - Stroke
 
-    private func resolveFill(_ attrs: SVGPaintAttributes, override ov: SVGOverride?) -> Color? {
-        if let c = ov?.fill { return c }
-        if let g = globalColor { switch attrs.fill { case .none: return nil; default: return g } }
-        return resolveColor(attrs.fill)
+    private func paintStroke(_ paint: SVGPaint, opacity: Double, path: Path,
+                             width: CGFloat, cap: CGLineCap, join: CGLineJoin, miterLimit: CGFloat,
+                             dashArray: [CGFloat], dashOffset: CGFloat, on canvas: Canvas) {
+        if case .none = paint { return }
+
+        var strokePath = path
+        if !dashArray.isEmpty {
+            strokePath = strokePath.dashed(phase: Double(dashOffset), lengths: dashArray.map { Double($0) })
+        }
+        let stroked = strokePath.stroked(width: Double(width), cap: StrokeCap(cap), join: StrokeJoin(join), miterLimit: Double(miterLimit))
+
+        switch paint {
+        case .color(let c):
+            let color = opacity < 1 ? c.withAlpha(c.alpha * opacity) : c
+            canvas.draw(stroked, with: .color(color))
+        case .currentColor:
+            let c = globalColor ?? .black
+            let color = opacity < 1 ? c.withAlpha(c.alpha * opacity) : c
+            canvas.draw(stroked, with: .color(color))
+        case .url(let id):
+            canvas.save()
+            canvas.clip(stroked)
+            if opacity < 1 { canvas.setAlpha(opacity) }
+            let bounds = stroked.boundingBox
+            if let linear = resolveLinearGradient(id) {
+                let stops = resolveStops(linear.stops, gradientID: id)
+                let forgeStops = stops.map { GradientStop($0.color.withAlpha($0.color.alpha * $0.opacity), at: $0.offset) }
+                canvas.drawLinearGradient(stops: forgeStops, start: Vec2(linear.x1, linear.y1), end: Vec2(linear.x2, linear.y2), in: bounds)
+            } else if let radial = resolveRadialGradient(id) {
+                let stops = resolveStops(radial.stops, gradientID: id)
+                let forgeStops = stops.map { GradientStop($0.color.withAlpha($0.color.alpha * $0.opacity), at: $0.offset) }
+                canvas.drawRadialGradient(stops: forgeStops, center: Vec2(radial.cx, radial.cy), radius: radial.r, in: bounds)
+            }
+            canvas.restore()
+        case .none:
+            return
+        }
     }
 
-    private func resolveStroke(_ attrs: SVGPaintAttributes, override ov: SVGOverride?) -> Color? {
-        if let c = ov?.stroke { return c }
-        return resolveColor(attrs.stroke)
+    // MARK: - Group
+
+    private func paintGroup(_ data: SVGGroupData, on canvas: Canvas) {
+        let ov = overrides[data.id]
+        if ov?.isHidden == true { return }
+        if data.attributes.visibility != .visible || data.attributes.display == .none { return }
+
+        let opacity = ov?.opacity ?? data.attributes.opacity
+
+        canvas.save()
+        if data.attributes.transform != .identity { canvas.transform(Transform2D(data.attributes.transform)) }
+        if opacity < 1 { canvas.setAlpha(opacity) }
+
+        if let clipID = data.attributes.clipPathID, let clipElements = document.defs.clipPaths[clipID] {
+            canvas.clip(buildClipPath(from: clipElements))
+        }
+        applyFilter(data.attributes, on: canvas)
+
+        for child in data.children { paintElement(child, on: canvas) }
+        canvas.restore()
     }
 
-    private func resolveColor(_ paint: SVGPaint) -> Color? {
-        switch paint { case .none: return nil; case .color(let c): return c; case .currentColor: return globalColor ?? .black }
+    // MARK: - Use
+
+    private func paintUse(_ data: SVGUseData, on canvas: Canvas) {
+        guard let referenced = document.defs.reusableElements[data.href] else { return }
+        canvas.save()
+        canvas.translate(Double(data.x), Double(data.y))
+        if data.attributes.transform != .identity { canvas.transform(Transform2D(data.attributes.transform)) }
+        if data.attributes.opacity < 1 { canvas.setAlpha(data.attributes.opacity) }
+        for element in referenced { paintElement(element, on: canvas) }
+        canvas.restore()
+    }
+
+    // MARK: - Image
+
+    private func paintImage(_ data: SVGImageData, on canvas: Canvas) {
+        if data.attributes.visibility != .visible || data.attributes.display == .none { return }
+        canvas.save()
+        if data.attributes.transform != .identity { canvas.transform(Transform2D(data.attributes.transform)) }
+        if data.attributes.opacity < 1 { canvas.setAlpha(data.attributes.opacity) }
+
+        let bounds = Rect(x: data.x, y: data.y, width: data.width, height: data.height)
+
+        // Base64 data URIs — platform-specific image decoding
+        #if canImport(UIKit)
+        if data.href.hasPrefix("data:") {
+            if let commaIndex = data.href.firstIndex(of: ",") {
+                let base64String = String(data.href[data.href.index(after: commaIndex)...])
+                if let imageData = Data(base64Encoded: base64String),
+                   let uiImage = UIImage(data: imageData) {
+                    canvas.drawImage(ImageSource(uiImage), fit: .fill, in: bounds)
+                }
+            }
+        }
+        #endif
+
+        canvas.restore()
+    }
+
+    // MARK: - Text
+
+    private func paintText(_ data: SVGTextData, on canvas: Canvas) {
+        if data.attributes.visibility != .visible || data.attributes.display == .none { return }
+
+        canvas.save()
+        if data.attributes.transform != .identity { canvas.transform(Transform2D(data.attributes.transform)) }
+        if data.attributes.opacity < 1 { canvas.setAlpha(data.attributes.opacity) }
+
+        #if canImport(CoreText)
+        var cursorX = Double(data.x)
+        let cursorY = Double(data.y)
+
+        for span in data.spans {
+            let spanX = span.x.map { Double($0) } ?? cursorX + Double(span.dx)
+            let spanY = span.y.map { Double($0) } ?? cursorY + Double(span.dy)
+            let size = span.fontSize ?? data.fontSize
+            let weight = span.fontWeight ?? data.fontWeight
+
+            let ctWeight = ctFontWeight(weight)
+            let font = CTFontCreateWithName((data.fontFamily.isEmpty ? "Helvetica" : data.fontFamily) as CFString, size, nil)
+            let weighted = CTFontCreateCopyWithSymbolicTraits(font, size, nil,
+                ctWeight > 0.2 ? .boldTrait : [], .boldTrait) ?? font
+
+            let attrString = CFAttributedStringCreate(nil, span.text as CFString,
+                [kCTFontAttributeName: weighted] as CFDictionary)!
+            let line = CTLineCreateWithAttributedString(attrString)
+            let glyphRuns = CTLineGetGlyphRuns(line) as! [CTRun]
+
+            var textPath = Path()
+            for run in glyphRuns {
+                let glyphCount = CTRunGetGlyphCount(run)
+                var glyphs = [CGGlyph](repeating: 0, count: glyphCount)
+                var positions = [CGPoint](repeating: .zero, count: glyphCount)
+                CTRunGetGlyphs(run, CFRange(location: 0, length: glyphCount), &glyphs)
+                CTRunGetPositions(run, CFRange(location: 0, length: glyphCount), &positions)
+
+                for g in 0..<glyphCount {
+                    if let glyphPath = CTFontCreatePathForGlyph(weighted, glyphs[g], nil) {
+                        var t = CGAffineTransform(a: 1, b: 0, c: 0, d: -1, tx: positions[g].x, ty: 0)
+                        if let flipped = glyphPath.copy(using: &t) {
+                            textPath.addPath(Path(cgPath: flipped))
+                        }
+                    }
+                }
+            }
+
+            // Anchor alignment
+            let textBounds = textPath.boundingBox
+            var offsetX = spanX
+            switch data.textAnchor {
+            case .middle: offsetX -= textBounds.width / 2
+            case .end: offsetX -= textBounds.width
+            case .start: break
+            }
+
+            canvas.save()
+            canvas.translate(offsetX, spanY)
+
+            let attrs = span.attributes ?? data.attributes
+            paintFill(attrs.fill, opacity: attrs.fillOpacity, path: textPath, rule: attrs.fillRule, on: canvas)
+            if case .none = attrs.stroke {} else {
+                paintStroke(attrs.stroke, opacity: attrs.strokeOpacity, path: textPath,
+                            width: attrs.strokeWidth, cap: attrs.strokeLineCap, join: attrs.strokeLineJoin,
+                            miterLimit: attrs.strokeMiterLimit, dashArray: attrs.strokeDashArray,
+                            dashOffset: attrs.strokeDashOffset, on: canvas)
+            }
+            canvas.restore()
+
+            cursorX = spanX + textBounds.width
+        }
+        #endif
+
+        canvas.restore()
+    }
+
+    #if canImport(CoreText)
+    private func ctFontWeight(_ weight: String) -> CGFloat {
+        switch weight.lowercased() {
+        case "bold", "700": return 0.4
+        case "bolder", "800", "900": return 0.6
+        case "lighter", "100", "200": return -0.6
+        case "300": return -0.4
+        case "500": return 0.1
+        case "600": return 0.3
+        default: return 0
+        }
+    }
+    #endif
+
+    // MARK: - Helpers
+
+    private func applyFilter(_ attrs: SVGPaintAttributes, on canvas: Canvas) {
+        guard let filterID = attrs.filterID, let filterDef = document.defs.filters[filterID] else { return }
+        for primitive in filterDef.primitives {
+            switch primitive {
+            case .gaussianBlur(let std):
+                canvas.filter(.blur(radius: std))
+            case .dropShadow(let dx, let dy, let std, let color):
+                canvas.filter(.shadow(color: color, offset: Vec2(dx, dy), blur: std))
+            }
+        }
+    }
+
+    private func buildClipPath(from elements: [SVGElement]) -> Path {
+        var combined = Path()
+        for element in elements {
+            switch element {
+            case .path(let d): combined.addPath(SVGPathDataParser.parse(d.d))
+            case .rect(let d):
+                let r = Rect(x: d.x, y: d.y, width: d.width, height: d.height)
+                combined.addPath(RectShape().path(in: r))
+            case .circle(let d):
+                combined.addPath(EllipseShape().path(in: Rect.fromCircle(center: Point(d.cx, d.cy), radius: d.r)))
+            case .ellipse(let d):
+                combined.addPath(EllipseShape().path(in: Rect(x: d.cx - d.rx, y: d.cy - d.ry, width: d.rx * 2, height: d.ry * 2)))
+            default: break
+            }
+        }
+        return combined
+    }
+
+    private func resolveLinearGradient(_ id: String) -> SVGLinearGradientDef? {
+        document.defs.linearGradients[id]
+    }
+
+    private func resolveRadialGradient(_ id: String) -> SVGRadialGradientDef? {
+        document.defs.radialGradients[id]
+    }
+
+    private func resolveStops(_ stops: [SVGGradientStop], gradientID: String) -> [SVGGradientStop] {
+        if !stops.isEmpty { return stops }
+        // Follow href chain
+        if let linear = document.defs.linearGradients[gradientID], let href = linear.href {
+            if let parent = document.defs.linearGradients[href] { return resolveStops(parent.stops, gradientID: href) }
+            if let parent = document.defs.radialGradients[href] { return resolveStops(parent.stops, gradientID: href) }
+        }
+        if let radial = document.defs.radialGradients[gradientID], let href = radial.href {
+            if let parent = document.defs.linearGradients[href] { return resolveStops(parent.stops, gradientID: href) }
+            if let parent = document.defs.radialGradients[href] { return resolveStops(parent.stops, gradientID: href) }
+        }
+        return []
     }
 }
 
@@ -252,6 +718,43 @@ public final class SVGParser: NSObject, XMLParserDelegate {
     private var elementStack: [SVGGroupBuilder] = []
     private var rootElements: [SVGElement] = []
     private var elementCounters: [String: Int] = [:]
+    private var defs = SVGDefs()
+
+    // Defs parsing state
+    private var inDefs = false
+    private var defsElementStack: [SVGGroupBuilder] = []
+    private var currentDefsID: String?
+
+    // Gradient parsing state
+    private var currentLinearGradient: SVGLinearGradientDef?
+    private var currentRadialGradient: SVGRadialGradientDef?
+    private var currentGradientStops: [SVGGradientStop] = []
+
+    // Filter parsing state
+    private var currentFilter: SVGFilterDef?
+
+    // Mask parsing state
+    private var inMask = false
+    private var currentMaskID: String?
+    private var maskElements: [SVGElement] = []
+
+    // ClipPath parsing state
+    private var inClipPath = false
+    private var currentClipPathID: String?
+    private var clipPathElements: [SVGElement] = []
+
+    // Text parsing state
+    private var inText = false
+    private var textBuilder: SVGTextBuilder?
+    private var currentSpanAttrs: SVGPaintAttributes?
+
+    // Style parsing state
+    private var inStyleElement = false
+    private var styleText = ""
+    private var styleSheet: [String: [String: String]] = [:]
+
+    // Character accumulation
+    private var characterBuffer = ""
 
     public func parse(_ string: String) -> SVGDocument? {
         guard let data = string.data(using: .utf8) else { return nil }
@@ -271,18 +774,166 @@ public final class SVGParser: NSObject, XMLParserDelegate {
         } else {
             resolvedViewBox = CGRect(x: 0, y: 0, width: 100, height: 100)
         }
-        return SVGDocument(viewBox: resolvedViewBox, elements: rootElements)
+        return SVGDocument(viewBox: resolvedViewBox, elements: rootElements, defs: defs)
     }
 
     // MARK: - XMLParserDelegate
 
     public func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?, qualifiedName: String?, attributes: [String: String]) {
+        characterBuffer = ""
+
         switch elementName {
-        case "svg": parseSVGRoot(attributes)
+        case "svg":
+            parseSVGRoot(attributes)
+
+        case "defs":
+            inDefs = true
+
+        case "style":
+            inStyleElement = true
+            styleText = ""
+
+        case "linearGradient":
+            parseLinearGradientStart(attributes)
+
+        case "radialGradient":
+            parseRadialGradientStart(attributes)
+
+        case "stop":
+            parseGradientStop(attributes)
+
+        case "clipPath":
+            inClipPath = true
+            currentClipPathID = attributes["id"]
+            clipPathElements = []
+
+        case "filter":
+            currentFilter = SVGFilterDef(id: attributes["id"] ?? "")
+
+        case "feGaussianBlur":
+            if let std = attributes["stdDeviation"].flatMap({ Double($0) }) {
+                currentFilter?.primitives.append(.gaussianBlur(stdDeviation: std))
+            }
+
+        case "feDropShadow":
+            let dx = attributes["dx"].flatMap { Double($0) } ?? 0
+            let dy = attributes["dy"].flatMap { Double($0) } ?? 0
+            let std = attributes["stdDeviation"].flatMap { Double($0) } ?? 0
+            let color = attributes["flood-color"].flatMap { parseColor($0) } ?? .black
+            let opacity = attributes["flood-opacity"].flatMap { Double($0) } ?? 1
+            currentFilter?.primitives.append(.dropShadow(dx: dx, dy: dy, stdDeviation: std, color: color.withAlpha(opacity)))
+
+        case "mask":
+            inMask = true
+            currentMaskID = attributes["id"]
+            maskElements = []
+
+        case "use":
+            parseUse(attributes)
+
+        case "image":
+            parseImage(attributes)
+
+        case "text":
+            parseTextStart(attributes)
+
+        case "tspan":
+            parseTSpanStart(attributes)
+
         case "g":
             let attrs = parsePaintAttributes(attributes)
             let id = resolveID(attributes["id"], elementName: "Group")
-            elementStack.append(SVGGroupBuilder(id: id, attributes: attrs))
+            let builder = SVGGroupBuilder(id: id, attributes: attrs)
+            if inDefs { defsElementStack.append(builder) }
+            else if inClipPath || inMask { /* handled via appendElement */ }
+            else { elementStack.append(builder) }
+
+        default:
+            parseShapeElement(elementName, attributes: attributes)
+        }
+    }
+
+    public func parser(_ parser: XMLParser, foundCharacters string: String) {
+        characterBuffer += string
+    }
+
+    public func parser(_ parser: XMLParser, didEndElement elementName: String, namespaceURI: String?, qualifiedName: String?) {
+        switch elementName {
+        case "defs":
+            inDefs = false
+
+        case "style":
+            inStyleElement = false
+            parseStyleSheet(styleText)
+
+        case "linearGradient":
+            if var gradient = currentLinearGradient {
+                gradient.stops = currentGradientStops
+                defs.linearGradients[gradient.id] = gradient
+            }
+            currentLinearGradient = nil
+            currentGradientStops = []
+
+        case "radialGradient":
+            if var gradient = currentRadialGradient {
+                gradient.stops = currentGradientStops
+                defs.radialGradients[gradient.id] = gradient
+            }
+            currentRadialGradient = nil
+            currentGradientStops = []
+
+        case "clipPath":
+            if let id = currentClipPathID {
+                defs.clipPaths[id] = clipPathElements
+            }
+            inClipPath = false
+            currentClipPathID = nil
+
+        case "filter":
+            if let filter = currentFilter {
+                defs.filters[filter.id] = filter
+            }
+            currentFilter = nil
+
+        case "mask":
+            if let id = currentMaskID {
+                defs.masks[id] = SVGMaskDef(id: id, children: maskElements)
+            }
+            inMask = false
+            currentMaskID = nil
+
+        case "text":
+            finalizeText()
+
+        case "tspan":
+            finalizeTSpan()
+
+        case "g":
+            if inDefs {
+                if let builder = defsElementStack.popLast() {
+                    let group = SVGGroupData(id: builder.id, attributes: builder.attributes, children: builder.children)
+                    if let id = builder.attributes.clipPathID ?? Optional(builder.id) {
+                        defs.reusableElements[id] = [.group(group)]
+                    }
+                }
+            } else if let builder = elementStack.popLast() {
+                appendElement(.group(SVGGroupData(id: builder.id, attributes: builder.attributes, children: builder.children)))
+            }
+
+        default:
+            break
+        }
+
+        if inStyleElement {
+            styleText += characterBuffer
+        }
+        characterBuffer = ""
+    }
+
+    // MARK: - Shape Elements
+
+    private func parseShapeElement(_ elementName: String, attributes: [String: String]) {
+        switch elementName {
         case "path":
             if let d = attributes["d"] {
                 let attrs = parsePaintAttributes(attributes)
@@ -318,17 +969,269 @@ public final class SVGParser: NSObject, XMLParserDelegate {
             let attrs = parsePaintAttributes(attributes)
             let id = resolveID(attributes["id"], elementName: "Polyline")
             appendElement(.polyline(SVGPolygonData(id: id, points: parsePoints(attributes["points"] ?? ""), attributes: attrs)))
-        default: break
+        default:
+            break
         }
     }
 
-    public func parser(_ parser: XMLParser, didEndElement elementName: String, namespaceURI: String?, qualifiedName: String?) {
-        if elementName == "g", let builder = elementStack.popLast() {
-            appendElement(.group(SVGGroupData(id: builder.id, attributes: builder.attributes, children: builder.children)))
+    // MARK: - Gradient Parsing
+
+    private func parseLinearGradientStart(_ attributes: [String: String]) {
+        let id = attributes["id"] ?? ""
+        var gradient = SVGLinearGradientDef(id: id)
+        if let v = attributes["x1"] { gradient.x1 = parseGradientCoord(v) }
+        if let v = attributes["y1"] { gradient.y1 = parseGradientCoord(v) }
+        if let v = attributes["x2"] { gradient.x2 = parseGradientCoord(v) }
+        if let v = attributes["y2"] { gradient.y2 = parseGradientCoord(v) }
+        if attributes["gradientUnits"] == "userSpaceOnUse" { gradient.gradientUnits = .userSpaceOnUse }
+        if let t = attributes["gradientTransform"] { gradient.gradientTransform = parseTransform(t) }
+        gradient.href = parseHref(attributes)
+        currentLinearGradient = gradient
+        currentGradientStops = []
+    }
+
+    private func parseRadialGradientStart(_ attributes: [String: String]) {
+        let id = attributes["id"] ?? ""
+        var gradient = SVGRadialGradientDef(id: id)
+        if let v = attributes["cx"] { gradient.cx = parseGradientCoord(v) }
+        if let v = attributes["cy"] { gradient.cy = parseGradientCoord(v) }
+        if let v = attributes["r"] { gradient.r = parseGradientCoord(v) }
+        if let v = attributes["fx"] { gradient.fx = parseGradientCoord(v) }
+        if let v = attributes["fy"] { gradient.fy = parseGradientCoord(v) }
+        if attributes["gradientUnits"] == "userSpaceOnUse" { gradient.gradientUnits = .userSpaceOnUse }
+        if let t = attributes["gradientTransform"] { gradient.gradientTransform = parseTransform(t) }
+        gradient.href = parseHref(attributes)
+        currentRadialGradient = gradient
+        currentGradientStops = []
+    }
+
+    private func parseGradientStop(_ attributes: [String: String]) {
+        var offset: Double = 0
+        if let v = attributes["offset"] {
+            if v.hasSuffix("%") { offset = (Double(v.dropLast()) ?? 0) / 100 }
+            else { offset = Double(v) ?? 0 }
+        }
+        let color = attributes["stop-color"].flatMap { parseColor($0) } ?? .black
+        let opacity = attributes["stop-opacity"].flatMap { Double($0) } ?? 1
+        currentGradientStops.append(SVGGradientStop(offset: offset, color: color, opacity: opacity))
+    }
+
+    private func parseGradientCoord(_ value: String) -> Double {
+        if value.hasSuffix("%") { return (Double(value.dropLast()) ?? 0) / 100 }
+        return Double(value) ?? 0
+    }
+
+    private func parseHref(_ attributes: [String: String]) -> String? {
+        let raw = attributes["href"] ?? attributes["xlink:href"]
+        return raw?.hasPrefix("#") == true ? String(raw!.dropFirst()) : raw
+    }
+
+    // MARK: - Use/Image Parsing
+
+    private func parseUse(_ attributes: [String: String]) {
+        let id = resolveID(attributes["id"], elementName: "Use")
+        let href = parseHref(attributes) ?? ""
+        let x = cgFloat(attributes["x"])
+        let y = cgFloat(attributes["y"])
+        let attrs = parsePaintAttributes(attributes)
+        appendElement(.use(SVGUseData(id: id, href: href, x: x, y: y, attributes: attrs)))
+    }
+
+    private func parseImage(_ attributes: [String: String]) {
+        let id = resolveID(attributes["id"], elementName: "Image")
+        let href = attributes["href"] ?? attributes["xlink:href"] ?? ""
+        let attrs = parsePaintAttributes(attributes)
+        appendElement(.image(SVGImageData(id: id, x: cgFloat(attributes["x"]), y: cgFloat(attributes["y"]),
+            width: cgFloat(attributes["width"]), height: cgFloat(attributes["height"]),
+            href: href, attributes: attrs)))
+    }
+
+    // MARK: - Text Parsing
+
+    private func parseTextStart(_ attributes: [String: String]) {
+        inText = true
+        let attrs = parsePaintAttributes(attributes)
+        textBuilder = SVGTextBuilder(
+            id: resolveID(attributes["id"], elementName: "Text"),
+            x: cgFloat(attributes["x"]), y: cgFloat(attributes["y"]),
+            fontSize: cgFloat(attributes["font-size"]),
+            fontFamily: attributes["font-family"] ?? "",
+            fontWeight: attributes["font-weight"] ?? "normal",
+            textAnchor: parseTextAnchor(attributes["text-anchor"]),
+            attributes: attrs)
+    }
+
+    private func parseTSpanStart(_ attributes: [String: String]) {
+        // Flush any accumulated text before this tspan
+        let buffered = characterBuffer.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !buffered.isEmpty, let tb = textBuilder {
+            tb.spans.append(SVGTextSpan(text: buffered, x: nil, y: nil, dx: 0, dy: 0,
+                fontSize: nil, fontWeight: nil, attributes: nil))
+        }
+        characterBuffer = ""
+        currentSpanAttrs = parsePaintAttributes(attributes)
+    }
+
+    private func finalizeTSpan() {
+        let text = characterBuffer.trimmingCharacters(in: .whitespacesAndNewlines)
+        characterBuffer = ""
+        guard !text.isEmpty, let tb = textBuilder else { return }
+        tb.spans.append(SVGTextSpan(text: text, x: nil, y: nil, dx: 0, dy: 0,
+            fontSize: nil, fontWeight: nil, attributes: currentSpanAttrs))
+        currentSpanAttrs = nil
+    }
+
+    private func finalizeText() {
+        // Flush any remaining text
+        let text = characterBuffer.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !text.isEmpty, let tb = textBuilder {
+            tb.spans.append(SVGTextSpan(text: text, x: nil, y: nil, dx: 0, dy: 0,
+                fontSize: nil, fontWeight: nil, attributes: nil))
+        }
+        characterBuffer = ""
+
+        if let tb = textBuilder {
+            let fontSize = tb.fontSize > 0 ? tb.fontSize : 16
+            appendElement(.text(SVGTextData(id: tb.id, x: tb.x, y: tb.y,
+                fontSize: fontSize, fontFamily: tb.fontFamily, fontWeight: tb.fontWeight,
+                textAnchor: tb.textAnchor, attributes: tb.attributes, spans: tb.spans)))
+        }
+        textBuilder = nil
+        inText = false
+    }
+
+    private func parseTextAnchor(_ value: String?) -> SVGTextAnchor {
+        switch value { case "middle": .middle; case "end": .end; default: .start }
+    }
+
+    // MARK: - CSS Style Parsing
+
+    private func parseStyleSheet(_ css: String) {
+        let cleaned = css.replacingOccurrences(of: "\n", with: " ")
+        guard let regex = try? NSRegularExpression(pattern: #"\.([a-zA-Z0-9_-]+)\s*\{([^}]+)\}"#) else { return }
+        let nsCSS = cleaned as NSString
+        for match in regex.matches(in: cleaned, range: NSRange(location: 0, length: nsCSS.length)) {
+            let className = nsCSS.substring(with: match.range(at: 1))
+            let body = nsCSS.substring(with: match.range(at: 2))
+            styleSheet[className] = parseInlineCSS(body)
         }
     }
 
-    // MARK: - Helpers
+    private func parseInlineCSS(_ style: String) -> [String: String] {
+        var result: [String: String] = [:]
+        for pair in style.split(separator: ";") {
+            let kv = pair.split(separator: ":", maxSplits: 1)
+            guard kv.count == 2 else { continue }
+            result[kv[0].trimmingCharacters(in: .whitespaces)] = kv[1].trimmingCharacters(in: .whitespaces)
+        }
+        return result
+    }
+
+    // MARK: - Element Management
+
+    private func appendElement(_ element: SVGElement) {
+        if inClipPath { clipPathElements.append(element); return }
+        if inMask { maskElements.append(element); return }
+        if inDefs {
+            if let last = defsElementStack.last {
+                last.children.append(element)
+            } else {
+                // Top-level defs element — store by ID
+                let id: String
+                switch element {
+                case .path(let d): id = d.id
+                case .rect(let d): id = d.id
+                case .circle(let d): id = d.id
+                case .ellipse(let d): id = d.id
+                case .line(let d): id = d.id
+                case .polygon(let d): id = d.id
+                case .polyline(let d): id = d.id
+                case .group(let d): id = d.id
+                case .use(let d): id = d.id
+                case .image(let d): id = d.id
+                case .text(let d): id = d.id
+                }
+                defs.reusableElements[id] = [element]
+            }
+            return
+        }
+        if elementStack.isEmpty { rootElements.append(element) }
+        else { elementStack[elementStack.count - 1].children.append(element) }
+    }
+
+    // MARK: - Paint Attributes
+
+    private func parsePaintAttributes(_ attributes: [String: String]) -> SVGPaintAttributes {
+        let inherited = elementStack.last?.attributes ?? rootPaintAttributes
+        var result = inherited
+        result.transform = .identity
+
+        // Apply class-based CSS first (lower priority)
+        if let className = attributes["class"] {
+            for cls in className.split(separator: " ") {
+                if let cssProps = styleSheet[String(cls)] {
+                    applyCSS(cssProps, to: &result)
+                }
+            }
+        }
+
+        // Apply presentation attributes (medium priority)
+        applyPresentationAttributes(attributes, to: &result)
+
+        // Apply inline style (highest priority)
+        if let style = attributes["style"] {
+            let cssProps = parseInlineCSS(style)
+            applyCSS(cssProps, to: &result)
+        }
+
+        return result
+    }
+
+    private func applyPresentationAttributes(_ attributes: [String: String], to result: inout SVGPaintAttributes) {
+        if let fill = attributes["fill"] { result.fill = parsePaint(fill) }
+        if let stroke = attributes["stroke"] { result.stroke = parsePaint(stroke) }
+        if let v = attributes["stroke-width"], let val = Double(v) { result.strokeWidth = CGFloat(val) }
+        if let cap = attributes["stroke-linecap"] { result.strokeLineCap = parseLineCap(cap) }
+        if let join = attributes["stroke-linejoin"] { result.strokeLineJoin = parseLineJoin(join) }
+        if let v = attributes["stroke-miterlimit"], let val = Double(v) { result.strokeMiterLimit = CGFloat(val) }
+        if let v = attributes["stroke-dasharray"] { result.strokeDashArray = parseDashArray(v) }
+        if let v = attributes["stroke-dashoffset"], let val = Double(v) { result.strokeDashOffset = CGFloat(val) }
+        if let v = attributes["stroke-opacity"], let val = Double(v) { result.strokeOpacity = val }
+        if let v = attributes["opacity"], let val = Double(v) { result.opacity = val }
+        if let v = attributes["fill-opacity"], let val = Double(v) { result.fillOpacity = val }
+        if let v = attributes["fill-rule"] { result.fillRule = v == "evenodd" ? .evenOdd : .winding }
+        if let v = attributes["visibility"] {
+            result.visibility = v == "hidden" ? .hidden : v == "collapse" ? .collapse : .visible
+        }
+        if let v = attributes["display"] { result.display = v == "none" ? .none : .inline }
+        if let v = attributes["clip-path"] { result.clipPathID = parseURLID(v) }
+        if let v = attributes["filter"] { result.filterID = parseURLID(v) }
+        if let v = attributes["mask"] { result.maskID = parseURLID(v) }
+        if let transform = attributes["transform"] { result.transform = parseTransform(transform) }
+    }
+
+    private func applyCSS(_ props: [String: String], to result: inout SVGPaintAttributes) {
+        // Reuse the same parsing — CSS properties have the same names as presentation attributes
+        applyPresentationAttributes(props, to: &result)
+    }
+
+    private func parseDashArray(_ value: String) -> [CGFloat] {
+        let trimmed = value.trimmingCharacters(in: .whitespaces)
+        if trimmed == "none" { return [] }
+        return trimmed.split(whereSeparator: { $0 == "," || $0 == " " })
+            .compactMap { Double($0.trimmingCharacters(in: .whitespaces)) }
+            .map { CGFloat($0) }
+    }
+
+    private func parseURLID(_ value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespaces)
+        if trimmed.hasPrefix("url(#") && trimmed.hasSuffix(")") {
+            return String(trimmed.dropFirst(5).dropLast())
+        }
+        return nil
+    }
+
+    // MARK: - Root
 
     private func parseSVGRoot(_ attributes: [String: String]) {
         if let vb = attributes["viewBox"] {
@@ -339,6 +1242,8 @@ public final class SVGParser: NSObject, XMLParserDelegate {
         rootHeight = attributes["height"].flatMap { parseDimension($0) }
         rootPaintAttributes = parsePaintAttributes(attributes)
     }
+
+    // MARK: - Value Parsing
 
     private func parseDimension(_ value: String) -> CGFloat? {
         Double(value.replacingOccurrences(of: "px", with: "").replacingOccurrences(of: "pt", with: "").trimmingCharacters(in: .whitespaces)).map { CGFloat($0) }
@@ -351,30 +1256,13 @@ public final class SVGParser: NSObject, XMLParserDelegate {
         return "\(elementName) \(count)"
     }
 
-    private func appendElement(_ element: SVGElement) {
-        if elementStack.isEmpty { rootElements.append(element) }
-        else { elementStack[elementStack.count - 1].children.append(element) }
-    }
-
-    private func parsePaintAttributes(_ attributes: [String: String]) -> SVGPaintAttributes {
-        let inherited = elementStack.last?.attributes ?? rootPaintAttributes
-        var result = inherited
-        result.transform = .identity
-        if let fill = attributes["fill"] { result.fill = parsePaint(fill) }
-        if let stroke = attributes["stroke"] { result.stroke = parsePaint(stroke) }
-        if let sw = attributes["stroke-width"], let val = Double(sw) { result.strokeWidth = CGFloat(val) }
-        if let cap = attributes["stroke-linecap"] { result.strokeLineCap = parseLineCap(cap) }
-        if let join = attributes["stroke-linejoin"] { result.strokeLineJoin = parseLineJoin(join) }
-        if let opacity = attributes["opacity"], let val = Double(opacity) { result.opacity = val }
-        if let fillOpacity = attributes["fill-opacity"], let val = Double(fillOpacity) { result.opacity *= val }
-        if let transform = attributes["transform"] { result.transform = parseTransform(transform) }
-        return result
-    }
-
     private func parsePaint(_ value: String) -> SVGPaint {
         let trimmed = value.trimmingCharacters(in: .whitespaces)
         if trimmed == "none" { return .none }
         if trimmed == "currentColor" { return .currentColor }
+        if trimmed.hasPrefix("url(#") {
+            if let id = parseURLID(trimmed) { return .url(id) }
+        }
         if let color = parseColor(trimmed) { return .color(color) }
         return .color(.black)
     }
@@ -470,6 +1358,20 @@ public final class SVGParser: NSObject, XMLParserDelegate {
 private class SVGGroupBuilder {
     let id: String; let attributes: SVGPaintAttributes; var children: [SVGElement] = []
     init(id: String, attributes: SVGPaintAttributes) { self.id = id; self.attributes = attributes }
+}
+
+/// Mutable builder used during SVG text parsing.
+private class SVGTextBuilder {
+    let id: String; let x: CGFloat; let y: CGFloat
+    let fontSize: CGFloat; let fontFamily: String; let fontWeight: String
+    let textAnchor: SVGTextAnchor; let attributes: SVGPaintAttributes
+    var spans: [SVGTextSpan] = []
+    init(id: String, x: CGFloat, y: CGFloat, fontSize: CGFloat, fontFamily: String, fontWeight: String,
+         textAnchor: SVGTextAnchor, attributes: SVGPaintAttributes) {
+        self.id = id; self.x = x; self.y = y; self.fontSize = fontSize
+        self.fontFamily = fontFamily; self.fontWeight = fontWeight
+        self.textAnchor = textAnchor; self.attributes = attributes
+    }
 }
 
 // MARK: - SVG Path Data Parser
