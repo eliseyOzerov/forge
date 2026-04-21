@@ -20,7 +20,8 @@
 Public Forge APIs must never contain platform-dependent code. This ensures portability across platforms.
 
 - Never gate public APIs inside `canImport` statements.
-- When building a Leaf, Proxy, or Container view, use `canImport` **only** inside `makeRenderer` to select the correct platform renderer (`[Component]UIKitRenderer` or `[Component]AppKitRenderer`).
+- Keep `canImport` guards **at the bottom of the file**, not sprinkled throughout. If a type's methods need platform APIs, implement those methods in extensions inside the `canImport` guard at the bottom.
+- **Exception:** `makeRenderer` uses `canImport` inline to select the correct platform renderer (`[Component]UIKitRenderer` or `[Component]AppKitRenderer`).
 
 ## Macros
 
