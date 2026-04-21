@@ -24,10 +24,21 @@ Public Forge APIs must never contain platform-dependent code. This ensures porta
 
 ## Macros
 
-Prefer macros over manual boilerplate on all structs and classes where a macro can do the job (e.g. `@Memberwise` for memberwise initializers, `@Equatable`, `@Hashable`, etc.).
+Use Forge macros (defined in `ForgeSwiftMacros`) instead of writing boilerplate by hand. If a struct/class looks like a candidate but has exceptions, **ask the user**.
 
-- If a struct/class looks like a candidate for a macro but has exceptions (custom logic in `init`, conditional conformance, stored-property quirks), **ask the user** before proceeding.
-- For initialization specifically: if convenience initializers are needed beyond what the macro generates, place them in an **extension** on the main struct/class — not in the primary declaration.
+| Macro | When to use |
+|-------|-------------|
+| `@Init` | Almost all structs and classes — skip only when a manual init is genuinely needed. |
+| `@Copy` | Most structs (not classes — they're mutable). |
+| `@Merge` | Predominantly style structs, though `@Style` already includes it. |
+| `@Data` | Combines `@Init` + `@Copy` + `@Merge`. Use on non-style data structs that need all three. |
+| `@Lerp` / `@Snap` | Primarily style structs for now; mark snap-not-interpolate fields with `@Snap`. |
+| `@Style` | Combines `@Data` + `@Lerp`. Use on style structs. |
+| `@Map` / `@Json` | Structs that make sense to persist or serialize (form data, server replies, configuration). Not every struct. |
+| `@String` | Niche — useful for debugging, but not required on every struct. |
+| `@Erased` | Protocols with `Self` requirements that need a type-erased wrapper. |
+
+- If convenience initializers are needed beyond what `@Init` generates, place them in an **extension** — not in the primary declaration.
 
 ## Swift File Ordering
 
