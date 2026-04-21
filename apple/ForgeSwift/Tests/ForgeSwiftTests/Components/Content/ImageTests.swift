@@ -9,7 +9,9 @@ final class ImageTests: XCTestCase {
     // MARK: - Helpers
 
     private func testImageData(width: Int = 100, height: Int = 100, color: UIColor = .red) -> Data {
-        let renderer = UIGraphicsImageRenderer(size: CGSize(width: width, height: height))
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1.0
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: width, height: height), format: format)
         let image = renderer.image { ctx in
             color.setFill()
             ctx.fill(CGRect(x: 0, y: 0, width: width, height: height))

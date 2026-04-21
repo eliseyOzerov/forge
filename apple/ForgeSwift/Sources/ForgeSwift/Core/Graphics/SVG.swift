@@ -864,8 +864,10 @@ public final class SVGParser: NSObject, XMLParserDelegate {
             inDefs = false
 
         case "style":
-            inStyleElement = false
+            styleText += characterBuffer
+            characterBuffer = ""
             parseStyleSheet(styleText)
+            inStyleElement = false
 
         case "linearGradient":
             if var gradient = currentLinearGradient {

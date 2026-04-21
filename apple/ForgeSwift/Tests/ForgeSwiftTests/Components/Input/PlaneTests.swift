@@ -109,15 +109,16 @@ final class PlaneTests: XCTestCase {
 
     // MARK: - Target Transform
 
-    func testTargetTriggersOnEnd() {
+    func testTargetTriggersOnEnd() async {
         let snapPoints = [Vec2(0, 0), Vec2(100, 0)]
         let model = makeModel(target: .snap(to: snapPoints), anchor: false)
         model.handleDragStart(at: Vec2(0, 0))
         model.handleDragUpdate(at: Vec2(80, 0))
         model.handleDragEnd()
+        // Yield so the async Task inside handleDragEnd can start
+        await Task.yield()
         // Should snap to nearest point (100, 0) via animation
-        // The motion should be running
-        XCTAssertTrue(model.motion.isRunning)
+        XCTAssertTrue(model.driver.isRunning)
     }
 
     // MARK: - Relative Mode

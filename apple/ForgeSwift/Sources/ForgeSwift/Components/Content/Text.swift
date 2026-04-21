@@ -119,7 +119,7 @@ public enum TextCase: String, Sendable {
         case .plain: return text
         case .uppercase: return text.uppercased()
         case .lowercase: return text.lowercased()
-        case .capitalize: return text.prefix(1).uppercased() + text.dropFirst()
+        case .capitalize: return text.prefix(1).uppercased() + text.dropFirst().lowercased()
         case .title: return text.capitalized
         case .pascal: return text.splitWords().map(\.capitalized).joined()
         case .camel:
