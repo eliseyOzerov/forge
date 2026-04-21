@@ -67,6 +67,7 @@ public extension Shape where Self == PolygonShape {
 
 // MARK: - Concrete Shapes
 
+/// Rectangle shape.
 public struct RectShape: Shape, Equatable, Lerpable {
     public init() {}
     public func path(in rect: Rect) -> Path {
@@ -79,6 +80,7 @@ public struct RectShape: Shape, Equatable, Lerpable {
     public func lerp(to other: RectShape, t: Double) -> RectShape { self }
 }
 
+/// Ellipse shape.
 public struct EllipseShape: Shape, Equatable, Lerpable {
     public init() {}
     public func path(in rect: Rect) -> Path {
@@ -87,6 +89,7 @@ public struct EllipseShape: Shape, Equatable, Lerpable {
     public func lerp(to other: EllipseShape, t: Double) -> EllipseShape { self }
 }
 
+/// Circle shape.
 public struct CircleShape: Shape, Equatable, Lerpable {
     public init() {}
     public func path(in rect: Rect) -> Path {
@@ -97,6 +100,7 @@ public struct CircleShape: Shape, Equatable, Lerpable {
     public func lerp(to other: CircleShape, t: Double) -> CircleShape { self }
 }
 
+/// Capsule (stadium) shape with fully rounded ends.
 public struct CapsuleShape: Shape, Equatable, Lerpable {
     public init() {}
     public func path(in rect: Rect) -> Path {
@@ -106,6 +110,7 @@ public struct CapsuleShape: Shape, Equatable, Lerpable {
     public func lerp(to other: CapsuleShape, t: Double) -> CapsuleShape { self }
 }
 
+/// Regular polygon with configurable side count and rotation.
 @Init @Copy @Lerp
 public struct RegularPolygon: Shape, Equatable {
     @Snap public var sides: Int
@@ -128,6 +133,7 @@ public struct RegularPolygon: Shape, Equatable {
     }
 }
 
+/// Star shape with configurable point count and inner radius ratio.
 @Init @Copy @Lerp
 public struct StarShape: Shape, Equatable {
     @Snap public var points: Int
@@ -153,6 +159,7 @@ public struct StarShape: Shape, Equatable {
     }
 }
 
+/// Arbitrary polygon from a list of points.
 public struct PolygonShape: Shape, Equatable, Lerpable {
     public var points: [Point]
     public init(points: [Point]) { self.points = points }
@@ -181,6 +188,7 @@ public struct PolygonShape: Shape, Equatable, Lerpable {
 
 // MARK: - Modifier Shapes
 
+/// Shape decorator that scales by x/y factors.
 @Init @Copy @Lerp
 public struct ScaledShape: Shape, Equatable {
     public var base: AnyShape
@@ -196,6 +204,7 @@ public struct ScaledShape: Shape, Equatable {
     }
 }
 
+/// Shape decorator that rotates by radians.
 @Init @Copy @Lerp
 public struct RotatedShape: Shape, Equatable {
     public var base: AnyShape
@@ -210,6 +219,7 @@ public struct RotatedShape: Shape, Equatable {
     }
 }
 
+/// Shape decorator that translates by an offset.
 @Init @Copy @Lerp
 public struct TranslatedShape: Shape, Equatable {
     public var base: AnyShape
@@ -220,6 +230,7 @@ public struct TranslatedShape: Shape, Equatable {
     }
 }
 
+/// Shape decorator that insets or outsets by a given amount.
 @Init @Copy @Lerp
 public struct InsetShape: Shape, Equatable {
     public var base: AnyShape
@@ -227,6 +238,7 @@ public struct InsetShape: Shape, Equatable {
     public func path(in rect: Rect) -> Path { base.path(in: rect.inset(by: amount)) }
 }
 
+/// Shape decorator that applies rounded corners.
 @Init @Copy @Lerp
 public struct RoundedModifiedShape: Shape, Equatable {
     public var base: AnyShape
@@ -240,6 +252,7 @@ public struct RoundedModifiedShape: Shape, Equatable {
     public func vertices(in rect: Rect) -> [Point] { base.vertices(in: rect) }
 }
 
+/// Shape decorator that applies chamfered (beveled) corners.
 @Init @Copy @Lerp
 public struct ChamferedShape: Shape, Equatable {
     public var base: AnyShape
@@ -254,6 +267,7 @@ public struct ChamferedShape: Shape, Equatable {
 
 // MARK: - Boolean Ops
 
+/// Boolean union of two shapes.
 @available(iOS 16.0, macOS 13.0, *)
 @Init @Copy @Lerp
 public struct UnionShape: Shape, Equatable {
@@ -262,6 +276,7 @@ public struct UnionShape: Shape, Equatable {
     public func path(in rect: Rect) -> Path { a.path(in: rect).union(b.path(in: rect)) }
 }
 
+/// Boolean intersection of two shapes.
 @available(iOS 16.0, macOS 13.0, *)
 @Init @Copy @Lerp
 public struct IntersectionShape: Shape, Equatable {
@@ -270,6 +285,7 @@ public struct IntersectionShape: Shape, Equatable {
     public func path(in rect: Rect) -> Path { a.path(in: rect).intersection(b.path(in: rect)) }
 }
 
+/// Boolean subtraction of two shapes.
 @available(iOS 16.0, macOS 13.0, *)
 @Init @Copy @Lerp
 public struct SubtractionShape: Shape, Equatable {
@@ -278,6 +294,7 @@ public struct SubtractionShape: Shape, Equatable {
     public func path(in rect: Rect) -> Path { a.path(in: rect).subtracting(b.path(in: rect)) }
 }
 
+/// Boolean XOR of two shapes.
 @available(iOS 16.0, macOS 13.0, *)
 @Init @Copy @Lerp
 public struct SymmetricDifferenceShape: Shape, Equatable {
@@ -288,6 +305,7 @@ public struct SymmetricDifferenceShape: Shape, Equatable {
 
 // MARK: - CustomShape (closure escape hatch)
 
+/// Closure-based shape with an optional vertex factory.
 public struct CustomShape: Shape, Equatable, Lerpable {
     public var id: String?
     public let factory: (Rect) -> Path
@@ -358,6 +376,7 @@ public extension Shape {
 
 // MARK: - Utilities
 
+/// Geometry helpers for shape rounding, chamfering, and tessellation.
 enum ShapeUtils {
     static func extractVertices(from path: Path) -> [Point] {
         var vertices: [Point] = []

@@ -2,6 +2,7 @@ import Foundation
 
 // MARK: - DismissPhase
 
+/// Current phase of a swipe-to-dismiss gesture.
 public enum DismissPhase: Sendable {
     case idle
     case dragging
@@ -11,6 +12,7 @@ public enum DismissPhase: Sendable {
 
 // MARK: - DismissThreshold
 
+/// Distance and velocity thresholds that trigger a swipe dismiss.
 public struct DismissThreshold {
     /// Fractional distance (0→1) past which a stationary release triggers dismiss.
     public var distance: Double
@@ -77,6 +79,7 @@ public struct Dismissible: ModelView {
 
 // MARK: - Model
 
+/// Tracks drag state and drives the dismiss animation.
 public final class DismissibleModel: ViewModel<Dismissible> {
     private(set) var phase: DismissPhase = .idle
 
@@ -236,6 +239,7 @@ public final class DismissibleModel: ViewModel<Dismissible> {
 
 // MARK: - Builder
 
+/// Wraps the dismissible content in a drag gesture and layout reader.
 public final class DismissibleBuilder: ViewBuilder<DismissibleModel> {
     public override func build(context: ViewContext) -> any View {
         let model = self.model

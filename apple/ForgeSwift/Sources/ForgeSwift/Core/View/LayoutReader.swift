@@ -14,6 +14,7 @@
 #if canImport(UIKit)
 import UIKit
 
+/// ProxyView that reports the proposed container size to a content closure.
 public struct LayoutReader: ProxyView {
     public let content: @MainActor (Size) -> any View
 

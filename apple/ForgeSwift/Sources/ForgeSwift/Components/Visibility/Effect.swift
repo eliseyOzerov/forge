@@ -16,6 +16,7 @@ import CoreImage
 // 2. Add a .metalFilter(shader:configure:) method
 // 3. Same pipeline: CIImage → MTLTexture → shader → MTLTexture → CIImage
 
+/// A chain of visual operations (scale, rotate, blur, etc.) applied without affecting layout.
 public final class Effect {
     private(set) var operations: [EffectOp] = []
 
@@ -64,6 +65,7 @@ public final class Effect {
 
 // MARK: - EffectOp
 
+/// Individual visual operation within an Effect chain.
 enum EffectOp {
     case scale(x: Double, y: Double, anchor: Alignment)
     case rotate(angle: Double, anchor: Alignment, perspective: Double?)
@@ -90,6 +92,7 @@ enum EffectOp {
 
 // MARK: - EffectView
 
+/// Proxy view that applies an Effect to its child.
 struct EffectView: ProxyView {
     let child: any View
     let effect: Effect

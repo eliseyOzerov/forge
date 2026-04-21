@@ -12,6 +12,7 @@
 //      }
 //
 
+/// Protocol enabling closure-based copy-and-mutate for value types.
 public protocol Copyable {
     func copy(_ transform: (inout Self) -> Void) -> Self
 }

@@ -1,6 +1,7 @@
 #if canImport(UIKit)
 import UIKit
 
+/// Application entry point and lifecycle delegate; subclass to provide the root View.
 @MainActor
 open class App: UIResponder, UIApplicationDelegate, UISceneDelegate {
 
@@ -70,6 +71,7 @@ open class App: UIResponder, UIApplicationDelegate, UISceneDelegate {
 #elseif canImport(AppKit)
 import AppKit
 
+/// Application entry point and lifecycle delegate; subclass to provide the root View.
 @MainActor
 open class App: NSObject, NSApplicationDelegate {
 

@@ -1,3 +1,4 @@
+/// Two-way data binding with getter and setter closures; projected by Observable.
 @MainActor public struct Binding<Value> {
     private let getter: () -> Value
     private let setter: (Value) -> Void

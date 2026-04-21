@@ -10,6 +10,7 @@ import Foundation
 
 // MARK: - SpacingToken
 
+/// Named spacing value token for the spacing theme.
 public struct SpacingToken: TokenKey {
     public let name: String
     public let defaultValue: Double
@@ -36,6 +37,7 @@ public extension SpacingToken {
 
 // MARK: - SpacingTheme
 
+/// Theme collection of spacing tokens.
 public struct SpacingTheme: Sendable, Copyable {
     public var values: TokenMap<SpacingToken>
 

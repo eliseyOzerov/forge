@@ -2,6 +2,7 @@ import Foundation
 
 // MARK: - RouterHandle
 
+/// Public interface for pushing, popping, and managing the route stack.
 @MainActor public protocol RouterHandle: AnyObject {
     var routes: [any Route] { get }
 
@@ -36,6 +37,7 @@ public extension RouterHandle {
 
 // MARK: - Router
 
+/// Stack-based navigation controller that manages a list of routes.
 public struct Router: ModelView {
     public let deeplinks: DeepLinkMap
     public let root: any View
@@ -59,6 +61,7 @@ public struct Router: ModelView {
 
 // MARK: - RouterModel
 
+/// Mutable state backing the Router, owning the route entry list and deep link resolution.
 public final class RouterModel: ViewModel<Router>, RouterHandle {
     private(set) var entries: [RouteModel] = []
 
@@ -276,6 +279,7 @@ public final class RouterModel: ViewModel<Router>, RouterHandle {
 
 // MARK: - RouterBuilder
 
+/// Applies the covering route's transform to the child beneath it.
 fileprivate struct CoverTransform: BuiltView {
     let child: any View
 
@@ -292,6 +296,7 @@ fileprivate struct CoverTransform: BuiltView {
     }
 }
 
+/// Builds the visible route stack into a layered Box with navigation bar.
 public final class RouterBuilder: ViewBuilder<RouterModel> {
     public override func build(context: ViewContext) -> any View {
         let entries = model.entries
@@ -341,6 +346,7 @@ public final class RouterBuilder: ViewBuilder<RouterModel> {
 
 // MARK: - Deep links
 
+/// Deep link configuration mapping a URL pattern to route construction.
 public struct DeepLink {
     public let pattern: String
     public let factory: @MainActor (URLParams) -> (any Route)?
@@ -354,11 +360,13 @@ public struct DeepLink {
     }
 }
 
+/// Parsed URL parameters extracted from a matched deep link.
 public struct URLParams {
     public let values: [String: String]
     public subscript(key: String) -> String? { values[key] }
 }
 
+/// Result builder for constructing DeepLink configurations.
 @resultBuilder
 public struct DeepLinkBuilder {
     public static func buildBlock(_ components: DeepLink...) -> [DeepLink] { components }
@@ -368,6 +376,7 @@ public struct DeepLinkBuilder {
     public static func buildArray(_ components: [[DeepLink]]) -> [DeepLink] { components.flatMap { $0 } }
 }
 
+/// Collection mapping URL patterns to route factories.
 public struct DeepLinkMap {
     public let links: [DeepLink]
 

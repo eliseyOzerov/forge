@@ -268,6 +268,7 @@ public struct NavBarContentRow: ContainerView {
     }
 }
 
+/// Controls how the main slot is horizontally centered in the navigation bar.
 public enum NavBarCenterMode: Equatable, Sendable {
     /// Center main in the bar's full width. Falls back to `.between`
     /// if main would overlap leading or trailing.

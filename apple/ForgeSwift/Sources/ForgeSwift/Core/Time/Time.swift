@@ -9,6 +9,7 @@ import Foundation
 
 // MARK: - Constants
 
+/// Time unit conversion constants (seconds per minute, per hour, etc.).
 public enum TimeConstants {
     public static let millisecondsInSecond: Double = 1_000
     public static let secondsInMinute: Double = 60
@@ -241,6 +242,7 @@ public struct Duration: Comparable, Sendable, Hashable {
 
 // MARK: - PartOfDay
 
+/// Time-of-day category (morning, noon, afternoon, evening, night).
 public enum PartOfDay: String, Sendable, CaseIterable {
     case morning
     case noon
@@ -423,6 +425,7 @@ public struct Time: Comparable, Sendable, Hashable {
 
 // MARK: - TimeComponent
 
+/// Calendar component (millisecond through year) with Foundation.Calendar conversion.
 public enum TimeComponent: Sendable, CaseIterable {
     case millisecond
     case second

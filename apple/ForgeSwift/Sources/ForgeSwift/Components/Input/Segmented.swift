@@ -3,6 +3,7 @@ import UIKit
 
 // MARK: - Segmented
 
+/// A segmented control that lets the user pick one value from a list of items.
 public struct Segmented<T: Hashable>: ModelView {
     public let value: Binding<T>
     public let items: [T]
@@ -30,6 +31,7 @@ public struct Segmented<T: Hashable>: ModelView {
 
 // MARK: - SegmentedStyle
 
+/// Visual styling for Segmented.
 public struct SegmentedStyle<T> {
     public var background: StateProperty<BoxStyle>
     public var selector: @MainActor (T, State) -> any View
@@ -75,6 +77,7 @@ public struct SegmentedStyle<T> {
 
 // MARK: - Model
 
+/// View model managing selection, animation, and scrub gestures for Segmented.
 public final class SegmentedModel<T: Hashable>: ViewModel<Segmented<T>> {
     var isPressed = false
     let driver = MotionDriver(duration: Duration(0.25))
@@ -191,6 +194,7 @@ public final class SegmentedModel<T: Hashable>: ViewModel<Segmented<T>> {
 
 // MARK: - Builder
 
+/// Builds the Segmented view tree with background, selector, items, and gesture layers.
 public final class SegmentedBuilder<T: Hashable>: ViewBuilder<SegmentedModel<T>> {
     public override func build(context: ViewContext) -> any View {
         let model = self.model
@@ -233,6 +237,7 @@ public final class SegmentedBuilder<T: Hashable>: ViewBuilder<SegmentedModel<T>>
 
 // MARK: - Gestures
 
+/// Leaf view that provides tap and pan gesture recognition for Segmented.
 struct SegmentedGestures<T: Hashable>: LeafView {
     let model: SegmentedModel<T>
     let dragEnabled: Bool
@@ -327,6 +332,7 @@ final class SegmentedGestureView<T: Hashable>: UIView {
 
 // MARK: - SegmentedRole
 
+/// Named segmented role token.
 public struct SegmentedRole: NamedKey {
     public let name: String
     public init(_ name: String) { self.name = name }
@@ -343,6 +349,7 @@ public extension SegmentedRole {
 
 // MARK: - SegmentedTheme
 
+/// Theme for segmented controls.
 public struct SegmentedTheme<T>: Copyable {
     public var styles: [SegmentedRole: SegmentedStyle<T>]
     public var chain: [SegmentedRole]

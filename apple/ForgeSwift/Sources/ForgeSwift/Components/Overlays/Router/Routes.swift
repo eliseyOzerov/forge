@@ -2,6 +2,7 @@ import Foundation
 
 // MARK: - Screen
 
+/// Full-screen push route with swipe-back dismissal.
 public struct Screen: BuiltView, Route {
     public let key: AnyHashable?
     public let content: @MainActor () -> any View
@@ -57,6 +58,7 @@ public struct Screen: BuiltView, Route {
 
 // MARK: - Modal
 
+/// Transparent overlay route for modal dialogs.
 public struct Modal: BuiltView, Route {
     public let key: AnyHashable?
     public let content: @MainActor () -> any View
@@ -75,6 +77,7 @@ public struct Modal: BuiltView, Route {
 
 // MARK: - Sheet
 
+/// Bottom sheet route with configurable detent stops.
 public struct Sheet: BuiltView, Route {
     public let key: AnyHashable?
     public let detents: [SheetDetent]
@@ -94,6 +97,7 @@ public struct Sheet: BuiltView, Route {
     public func build(context: ViewContext) -> any View { content() }
 }
 
+/// Snap height for a sheet route (medium, large, or custom fraction).
 public enum SheetDetent: Sendable {
     case medium
     case large
@@ -102,6 +106,7 @@ public enum SheetDetent: Sendable {
 
 // MARK: - Drawer
 
+/// Side drawer route sliding in from a horizontal edge.
 public struct Drawer: BuiltView, Route {
     public let key: AnyHashable?
     public let edge: HorizontalEdge
@@ -121,6 +126,7 @@ public struct Drawer: BuiltView, Route {
     public func build(context: ViewContext) -> any View { content() }
 }
 
+/// Leading or trailing horizontal edge.
 public enum HorizontalEdge: Sendable {
     case leading
     case trailing
@@ -128,6 +134,7 @@ public enum HorizontalEdge: Sendable {
 
 // MARK: - Cover
 
+/// Full-screen opaque cover route without navigation chrome.
 public struct Cover: BuiltView, Route {
     public let key: AnyHashable?
     public let content: @MainActor () -> any View
@@ -145,6 +152,7 @@ public struct Cover: BuiltView, Route {
 
 // MARK: - Alert
 
+/// Centered alert dialog route.
 public struct Alert: BuiltView, Route {
     public let key: AnyHashable?
     public let content: @MainActor () -> any View
@@ -163,6 +171,7 @@ public struct Alert: BuiltView, Route {
 
 // MARK: - Barrier
 
+/// Blocking overlay route that prevents interaction with content beneath it.
 public struct Barrier: BuiltView, Route {
     public let key: AnyHashable?
     public let content: @MainActor () -> any View
@@ -180,6 +189,7 @@ public struct Barrier: BuiltView, Route {
 
 // MARK: - Coachmark
 
+/// Transparent overlay route for onboarding highlights and tips.
 public struct Coachmark: BuiltView, Route {
     public let key: AnyHashable?
     public let content: @MainActor () -> any View
@@ -198,6 +208,7 @@ public struct Coachmark: BuiltView, Route {
 
 // MARK: - ContextMenu
 
+/// Context menu overlay route anchored to a trigger view.
 public struct ContextMenu: BuiltView, Route {
     public let key: AnyHashable?
     public let content: @MainActor () -> any View
@@ -216,6 +227,7 @@ public struct ContextMenu: BuiltView, Route {
 
 // MARK: - Lightbox
 
+/// Full-screen media viewer route.
 public struct Lightbox: BuiltView, Route {
     public let key: AnyHashable?
     public let content: @MainActor () -> any View
@@ -233,6 +245,7 @@ public struct Lightbox: BuiltView, Route {
 
 // MARK: - Popover
 
+/// Small floating overlay route positioned near an anchor point.
 public struct Popover: BuiltView, Route {
     public let key: AnyHashable?
     public let content: @MainActor () -> any View
@@ -251,6 +264,7 @@ public struct Popover: BuiltView, Route {
 
 // MARK: - Toast
 
+/// Temporary notification banner route that auto-dismisses after a duration.
 public struct Toast: BuiltView, Route {
     public let key: AnyHashable?
     public let duration: Double
@@ -273,6 +287,7 @@ public struct Toast: BuiltView, Route {
     public func build(context: ViewContext) -> any View { content() }
 }
 
+/// Vertical position of a toast notification (top or bottom).
 public enum ToastPosition: Sendable {
     case top
     case bottom

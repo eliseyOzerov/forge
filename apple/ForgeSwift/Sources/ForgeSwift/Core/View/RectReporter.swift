@@ -15,6 +15,7 @@
 #if canImport(UIKit)
 import UIKit
 
+/// ProxyView that reports its post-layout rect in the parent's coordinate space.
 public struct RectReporter: ProxyView {
     public let onRect: @MainActor (Rect) -> Void
     public let child: any View

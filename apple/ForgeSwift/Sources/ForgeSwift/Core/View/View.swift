@@ -28,12 +28,14 @@
 //  ModelNode for ModelView (owns Model/Builder and dispatches lifecycle).
 //
 
+/// Fundamental view protocol; every Forge view returns a Node via `makeNode()`.
 @MainActor public protocol View {
     func makeNode() -> Node
 }
 
 // MARK: - Leaf
 
+/// View that renders a platform view via a Renderer.
 @MainActor public protocol LeafView: View {
     func makeRenderer() -> Renderer
 }
@@ -497,6 +499,7 @@ public struct AnyView: View {
     }
 }
 
+/// View wrapper that attaches a stable identity for reconciliation.
 public struct IdentifiedView<Inner: View>: View, Identified {
     public let id: AnyHashable
     public let inner: Inner
@@ -521,6 +524,7 @@ public extension View {
 
 // MARK: - Renderer
 
+/// Platform renderer that mounts and updates a leaf view's native view.
 @MainActor public protocol Renderer: AnyObject {
     /// Create and return this renderer's PlatformView. Called once at
     /// mount. The renderer should store a reference to the view it

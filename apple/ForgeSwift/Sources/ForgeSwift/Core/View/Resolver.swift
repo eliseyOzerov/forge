@@ -11,6 +11,7 @@
 //  updates.
 //
 
+/// Top-level resolver that owns the root Node and drives the view tree.
 @MainActor public final class Root {
     public init() {}
 

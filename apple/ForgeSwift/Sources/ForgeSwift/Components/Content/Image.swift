@@ -27,6 +27,7 @@ public struct Image: LeafView {
 
 // MARK: - ImageStyle
 
+/// Visual style for an image (fit mode, tint, corner radius).
 @Init @Copy
 public struct ImageStyle {
     @Snap public var fit: ImageFit = .aspectFit
@@ -34,6 +35,7 @@ public struct ImageStyle {
     public var cornerRadius: Double = 0
 }
 
+/// How an image fits its container (cover, contain, fill, etc.).
 public enum ImageFit: Sendable {
     case aspectFit
     case aspectFill
@@ -167,6 +169,7 @@ public struct AsyncImage: ModelView {
 
 // MARK: - AsyncImage ViewModel
 
+/// View model that manages async loading state for an AsyncImage.
 public final class AsyncImageModel: ViewModel<AsyncImage> {
     var loadedImage: UIImage?
     var loadError: Error?
@@ -201,6 +204,7 @@ public final class AsyncImageModel: ViewModel<AsyncImage> {
     }
 }
 
+/// Builds the appropriate child view based on async image loading state.
 public final class AsyncImageBuilder: ViewBuilder<AsyncImageModel> {
     public override func build(context: ViewContext) -> any View {
         if model.isLoading {

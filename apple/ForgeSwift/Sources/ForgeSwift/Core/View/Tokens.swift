@@ -58,6 +58,7 @@ public struct TokenMap<K: TokenKey>: Sendable, Copyable {
 
 // MARK: - PriorityLevel
 
+/// Named priority level token.
 public struct PriorityLevel: NamedKey {
     public let name: String
     public init(_ name: String) { self.name = name }
@@ -124,6 +125,7 @@ extension PriorityTokens: Sendable where V: Sendable {}
 
 // MARK: - Status
 
+/// Named status token (success, warning, error, info).
 public struct Status: NamedKey {
     public let name: String
     public init(_ name: String) { self.name = name }

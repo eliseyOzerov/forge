@@ -122,6 +122,7 @@ public extension Vector {
 
 // MARK: - Vec2
 
+/// 2D vector with cross product, perpendicular, angle, and rotation operations.
 public struct Vec2: Vector {
     public var x: Double
     public var y: Double
@@ -203,6 +204,7 @@ public typealias Point = Vec2
 
 // MARK: - Vec3
 
+/// 3D vector with cross product and xy projection.
 public struct Vec3: Vector {
     public var x: Double
     public var y: Double
@@ -245,6 +247,7 @@ public struct Vec3: Vector {
 
 // MARK: - Vec4
 
+/// 4D vector with xyz and xy projections.
 public struct Vec4: Vector {
     public var x: Double
     public var y: Double

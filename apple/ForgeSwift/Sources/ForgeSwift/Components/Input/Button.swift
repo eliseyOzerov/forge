@@ -71,6 +71,7 @@ public extension Button {
 
 // MARK: - ButtonStyle
 
+/// Visual styling for Button (box, text, haptic, animation per state).
 @Init @Copy @Lerp
 public struct ButtonStyle: Equatable {
     public var box: BoxStyle = BoxStyle()
@@ -81,6 +82,7 @@ public struct ButtonStyle: Equatable {
 
 // MARK: - Model
 
+/// View model managing press state, debounce, and haptic feedback for Button.
 public final class ButtonModel: ViewModel<Button> {
     var isPressed = false
     var onTap: (@MainActor () -> Void)?
@@ -150,6 +152,7 @@ public final class ButtonModel: ViewModel<Button> {
 
 // MARK: - Builder
 
+/// Builds the Button view tree with animated style, accessibility, and tap handling.
 public final class ButtonBuilder: ViewBuilder<ButtonModel> {
     public override func build(context: ViewContext) -> any View {
         let model = self.model
@@ -186,6 +189,7 @@ public final class ButtonBuilder: ViewBuilder<ButtonModel> {
 
 // MARK: - ButtonRole
 
+/// Named button role token.
 public struct ButtonRole: NamedKey {
     public let name: String
     public init(_ name: String) { self.name = name }
@@ -202,6 +206,7 @@ public extension ButtonRole {
 
 // MARK: - ButtonTheme
 
+/// Theme for buttons with per-role defaults.
 public struct ButtonTheme: Copyable {
     public var styles: [ButtonRole: ButtonStyle]
     public var chain: [ButtonRole]

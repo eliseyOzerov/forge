@@ -2,8 +2,7 @@ import Foundation
 
 // MARK: - GestureEvent
 
-/// Base for all gesture events. Provides focal position in both
-/// local (relative to the gesture view) and global coordinates.
+/// Focal position in both local and global coordinates.
 public struct GesturePosition {
     public let local: Vec2
     public let global: Vec2
@@ -16,28 +15,34 @@ public struct GesturePosition {
 
 // MARK: - Tap Events
 
+/// Event at the start of a tap gesture.
 public struct TapStart {
     public let position: GesturePosition
 }
 
+/// Event during a tap gesture (finger moved).
 public struct TapUpdate {
     public let position: GesturePosition
 }
 
+/// Event at the end of a tap gesture.
 public struct TapEnd {
     public let position: GesturePosition
 }
 
 // MARK: - Double Tap Events
 
+/// Event at the start of a double-tap gesture.
 public struct DoubleTapStart {
     public let position: GesturePosition
 }
 
+/// Event during a double-tap gesture.
 public struct DoubleTapUpdate {
     public let position: GesturePosition
 }
 
+/// Event at the end of a double-tap gesture.
 public struct DoubleTapEnd {
     public let position: GesturePosition
     public let firstTapPosition: GesturePosition
@@ -45,10 +50,12 @@ public struct DoubleTapEnd {
 
 // MARK: - Long Press Events (shared by Press + Hold)
 
+/// Event at the start of a long-press gesture.
 public struct LongPressStart {
     public let position: GesturePosition
 }
 
+/// Event during a long-press gesture.
 public struct LongPressUpdate {
     public let position: GesturePosition
     public let delta: Vec2
@@ -56,6 +63,7 @@ public struct LongPressUpdate {
     public let elapsed: Double
 }
 
+/// Event at the end of a long-press gesture.
 public struct LongPressEnd {
     public let position: GesturePosition
     public let totalDelta: Vec2
@@ -64,17 +72,20 @@ public struct LongPressEnd {
 
 // MARK: - Drag Events
 
+/// Event at the start of a drag gesture.
 public struct DragStart {
     public let position: GesturePosition
     public let initialPosition: GesturePosition
 }
 
+/// Event during a drag gesture with translation and velocity.
 public struct DragUpdate {
     public let position: GesturePosition
     public let delta: Vec2
     public let totalDelta: Vec2
 }
 
+/// Event at the end of a drag gesture.
 public struct DragEnd {
     public let position: GesturePosition
     public let totalDelta: Vec2
@@ -83,11 +94,13 @@ public struct DragEnd {
 
 // MARK: - Pan Events (multi-pointer)
 
+/// Event at the start of a multi-pointer pan gesture.
 public struct PanStart {
     public let position: GesturePosition
     public let pointerCount: Int
 }
 
+/// Event during a pan gesture with scale and rotation.
 public struct PanUpdate {
     public let position: GesturePosition
     public let focalDelta: Vec2
@@ -99,6 +112,7 @@ public struct PanUpdate {
     public let pointerCount: Int
 }
 
+/// Event at the end of a pan gesture.
 public struct PanEnd {
     public let position: GesturePosition
     public let totalFocalDelta: Vec2
@@ -110,6 +124,7 @@ public struct PanEnd {
 
 // MARK: - Gesture Configs
 
+/// Configuration and callbacks for tap gesture recognition.
 public struct TapConfig {
     public var maxDuration: Double
     public var slop: Double
@@ -134,6 +149,7 @@ public struct TapConfig {
     }
 }
 
+/// Configuration and callbacks for double-tap gesture recognition.
 public struct DoubleTapConfig {
     public var maxTapDuration: Double
     public var betweenTapsDuration: Double
@@ -160,6 +176,7 @@ public struct DoubleTapConfig {
     }
 }
 
+/// Configuration and callbacks for press gesture recognition.
 public struct PressConfig {
     public var pressDuration: Double
     public var slop: Double
@@ -184,6 +201,7 @@ public struct PressConfig {
     }
 }
 
+/// Configuration and callbacks for hold (long-press + drag) gesture recognition.
 public struct HoldConfig {
     public var holdThreshold: Double
     public var slop: Double
@@ -208,6 +226,7 @@ public struct HoldConfig {
     }
 }
 
+/// Configuration and callbacks for drag gesture recognition.
 public struct DragConfig {
     public var slop: Double
     public var onDown: (@MainActor (GesturePosition) -> Void)?
@@ -229,6 +248,7 @@ public struct DragConfig {
     }
 }
 
+/// Configuration and callbacks for multi-pointer pan gesture recognition.
 public struct PanConfig {
     public var minPointers: Int
     public var slop: Double

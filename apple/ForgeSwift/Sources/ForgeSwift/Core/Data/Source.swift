@@ -165,6 +165,7 @@ public final class URLSource<T>: Source {
 
 // MARK: - Error
 
+/// Error cases for Source loading operations.
 public enum SourceError: Error, LocalizedError {
     case notFound(String)
 

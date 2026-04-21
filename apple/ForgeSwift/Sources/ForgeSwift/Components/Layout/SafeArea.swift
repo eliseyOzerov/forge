@@ -29,6 +29,7 @@ import UIKit
 
 // MARK: - SafeArea view
 
+/// Container that insets content to respect device safe areas.
 public struct SafeArea: ContainerView {
     public let child: any View
     public let edges: Edge.Set

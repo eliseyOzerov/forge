@@ -52,6 +52,7 @@ public extension Graphic {
 
 // MARK: - GraphicStyle
 
+/// Visual style for a graphic (tint color, size, per-element overrides).
 @Init @Copy
 public struct GraphicStyle {
     public var color: Color? = nil
@@ -61,6 +62,7 @@ public struct GraphicStyle {
 
 // MARK: - GraphicSource
 
+/// Source of SVG data (inline string, Data, asset name, file URL, or remote URL).
 public enum GraphicSource {
     case string(String)
     case data(Data)
@@ -71,6 +73,7 @@ public enum GraphicSource {
 
 // MARK: - GraphicOverride
 
+/// Per-element style overrides for an SVG graphic.
 @Init @Copy
 public struct GraphicOverride {
     public var fill: Color? = nil
@@ -347,6 +350,7 @@ public struct SVGPainter {
 
 // MARK: - SVG Document
 
+/// Parsed SVG document with a viewBox and a flat list of elements.
 @Init
 public struct SVGDocument {
     public let viewBox: CGRect
@@ -359,6 +363,7 @@ public struct SVGDocument {
 
 // MARK: - Elements
 
+/// A single SVG shape or group element.
 public indirect enum SVGElement {
     case path(SVGPathData)
     case rect(SVGRectData)
@@ -385,6 +390,7 @@ public indirect enum SVGElement {
 
 // MARK: - Element Data
 
+/// Common SVG paint attributes (fill, stroke, opacity, transform).
 @Init
 public struct SVGPaintAttributes {
     public var fill: SVGPaint = .color(.black)
@@ -398,12 +404,14 @@ public struct SVGPaintAttributes {
     nonisolated(unsafe) public static let defaults = SVGPaintAttributes()
 }
 
+/// SVG paint value: none, a specific color, or currentColor.
 public enum SVGPaint {
     case none
     case color(Color)
     case currentColor
 }
 
+/// Data for an SVG `<path>` element.
 @Init
 public struct SVGPathData {
     public let id: String
@@ -411,6 +419,7 @@ public struct SVGPathData {
     public let attributes: SVGPaintAttributes
 }
 
+/// Data for an SVG `<rect>` element.
 @Init
 public struct SVGRectData {
     public let id: String
@@ -418,6 +427,7 @@ public struct SVGRectData {
     public let attributes: SVGPaintAttributes
 }
 
+/// Data for an SVG `<circle>` element.
 @Init
 public struct SVGCircleData {
     public let id: String
@@ -425,6 +435,7 @@ public struct SVGCircleData {
     public let attributes: SVGPaintAttributes
 }
 
+/// Data for an SVG `<ellipse>` element.
 @Init
 public struct SVGEllipseData {
     public let id: String
@@ -432,6 +443,7 @@ public struct SVGEllipseData {
     public let attributes: SVGPaintAttributes
 }
 
+/// Data for an SVG `<line>` element.
 @Init
 public struct SVGLineData {
     public let id: String
@@ -439,6 +451,7 @@ public struct SVGLineData {
     public let attributes: SVGPaintAttributes
 }
 
+/// Data for an SVG `<polygon>` or `<polyline>` element.
 @Init
 public struct SVGPolygonData {
     public let id: String
@@ -446,6 +459,7 @@ public struct SVGPolygonData {
     public let attributes: SVGPaintAttributes
 }
 
+/// Data for an SVG `<g>` group element with children.
 @Init
 public struct SVGGroupData {
     public let id: String
@@ -653,6 +667,7 @@ public final class SVGParser: NSObject, XMLParserDelegate {
     }
 }
 
+/// Mutable builder used during SVG parsing to accumulate group children.
 private class SVGGroupBuilder {
     let id: String; let attributes: SVGPaintAttributes; var children: [SVGElement] = []
     init(id: String, attributes: SVGPaintAttributes) { self.id = id; self.attributes = attributes }

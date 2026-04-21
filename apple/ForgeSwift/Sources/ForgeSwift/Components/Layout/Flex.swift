@@ -1,5 +1,6 @@
 // MARK: - Spread
 
+/// Item distribution mode within a flex container.
 public enum Spread: Sendable {
     case packed
     case between
@@ -9,6 +10,7 @@ public enum Spread: Sendable {
 
 // MARK: - Column & Row
 
+/// Vertical flex container arranging children top-to-bottom.
 public struct Column: ContainerView {
     public var spacing: Double
     public var lineSpacing: Double
@@ -34,6 +36,7 @@ public struct Column: ContainerView {
     }
 }
 
+/// Horizontal flex container arranging children left-to-right.
 public struct Row: ContainerView {
     public var spacing: Double
     public var lineSpacing: Double
@@ -171,6 +174,7 @@ final class FlexRenderer: ContainerRenderer {
 
 // MARK: - FlexSlot
 
+/// A measured child and its resolved position within a flex line.
 struct FlexSlot {
     let view: UIView
     let intrinsicSize: CGSize
@@ -180,6 +184,7 @@ struct FlexSlot {
 
 // MARK: - FlexLine
 
+/// A single row or column of slots produced by flex wrapping.
 struct FlexLine {
     var slots: [FlexSlot]
     var crossSize: CGFloat = 0

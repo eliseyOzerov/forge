@@ -18,6 +18,7 @@ public extension Fill {
 
 // MARK: - Concrete Fills
 
+/// Fills a shape with a solid color.
 public struct ColorFill: Fill, Equatable, Lerpable {
     public var color: Color
     public init(_ color: Color) { self.color = color }
@@ -29,6 +30,7 @@ public struct ColorFill: Fill, Equatable, Lerpable {
     }
 }
 
+/// Fills a shape with a gradient.
 public struct GradientFill<G: Gradient>: Fill, Equatable, Lerpable {
     public var gradient: G
     public init(_ gradient: G) { self.gradient = gradient }
@@ -43,6 +45,7 @@ public struct GradientFill<G: Gradient>: Fill, Equatable, Lerpable {
     }
 }
 
+/// Fills a shape with an image.
 public struct ImageFill: Fill {
     public var image: ImageSource
     public var fit: ContentFit
@@ -64,6 +67,7 @@ public protocol Gradient: Equatable, Lerpable {
     func draw(on canvas: any Canvas, in bounds: Rect)
 }
 
+/// A color at a specific position along a gradient.
 public struct GradientStop: Sendable, Equatable, Lerpable {
     public var color: Color
     public var location: Double
@@ -73,6 +77,7 @@ public struct GradientStop: Sendable, Equatable, Lerpable {
     }
 }
 
+/// A gradient that transitions colors along a straight line.
 public struct LinearGradient: Sendable, Equatable, Gradient {
     public var stops: [GradientStop]
     public var start: Vec2
@@ -93,6 +98,7 @@ public struct LinearGradient: Sendable, Equatable, Gradient {
     }
 }
 
+/// A gradient that radiates outward from a center point.
 public struct RadialGradient: Sendable, Equatable, Gradient {
     public var stops: [GradientStop]
     public var center: Vec2
@@ -108,6 +114,7 @@ public struct RadialGradient: Sendable, Equatable, Gradient {
     }
 }
 
+/// A gradient that sweeps around a center point.
 public struct AngularGradient: Sendable, Equatable, Gradient {
     public var stops: [GradientStop]
     public var center: Vec2
@@ -141,6 +148,7 @@ public enum GlassStyle: Sendable, Equatable {
 
 // MARK: - ImageSource
 
+/// Platform image wrapper used as a source for image fills.
 public struct ImageSource {
     #if canImport(UIKit)
     public let platformImage: UIImage
@@ -153,6 +161,7 @@ public struct ImageSource {
 
 // MARK: - ContentFit
 
+/// How content is sized to fit within its bounding rect.
 public enum ContentFit: Sendable {
     case fill, contain, cover, scaleDown, none
 
@@ -179,6 +188,7 @@ public enum ContentFit: Sendable {
 
 // MARK: - Shader
 
+/// Placeholder for future custom shader support.
 public struct Shader: Equatable, Lerpable {
     public init() {}
     public func lerp(to other: Shader, t: Double) -> Shader { other }
@@ -186,6 +196,7 @@ public struct Shader: Equatable, Lerpable {
 
 // MARK: - Paint
 
+/// Combines a fill, blend mode, and opacity into a single drawing instruction.
 @Init @Copy @Lerp
 public struct Paint: Equatable {
     public var fill: AnyFill
@@ -202,6 +213,7 @@ public struct Paint: Equatable {
 
 // MARK: - BlendMode
 
+/// Porter-Duff and separable blend modes for compositing.
 public enum BlendMode: Sendable {
     case normal, multiply, screen, overlay
     case darken, lighten, colorDodge, colorBurn
@@ -215,6 +227,7 @@ public enum BlendMode: Sendable {
 
 // MARK: - Stroke
 
+/// Stroke configuration (width, cap, join, alignment, dash pattern).
 @Init @Copy @Lerp
 public struct Stroke: Sendable, Equatable {
     public var width: Double = 1
@@ -225,14 +238,17 @@ public struct Stroke: Sendable, Equatable {
     @Snap public var dash: Dash?
 }
 
+/// Line cap style for stroke endpoints.
 public enum StrokeCap: Sendable, Equatable {
     case butt, round, square
 }
 
+/// Line join style for stroke corners.
 public enum StrokeJoin: Sendable, Equatable {
     case miter, round, bevel
 }
 
+/// Dash pattern for stroked paths.
 public struct Dash: Sendable, Equatable {
     public var pattern: [Double]
     public var phase: Double
@@ -244,6 +260,7 @@ public struct Dash: Sendable, Equatable {
 
 // MARK: - Transform2D
 
+/// 2D affine transform matrix.
 public struct Transform2D: Sendable {
     public var a: Double, b: Double, c: Double, d: Double, tx: Double, ty: Double
 
@@ -262,7 +279,9 @@ public struct Transform2D: Sendable {
     }
 }
 
+/// Axis of 3D rotation.
 public enum RotationAxis: Sendable { case x, y, z }
+/// Rule for determining the interior of a path.
 public enum FillRule: Sendable { case winding, evenOdd }
 
 // MARK: - SurfaceContext
@@ -295,6 +314,7 @@ public extension Layer {
 
 // MARK: - Built-in Layers
 
+/// Layer that fills a path with a paint.
 @Init @Copy @Lerp
 public struct FillLayer: Layer, Equatable {
     public var paint: Paint
@@ -306,6 +326,7 @@ public struct FillLayer: Layer, Equatable {
     }
 }
 
+/// Layer that strokes a path outline.
 @Init @Copy @Lerp
 public struct StrokeLayer: Layer, Equatable {
     public var stroke: Stroke
@@ -323,6 +344,7 @@ public struct StrokeLayer: Layer, Equatable {
     }
 }
 
+/// Layer that draws a drop shadow beneath a path.
 @Init @Copy @Lerp
 public struct ShadowLayer: Layer, Equatable {
     public var color: Color = Color(0, 0, 0, 0.3)
@@ -337,6 +359,7 @@ public struct ShadowLayer: Layer, Equatable {
     }
 }
 
+/// Layer that applies a 2D transform to its children.
 @Init @Copy
 public struct TransformLayer: Layer, Equatable, Lerpable {
     public var sx: Double = 1
@@ -366,6 +389,7 @@ public struct TransformLayer: Layer, Equatable, Lerpable {
     }
 }
 
+/// Layer that clips its children to a shape.
 @Init @Copy
 public struct ClipLayer: Layer, Equatable, Lerpable {
     public var clipShape: AnyShape
@@ -384,6 +408,7 @@ public struct ClipLayer: Layer, Equatable, Lerpable {
     }
 }
 
+/// Layer that applies an opacity to its children.
 @Init @Copy
 public struct FadeLayer: Layer, Equatable, Lerpable {
     public var opacity: Double
@@ -402,6 +427,7 @@ public struct FadeLayer: Layer, Equatable, Lerpable {
     }
 }
 
+/// Layer that composites its children with a blend mode.
 @Init @Copy
 public struct BlendLayer: Layer, Equatable, Lerpable {
     @Snap public var mode: BlendMode
@@ -567,6 +593,7 @@ public struct Surface: Equatable, Lerpable {
 
 // MARK: - SurfaceRenderer
 
+/// Renders a Surface's layer stack onto a canvas within a shaped bounds.
 public struct SurfaceRenderer {
     public let surface: Surface
     public let shape: AnyShape

@@ -5,6 +5,7 @@ import Foundation
 #if canImport(UIKit)
 import UIKit
 
+/// A numeric stepper with increment/decrement buttons, long-press repeat, and drag-to-change.
 public struct Stepper<T: Numeric & Comparable & LosslessStringConvertible>: ModelView {
     public let value: Binding<T>
     public let range: ClosedRange<T>
@@ -31,6 +32,7 @@ public struct Stepper<T: Numeric & Comparable & LosslessStringConvertible>: Mode
 
 // MARK: - Model
 
+/// View model managing value clamping, repeat timers, and drag accumulation for Stepper.
 public final class StepperModel<T: Numeric & Comparable & LosslessStringConvertible>: ViewModel<Stepper<T>> {
     var isEditing = false
     var dragAccumulator: Double = 0
@@ -168,6 +170,7 @@ public final class StepperModel<T: Numeric & Comparable & LosslessStringConverti
 
 // MARK: - Builder
 
+/// Builds the Stepper view tree with decrement button, editable field, and increment button.
 public final class StepperBuilder<T: Numeric & Comparable & LosslessStringConvertible>: ViewBuilder<StepperModel<T>> {
     public override func build(context: ViewContext) -> any View {
         let style = model.view.style(model.currentState)
@@ -202,6 +205,7 @@ public final class StepperBuilder<T: Numeric & Comparable & LosslessStringConver
 
 // MARK: - StepperFieldLeaf
 
+/// Leaf view for the stepper's editable text field with drag gesture support.
 struct StepperFieldLeaf<T: Numeric & Comparable & LosslessStringConvertible>: LeafView {
     let model: StepperModel<T>
     let style: StepperStyle<T>
@@ -365,6 +369,7 @@ final class StepperFieldView<T: Numeric & Comparable & LosslessStringConvertible
 
 // MARK: - StepperStyle
 
+/// Visual styling for Stepper.
 public struct StepperStyle<T> {
     public var container: BoxStyle
     public var field: BoxStyle
@@ -414,6 +419,7 @@ public struct StepperButton {
 
 // MARK: - Config Types
 
+/// Configuration for stepper long-press repeat acceleration.
 public struct LongPressConfig {
     public var delay: Double
     public var interval: Double
@@ -426,6 +432,7 @@ public struct LongPressConfig {
     nonisolated(unsafe) public static let `default` = LongPressConfig()
 }
 
+/// Configuration for stepper drag-to-change behavior.
 public struct StepperDragConfig {
     public var sensitivity: Double
     public var axis: Axis
@@ -438,6 +445,7 @@ public struct StepperDragConfig {
     nonisolated(unsafe) public static let `default` = StepperDragConfig()
 }
 
+/// Transition animation for stepper value changes.
 public struct ValueTransition {
     public var animation: Animation
     public var direction: TransitionDirection
@@ -449,4 +457,5 @@ public struct ValueTransition {
     nonisolated(unsafe) public static let `default` = ValueTransition()
 }
 
+/// Direction of a value transition animation (up, down, fade).
 public enum TransitionDirection { case up, down, fade }

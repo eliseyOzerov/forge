@@ -5,6 +5,7 @@ import Foundation
 #if canImport(UIKit)
 import UIKit
 
+/// A draggable slider for selecting a numeric value within a range.
 public struct Slider: ModelView {
     public let value: Binding<Double>
     public let range: ClosedRange<Double>
@@ -29,6 +30,7 @@ public struct Slider: ModelView {
 
 // MARK: - Model
 
+/// View model managing normalized value, press state, and snap-to-division logic for Slider.
 public final class SliderModel: ViewModel<Slider> {
     var isPressed = false
     let driver = MotionDriver(duration: Duration(0.2))
@@ -125,6 +127,7 @@ public final class SliderModel: ViewModel<Slider> {
 
 // MARK: - Builder
 
+/// Builds the Slider view tree by wrapping content in a SliderLeaf.
 public final class SliderBuilder: ViewBuilder<SliderModel> {
     public override func build(context: ViewContext) -> any View {
         SliderLeaf(model: model)
@@ -133,6 +136,7 @@ public final class SliderBuilder: ViewBuilder<SliderModel> {
 
 // MARK: - Leaf
 
+/// Leaf view that bridges Slider into a platform-specific renderer.
 struct SliderLeaf: LeafView {
     let model: SliderModel
     func makeRenderer() -> Renderer { SliderRenderer(view: self) }
@@ -325,6 +329,7 @@ final class SliderView: UIView {
 
 // MARK: - SliderStyle
 
+/// Visual styling for Slider (track, thumb, labels).
 public struct SliderStyle {
     public var track: StateProperty<TrackStyle>
     public var thumb: StateProperty<ThumbStyle>
@@ -348,6 +353,7 @@ public struct SliderStyle {
 
 // MARK: - TrackStyle
 
+/// Styling for the slider track.
 public struct TrackStyle {
     public var inactive: BoxStyle
     public var active: BoxStyle
@@ -365,6 +371,7 @@ public struct TrackStyle {
     }
 }
 
+/// Styling for the slider thumb.
 public struct ThumbStyle {
     public var box: BoxStyle
     public var label: ThumbLabelStyle?
@@ -377,6 +384,7 @@ public struct ThumbStyle {
     }
 }
 
+/// Division marker configuration for the slider track.
 public struct TrackDivisions {
     public var count: Int
     public var magnetStrength: Double
@@ -391,6 +399,7 @@ public struct TrackDivisions {
     }
 }
 
+/// Styling for division labels on a slider.
 public struct DivisionLabelStyle {
     public var text: TextStyle
     public var placement: Alignment
@@ -408,6 +417,7 @@ public struct DivisionLabelStyle {
     }
 }
 
+/// Styling for the thumb value label on a slider.
 public struct ThumbLabelStyle {
     public var text: TextStyle
     public var box: BoxStyle
@@ -426,6 +436,7 @@ public struct ThumbLabelStyle {
 
 // MARK: - SliderRole
 
+/// Named slider role token.
 public struct SliderRole: NamedKey {
     public let name: String
     public init(_ name: String) { self.name = name }
@@ -442,6 +453,7 @@ public extension SliderRole {
 
 // MARK: - SliderTheme
 
+/// Theme for sliders.
 public struct SliderTheme: Copyable {
     public var styles: [SliderRole: SliderStyle]
     public var chain: [SliderRole]

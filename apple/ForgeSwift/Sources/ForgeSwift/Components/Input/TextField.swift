@@ -1,13 +1,19 @@
 // MARK: - Function Types
 
+/// Mapper that parses a String into an optional typed value.
 public typealias TextParser<T> = Mapper<String, T?>
+/// Mapper that formats a typed value as a String.
 public typealias TextFormatter<T> = Mapper<T, String>
+/// Mapper that transforms input text.
 public typealias TextTransformer = Mapper<String, String>
+/// Mapper that determines whether input text is allowed.
 public typealias InputFilter = Mapper<String, Bool>
+/// Mapper that validates a parsed value, returning an error string or nil.
 public typealias InputValidator<T> = Mapper<T, String?>
 
 // MARK: - TextField<T>
 
+/// A text input field with parsing, validation, formatting, and keyboard configuration.
 public struct TextField<T>: ModelView {
     public var value: Binding<T>
     public var logic: TextFieldLogic<T>
@@ -32,6 +38,7 @@ public struct TextField<T>: ModelView {
 
 // MARK: - Logic
 
+/// Parsing, formatting, filtering, and validation logic for a TextField.
 public struct TextFieldLogic<T> {
     public var parser: TextParser<T>?
     public var formatter: TextFormatter<T>?
@@ -72,6 +79,7 @@ public extension TextField where T == String {
 
 // MARK: - Decoration
 
+/// Decoration slots for TextField (placeholder, label, helper, error, leading/trailing views).
 public struct TextFieldDecoration {
     public var placeholder: String?
     public var label: String?
@@ -101,6 +109,7 @@ public struct TextFieldDecoration {
 
 // MARK: - Keyboard Config
 
+/// Keyboard configuration (type, content type, autocapitalization, return key).
 public struct KeyboardConfig: Sendable {
     public var type: KeyboardType
     public var contentType: ContentType?
@@ -121,24 +130,29 @@ public struct KeyboardConfig: Sendable {
     }
 }
 
+/// Keyboard type (default, email, number, decimal, phone, URL).
 public enum KeyboardType: Sendable {
     case `default`, email, number, decimal, phone, url
 }
 
+/// Content type hint for autofill (email, password, oneTimeCode, name, username).
 public enum ContentType: Sendable {
     case email, password, newPassword, oneTimeCode, name, username
 }
 
+/// Autocapitalization mode (none, words, sentences, all).
 public enum Autocapitalization: Sendable {
     case none, words, sentences, all
 }
 
+/// Return key style (default, done, next, search, go, send).
 public enum ReturnKey: Sendable {
     case `default`, done, next, search, go, send
 }
 
 // MARK: - Style
 
+/// Visual styling for TextField.
 public struct TextFieldStyle {
     public var field: BoxStyle
     public var text: TextStyle
@@ -165,6 +179,7 @@ public struct TextFieldStyle {
     }
 }
 
+/// Label position relative to the input field (above, inside, border).
 public enum LabelPosition: Sendable {
     case above
     case inside
@@ -173,6 +188,7 @@ public enum LabelPosition: Sendable {
 
 // MARK: - TextMask
 
+/// Utilities for applying input masks and obscuring text.
 enum TextMask {
     static func apply(_ mask: String, to text: String) -> String {
         var result = ""; var textIdx = text.startIndex
@@ -199,6 +215,7 @@ enum TextMask {
 
 // MARK: - PasswordStrength
 
+/// Password strength evaluation result (weak, fair, strong, veryStrong).
 public enum PasswordStrength {
     case weak, fair, strong, veryStrong
 
@@ -229,6 +246,7 @@ public enum PasswordStrength {
 
 // MARK: - Model
 
+/// View model managing focus, display text, validation, and text transformation for TextField.
 public final class TextFieldModel<T>: ViewModel<TextField<T>> {
     var isFocused = false
     var error: String?
@@ -296,6 +314,7 @@ public final class TextFieldModel<T>: ViewModel<TextField<T>> {
 
 // MARK: - Builder
 
+/// Builds the TextField view tree with label, input leaf, and helper/error text.
 public final class TextFieldBuilder<T>: ViewBuilder<TextFieldModel<T>> {
     public override func build(context: ViewContext) -> any View {
         let style = model.view.style(model.currentState)
@@ -317,6 +336,7 @@ public final class TextFieldBuilder<T>: ViewBuilder<TextFieldModel<T>> {
 
 // MARK: - Leaf
 
+/// Leaf view that bridges TextField into a platform-specific text input renderer.
 struct TextFieldLeaf<T>: LeafView {
     let model: TextFieldModel<T>
     let style: TextFieldStyle
@@ -487,6 +507,7 @@ public extension TextField where T: Numeric & LosslessStringConvertible {
 
 // MARK: - TextFieldRole
 
+/// Named text field role token.
 public struct TextFieldRole: NamedKey {
     public let name: String
     public init(_ name: String) { self.name = name }
@@ -503,6 +524,7 @@ public extension TextFieldRole {
 
 // MARK: - TextFieldTheme
 
+/// Theme for text fields.
 public struct TextFieldTheme: Copyable {
     public var styles: [TextFieldRole: TextFieldStyle]
     public var chain: [TextFieldRole]

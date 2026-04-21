@@ -1,5 +1,6 @@
 // MARK: - Icon
 
+/// SF Symbol icon component with configurable size, weight, and color.
 public struct Icon: LeafView {
     public var name: String
     public var style: IconStyle
@@ -27,6 +28,7 @@ public struct Icon: LeafView {
 
 // MARK: - IconStyle
 
+/// Visual style for an icon (size, weight, color, rendering mode).
 @Init @Copy
 public struct IconStyle {
     public var size: Double = 24
@@ -35,10 +37,12 @@ public struct IconStyle {
     @Snap public var renderingMode: IconRenderingMode = .template
 }
 
+/// Icon weight variants from thin to black.
 public enum IconWeight: Sendable {
     case ultraLight, thin, light, regular, medium, semibold, bold, heavy, black
 }
 
+/// How an icon's colors are applied (template, original, etc.).
 public enum IconRenderingMode: Sendable {
     case template, original, hierarchical, palette
 
@@ -47,6 +51,7 @@ public enum IconRenderingMode: Sendable {
 
 // MARK: - IconRole
 
+/// Named icon role token.
 public struct IconRole: NamedKey {
     public let name: String
     public init(_ name: String) { self.name = name }
@@ -63,6 +68,7 @@ public extension IconRole {
 
 // MARK: - IconTheme
 
+/// Theme for icons with per-role defaults.
 public struct IconTheme: Copyable {
     public var styles: [IconRole: IconStyle]
     public var chain: [IconRole]

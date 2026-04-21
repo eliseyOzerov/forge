@@ -2,6 +2,7 @@ import Foundation
 
 // MARK: - Loader
 
+/// Animated loading indicator with multiple built-in animation styles.
 public struct Loader: LeafView {
     public let style: LoaderStyle
     public let color: Color
@@ -24,6 +25,7 @@ public struct Loader: LeafView {
 
 // MARK: - LoaderStyle
 
+/// Built-in loader animation variants (circular, dots, pulse, bars, etc.).
 public enum LoaderStyle: Sendable {
     case circular
     case dots
@@ -129,6 +131,7 @@ final class LoaderRenderer: Renderer {
 
 // MARK: - Painters
 
+/// Spinning arc loader animation.
 struct CircularPainter: LoaderPainter {
     func paint(on canvas: Canvas, progress t: Double, bounds: Rect, color: Color) {
         let center = Vec2(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2)
@@ -147,6 +150,7 @@ struct CircularPainter: LoaderPainter {
     }
 }
 
+/// Three scaling dots loader animation.
 struct DotsPainter: LoaderPainter {
     func paint(on canvas: Canvas, progress t: Double, bounds: Rect, color: Color) {
         let count = 3
@@ -168,6 +172,7 @@ struct DotsPainter: LoaderPainter {
     }
 }
 
+/// Pulsing circle loader animation.
 struct PulsePainter: LoaderPainter {
     func paint(on canvas: Canvas, progress t: Double, bounds: Rect, color: Color) {
         let center = Vec2(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2)
@@ -180,6 +185,7 @@ struct PulsePainter: LoaderPainter {
     }
 }
 
+/// Oscillating vertical bars loader animation.
 struct BarsPainter: LoaderPainter {
     func paint(on canvas: Canvas, progress t: Double, bounds: Rect, color: Color) {
         let count = 4
@@ -204,6 +210,7 @@ struct BarsPainter: LoaderPainter {
     }
 }
 
+/// Orbiting dots loader animation.
 struct OrbitPainter: LoaderPainter {
     func paint(on canvas: Canvas, progress t: Double, bounds: Rect, color: Color) {
         let center = Vec2(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2)
@@ -226,6 +233,7 @@ struct OrbitPainter: LoaderPainter {
     }
 }
 
+/// Expanding concentric rings loader animation.
 struct RipplePainter: LoaderPainter {
     func paint(on canvas: Canvas, progress t: Double, bounds: Rect, color: Color) {
         let center = Vec2(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2)
@@ -243,6 +251,7 @@ struct RipplePainter: LoaderPainter {
     }
 }
 
+/// Bouncing ball with squash-and-stretch loader animation.
 struct BouncePainter: LoaderPainter {
     func paint(on canvas: Canvas, progress t: Double, bounds: Rect, color: Color) {
         let cx = bounds.x + bounds.width / 2
@@ -274,6 +283,7 @@ struct BouncePainter: LoaderPainter {
     }
 }
 
+/// Sinusoidal wave of dots loader animation.
 struct WavePainter: LoaderPainter {
     func paint(on canvas: Canvas, progress t: Double, bounds: Rect, color: Color) {
         let count = 5
@@ -291,6 +301,7 @@ struct WavePainter: LoaderPainter {
     }
 }
 
+/// 3D-rotating square loader animation.
 struct FlipPainter: LoaderPainter {
     func paint(on canvas: Canvas, progress t: Double, bounds: Rect, color: Color) {
         let halfSize = min(bounds.width, bounds.height) * 0.3
@@ -312,6 +323,7 @@ struct FlipPainter: LoaderPainter {
     }
 }
 
+/// Sequentially fading dots arranged in a circle loader animation.
 struct FadePainter: LoaderPainter {
     func paint(on canvas: Canvas, progress t: Double, bounds: Rect, color: Color) {
         let center = Vec2(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2)

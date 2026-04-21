@@ -59,6 +59,7 @@ public struct Plane: ModelView {
 
 // MARK: - Model
 
+/// View model managing drag state, coordinate conversion, and snap animations for Plane.
 public final class PlaneModel: ViewModel<Plane> {
     var isPressed = false
     var anchorOffset: Vec2 = .zero
@@ -162,6 +163,7 @@ public final class PlaneModel: ViewModel<Plane> {
 
 // MARK: - Builder
 
+/// Builds the Plane view tree by wrapping content in a PlaneLeaf.
 public final class PlaneBuilder: ViewBuilder<PlaneModel> {
     public override func build(context: ViewContext) -> any View {
         PlaneLeaf(model: model)
@@ -170,6 +172,7 @@ public final class PlaneBuilder: ViewBuilder<PlaneModel> {
 
 // MARK: - Leaf
 
+/// Leaf view that bridges Plane into a platform-specific pan gesture renderer.
 struct PlaneLeaf: LeafView {
     let model: PlaneModel
     func makeRenderer() -> Renderer {

@@ -36,6 +36,7 @@ public struct Animated<T: Lerpable & Equatable>: ModelView {
 
 // MARK: - Model
 
+/// Drives the interpolation between old and new target values over time.
 public final class AnimatedModel<T: Lerpable & Equatable>: ViewModel<Animated<T>> {
     private var from: T!
     private var to: T!
@@ -73,6 +74,7 @@ public final class AnimatedModel<T: Lerpable & Equatable>: ViewModel<Animated<T>
 
 // MARK: - Builder
 
+/// Rebuilds the Animated child with the current interpolated value each frame.
 public final class AnimatedBuilder<T: Lerpable & Equatable>: ViewBuilder<AnimatedModel<T>> {
     public override func build(context: ViewContext) -> any View {
         model.view.content(context, model.current)

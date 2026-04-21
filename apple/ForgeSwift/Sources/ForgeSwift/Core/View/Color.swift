@@ -14,6 +14,7 @@ public final class _ColorInverseBox: @unchecked Sendable, Hashable {
     public func hash(into hasher: inout Hasher) { color.hash(into: &hasher) }
 }
 
+/// RGBA color with perceptual luminance, color space conversions, palettes, and harmonies.
 public struct Color: Equatable, Hashable, Sendable, Lerpable {
     public var red: Double
     public var green: Double
@@ -116,6 +117,7 @@ public struct OkLch: Equatable {
 
 // MARK: - HSV
 
+/// HSV color space (hue 0-360, saturation 0-1, value 0-1).
 public struct HSV: Equatable {
     public var h: Double  // 0-360
     public var s: Double  // 0-1
@@ -128,6 +130,7 @@ public struct HSV: Equatable {
 
 // MARK: - HSL
 
+/// HSL color space (hue 0-360, saturation 0-1, lightness 0-1).
 public struct HSL: Equatable {
     public var h: Double  // 0-360
     public var s: Double  // 0-1

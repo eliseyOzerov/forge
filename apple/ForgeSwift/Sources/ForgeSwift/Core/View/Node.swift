@@ -33,6 +33,7 @@ import UIKit
 import AppKit
 #endif
 
+/// Long-lived identity anchor owning Model, Builder/Renderer, platform view, and subscriptions.
 @MainActor public class Node {
     public weak var parent: Node?
     public var platformView: PlatformView?
@@ -241,6 +242,7 @@ func unwrapIdentity(_ view: any View) -> (id: AnyHashable?, inner: any View) {
 
 // MARK: - LeafNode
 
+/// Node subclass for leaf views backed by a Renderer.
 public final class LeafNode: Node {
     public var renderer: Renderer?
 
@@ -575,6 +577,7 @@ public final class ModelNode: Node {
 
 // MARK: - ContainerNode
 
+/// Node subclass for container views managing multiple children.
 public final class ContainerNode: Node {
     public var renderer: ContainerRenderer?
     public var childNodes: [Node] = []

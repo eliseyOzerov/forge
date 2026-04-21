@@ -316,6 +316,7 @@ public struct Path {
 
 // MARK: - Supporting Types
 
+/// Point and angle sampled from a Path at a given distance.
 public struct PathTangent {
     public let point: Point
     public let angle: Double
@@ -323,6 +324,7 @@ public struct PathTangent {
     public var normal: Vec2 { Vec2(-sin(angle), cos(angle)) }
 }
 
+/// Segment representation for path length and sampling calculations.
 private struct PathSegment {
     let start: Point
     let end: Point

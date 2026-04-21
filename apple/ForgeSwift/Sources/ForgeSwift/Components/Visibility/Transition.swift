@@ -27,6 +27,7 @@ import UIKit
 
 // MARK: - TransitionStatus
 
+/// Status of a transition animation (entering, entered, exiting, exited).
 public enum TransitionStatus: Sendable {
     case entering
     case entered
@@ -50,6 +51,7 @@ public struct TransitionState {
 
 // MARK: - TransitionEffect
 
+/// Protocol for custom transition effects applied on mount and unmount.
 public protocol TransitionEffect {
     /// Timing curve applied to t before this effect reads it.
     var curve: Curve { get }
@@ -162,6 +164,7 @@ public struct Rotate: TransitionEffect {
 
 // MARK: - Transition view
 
+/// Enter/exit animation wrapper that composes TransitionEffects on a child.
 public struct Transition: ProxyView {
     public let show: Binding<Bool>
     public let effects: [any TransitionEffect]

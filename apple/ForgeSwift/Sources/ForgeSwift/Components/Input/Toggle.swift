@@ -4,6 +4,7 @@ import Foundation
 
 // MARK: - Toggle
 
+/// A boolean toggle rendered by a pluggable painter (checkbox, radio, switch, heart).
 public struct Toggle: ModelView {
     public let value: Binding<Bool>
     public let style: StateProperty<ToggleStyle>
@@ -28,6 +29,7 @@ public struct Toggle: ModelView {
 
 // MARK: - ToggleStyle
 
+/// Visual styling for Toggle.
 public struct ToggleStyle {
     public var painter: any TogglePainter
     public var size: Size
@@ -58,6 +60,7 @@ public protocol TogglePainter {
 
 // MARK: - Model
 
+/// View model managing on/off state, press feedback, and animation driver for Toggle.
 public final class ToggleModel: ViewModel<Toggle> {
     var isPressed = false
     let driver = MotionDriver(duration: Duration(0.2))
@@ -142,6 +145,7 @@ public final class ToggleModel: ViewModel<Toggle> {
 
 // MARK: - Builder
 
+/// Builds the Toggle view tree by wrapping content in a ToggleLeaf.
 public final class ToggleBuilder: ViewBuilder<ToggleModel> {
     public override func build(context: ViewContext) -> any View {
         ToggleLeaf(model: model)
@@ -150,6 +154,7 @@ public final class ToggleBuilder: ViewBuilder<ToggleModel> {
 
 // MARK: - Leaf
 
+/// Leaf view that bridges Toggle into a platform-specific canvas renderer.
 struct ToggleLeaf: LeafView {
     let model: ToggleModel
     func makeRenderer() -> Renderer { ToggleRenderer(view: self) }
@@ -246,6 +251,7 @@ final class ToggleView: UIView {
 
 // MARK: - Preset: Checkbox
 
+/// Painter that draws a checkbox with an animated checkmark.
 public struct CheckboxPainter: TogglePainter {
     public let onColor: Color
     public let offColor: Color
@@ -289,6 +295,7 @@ public struct CheckboxPainter: TogglePainter {
 
 // MARK: - Preset: Radio
 
+/// Painter that draws a radio button with an animated inner dot.
 public struct RadioPainter: TogglePainter {
     public let onColor: Color
     public let offColor: Color
@@ -322,6 +329,7 @@ public struct RadioPainter: TogglePainter {
 
 // MARK: - Preset: Switch
 
+/// Painter that draws a sliding switch track and thumb.
 public struct SwitchPainter: TogglePainter {
     public let onColor: Color
     public let offColor: Color
@@ -352,6 +360,7 @@ public struct SwitchPainter: TogglePainter {
 
 // MARK: - Preset: Heart
 
+/// Painter that draws a heart shape that fills on toggle.
 public struct HeartPainter: TogglePainter {
     public let onColor: Color
     public let offColor: Color
@@ -474,6 +483,7 @@ public extension Toggle {
 
 // MARK: - ToggleRole
 
+/// Named toggle role token.
 public struct ToggleRole: NamedKey {
     public let name: String
     public init(_ name: String) { self.name = name }
@@ -490,6 +500,7 @@ public extension ToggleRole {
 
 // MARK: - ToggleTheme
 
+/// Theme for toggles.
 public struct ToggleTheme: Copyable {
     public var styles: [ToggleRole: ToggleStyle]
     public var chain: [ToggleRole]

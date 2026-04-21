@@ -26,6 +26,7 @@ public extension Route {
 
 // MARK: - RoutePhase
 
+/// Lifecycle phase of a route within the router stack.
 public enum RoutePhase: Equatable, Sendable {
     case entering
     case exiting
@@ -35,6 +36,7 @@ public enum RoutePhase: Equatable, Sendable {
 
 // MARK: - RouteHandle
 
+/// Handle for observing and controlling a single route in the stack.
 @MainActor public protocol RouteHandle: AnyObject, Listenable {
     var index: Int { get }
     var phase: RoutePhase { get }
@@ -59,7 +61,7 @@ public extension RouteHandle {
 
 // MARK: - RouteModel
 
-/// Per-route state, created and owned by the router.
+/// Per-route mutable state owned by the router, driving animation and lifecycle.
 @MainActor
 public final class RouteModel: Notifier, RouteHandle {
     let id: UUID
@@ -224,8 +226,7 @@ public extension ViewContext {
 
 // MARK: - onPop modifier
 
-/// Installs a dismiss check on the enclosing route. The check is
-/// called before the route is dismissed — return false to cancel.
+/// Modifier that intercepts and optionally prevents route dismissal.
 public struct PopGuard: BuiltView {
     public let check: @MainActor () async -> Bool
     public let child: any View

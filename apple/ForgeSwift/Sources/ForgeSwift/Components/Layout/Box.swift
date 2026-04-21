@@ -14,6 +14,7 @@
 /// ```
 // MARK: - BoxStyle
 
+/// Visual styling for Box (surface, shape, padding, frame).
 @Init @Copy @Lerp
 public struct BoxStyle: Equatable {
     public var frame: Frame = .hug
@@ -104,6 +105,7 @@ public extension View {
 
 // MARK: - BoxRole
 
+/// Named box role token.
 public struct BoxRole: NamedKey {
     public let name: String
     public init(_ name: String) { self.name = name }
@@ -554,6 +556,7 @@ public extension View {
     }
 }
 
+/// Debug visualization overlay showing layout boundaries.
 public struct DebugOverlay: ContainerView {
     public let child: any View
     public let color: Color

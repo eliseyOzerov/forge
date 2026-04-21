@@ -91,6 +91,7 @@ public class Notifier: Listenable {
 
 // MARK: - Subscription
 
+/// Cancellable handle returned by Listenable.listen; removes the observer on cancel.
 @MainActor public final class Subscription {
     private var cancelClosure: (() -> Void)?
 

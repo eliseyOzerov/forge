@@ -18,6 +18,7 @@
 
 // MARK: - Ref
 
+/// Property wrapper for obtaining a reference to a mounted view's Node.
 @propertyWrapper
 @MainActor
 public class Ref<V: View> {

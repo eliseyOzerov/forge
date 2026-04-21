@@ -283,6 +283,7 @@ public final class MotionDriver: Observable<Double> {
 
     public private(set) var state: State = .idle
 
+    /// Driver state: idle, running, paused, or completed.
     public enum State: Equatable, Sendable {
         case idle
         case forward
@@ -290,6 +291,7 @@ public final class MotionDriver: Observable<Double> {
         case paused(direction: Direction)
     }
 
+    /// Driver playback direction: forward or reverse.
     public enum Direction: Equatable, Sendable {
         case forward, reverse
     }

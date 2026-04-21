@@ -19,6 +19,7 @@ import UIKit
 
 // MARK: - Lift
 
+/// Lifts a child view into the router overlay stack above its current route.
 public struct Lift: ModelView {
     public let lifted: Binding<Bool>
     public let builder: @MainActor (Bool) -> any View
@@ -37,6 +38,7 @@ public struct Lift: ModelView {
 
 // MARK: - LiftOverlay
 
+/// Non-opaque route overlay that mirrors the lifted child's position.
 struct LiftOverlay: BuiltView, Route {
     let content: @MainActor () -> any View
     let slotRect: Observable<Rect>
@@ -56,6 +58,7 @@ struct LiftOverlay: BuiltView, Route {
 
 // MARK: - LiftModel
 
+/// State manager that inserts and removes the lift overlay in the router.
 public final class LiftModel: ViewModel<Lift> {
     let slotRect = Observable(Rect.zero)
     private var isLifted = false
@@ -102,6 +105,7 @@ public final class LiftModel: ViewModel<Lift> {
 
 // MARK: - LiftBuilder
 
+/// Builds the in-place slot content and reports its rect to the overlay.
 public final class LiftBuilder: ViewBuilder<LiftModel> {
     public override func build(context: ViewContext) -> any View {
         let content = model.view.builder(false)

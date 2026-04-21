@@ -140,6 +140,7 @@ public extension Canvas {
 #if canImport(CoreGraphics)
 import CoreGraphics
 
+/// CoreGraphics implementation of the Canvas protocol.
 public final class CGCanvas: Canvas {
     public let ctx: CGContext
 

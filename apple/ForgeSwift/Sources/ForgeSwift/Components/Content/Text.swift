@@ -2,6 +2,7 @@ import CoreText
 
 // MARK: - TextStyle
 
+/// Visual style for text (font, color, alignment, decoration, overflow).
 @Style
 public struct TextStyle: Sendable, Equatable {
     public var font: Font?
@@ -15,6 +16,7 @@ public struct TextStyle: Sendable, Equatable {
 
 // MARK: - Font
 
+/// Font descriptor with family, size, weight, tracking, and variable-font features.
 @Init @Copy @Lerp
 public struct Font: Sendable, Equatable {
     @Snap public var family: String?
@@ -38,6 +40,7 @@ public struct Font: Sendable, Equatable {
 
 // MARK: - FontFeatures
 
+/// OpenType font features: stylistic sets, character alternates, and variation axes.
 public struct FontFeatures: Sendable, Equatable {
     public var stylisticSets: Set<Int>
     public var alternates: [Int: Int]
@@ -59,6 +62,7 @@ public struct FontFeatures: Sendable, Equatable {
 
 // MARK: - FontAxis
 
+/// Variable font axis identifiers (weight, width, slant, etc.).
 public enum FontAxis: String, CaseIterable, Sendable {
     case weight = "wght"
     case width = "wdth"
@@ -78,6 +82,7 @@ public enum FontAxis: String, CaseIterable, Sendable {
 
 // MARK: - TextAlign
 
+/// Horizontal text alignment (leading, trailing, center, justify).
 public enum TextAlign: String, Sendable {
     case leading
     case trailing
@@ -87,6 +92,7 @@ public enum TextAlign: String, Sendable {
 
 // MARK: - TextOverflow
 
+/// How text is clipped when it overflows its container.
 public enum TextOverflow: String, Sendable {
     case clip
     case fade
@@ -95,6 +101,7 @@ public enum TextOverflow: String, Sendable {
 
 // MARK: - TextCase
 
+/// Text casing transform (uppercase, lowercase, capitalize).
 public enum TextCase: String, Sendable {
     case none
     case uppercase
@@ -113,6 +120,7 @@ public enum TextCase: String, Sendable {
 
 // MARK: - TextDecoration
 
+/// Decorations applied to text (underline, strikethrough, shadow).
 public struct TextDecoration: Sendable, Equatable {
     public var line: TextLineConfig?
     public var shadow: ShadowConfig?
@@ -123,6 +131,7 @@ public struct TextDecoration: Sendable, Equatable {
     }
 }
 
+/// Configuration for an underline or strikethrough line.
 public struct TextLineConfig: Sendable, Equatable {
     public var color: Color?
     public var position: TextLinePosition
@@ -143,11 +152,13 @@ public struct TextLineConfig: Sendable, Equatable {
     public static let thick = 0x02
 }
 
+/// Whether a text decoration line is an underline or strikethrough.
 public enum TextLinePosition: String, Sendable {
     case underline
     case strikethrough
 }
 
+/// Text shadow configuration (color, blur radius, offset).
 public struct ShadowConfig: Sendable, Equatable {
     public var color: Color
     public var radius: Double
@@ -166,6 +177,7 @@ public struct ShadowConfig: Sendable, Equatable {
 
 // MARK: - Text
 
+/// Text component that displays styled string content.
 public struct Text: BuiltView {
     public var content: String
     public var style: TextStyle
@@ -189,6 +201,7 @@ public struct Text: BuiltView {
     }
 }
 
+/// Resolved text leaf view with fully merged style, ready for rendering.
 struct TextLeaf: LeafView {
     let content: String
     let style: TextStyle
@@ -206,6 +219,7 @@ struct TextLeaf: LeafView {
 
 // MARK: - TextSize
 
+/// Named text size token for the text theme.
 public struct TextSize: TokenKey {
     public let name: String
     public let defaultValue: Double
@@ -296,6 +310,7 @@ public extension TextRole {
 
 // MARK: - RoleTheme
 
+/// Per-role text style configuration with size overrides.
 public struct RoleTheme: Sendable, Copyable {
     /// Base Font for this role. Covers any unpopulated TextSize by
     /// scaling to that size's default points.
@@ -329,6 +344,7 @@ public struct RoleTheme: Sendable, Copyable {
 
 // MARK: - TextTheme
 
+/// Complete text theme with sizes, weights, line heights, and roles.
 public struct TextTheme: Sendable, Copyable {
     public var primary: Font
     public var roles: [TextRole: RoleTheme]
@@ -528,6 +544,7 @@ extension TextOverflow {
     }
 }
 
+/// Queried font metadata including available variation axes.
 struct FontInfo {
     let variationAxes: [VariationAxisInfo]
 
@@ -570,6 +587,7 @@ struct FontInfo {
     }
 }
 
+/// Describes a single variation axis of a variable font.
 struct VariationAxisInfo {
     let tag: String
     let identifier: Int
