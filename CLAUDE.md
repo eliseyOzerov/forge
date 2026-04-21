@@ -12,7 +12,8 @@
 
 ## Testing
 
-- Always run tests before considering a task complete.
+- **Always** build (`swift build`) and run tests (`swift test`) before considering a task complete — no exceptions.
+- Never commit code that doesn't compile or has failing tests.
 - If implementation code was changed or added, add or update tests for that code.
 
 ## Platform Portability

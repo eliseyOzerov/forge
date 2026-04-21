@@ -34,6 +34,9 @@ public extension AnyShape {
     static func ellipse() -> AnyShape { EllipseShape().erased }
     static func circle() -> AnyShape { CircleShape().erased }
     static func capsule() -> AnyShape { CapsuleShape().erased }
+    static func regular(sides: Int, rotation: Double = -.pi / 2) -> AnyShape { RegularPolygon(sides: sides, rotation: rotation).erased }
+    static func star(points: Int, innerRadius: Double = 0.4, rotation: Double = -.pi / 2) -> AnyShape { StarShape(points: points, innerRadius: innerRadius, rotation: rotation).erased }
+    static func polygon(_ points: [Point]) -> AnyShape { PolygonShape(points: points).erased }
 }
 
 // MARK: - Static factories (enables `.capsule()` dot syntax in generic contexts)

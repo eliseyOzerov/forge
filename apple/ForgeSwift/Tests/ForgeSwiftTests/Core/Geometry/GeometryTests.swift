@@ -465,7 +465,7 @@ final class GeometryTests: XCTestCase {
 
     func testPaddingCopyOverridesTop() {
         let p = Padding(top: 10, bottom: 20, leading: 30, trailing: 40)
-        let p2 = p.copy(top: 99)
+        let p2 = p.top(99)
         XCTAssertEqual(p2.top, 99)
         XCTAssertEqual(p2.bottom, 20)
         XCTAssertEqual(p2.leading, 30)
