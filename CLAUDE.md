@@ -22,6 +22,13 @@ Public Forge APIs must never contain platform-dependent code. This ensures porta
 - Never gate public APIs inside `canImport` statements.
 - When building a Leaf, Proxy, or Container view, use `canImport` **only** inside `makeRenderer` to select the correct platform renderer (`[Component]UIKitRenderer` or `[Component]AppKitRenderer`).
 
+## Macros
+
+Prefer macros over manual boilerplate on all structs and classes where a macro can do the job (e.g. `@Memberwise` for memberwise initializers, `@Equatable`, `@Hashable`, etc.).
+
+- If a struct/class looks like a candidate for a macro but has exceptions (custom logic in `init`, conditional conformance, stored-property quirks), **ask the user** before proceeding.
+- For initialization specifically: if convenience initializers are needed beyond what the macro generates, place them in an **extension** on the main struct/class — not in the primary declaration.
+
 ## Swift File Ordering
 
 Each file must keep the main struct/type it represents at the top. If the filename is `Graphic.swift`, the first struct is `Graphic`. This does not apply to general library files that contain many types of equal importance.
