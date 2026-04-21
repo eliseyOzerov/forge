@@ -27,7 +27,7 @@ final class BoxLayoutTests: XCTestCase {
         padding: Padding = .zero,
         alignment: Alignment = .center,
         clip: Bool = true,
-        shape: Shape? = nil,
+        shape: AnyShape? = nil,
         overflow: Overflow = .clip,
         containerSize: CGSize = CGSize(width: 200, height: 200),
         children: [UIView] = []
@@ -327,9 +327,10 @@ final class BoxLayoutTests: XCTestCase {
         XCTAssertNil(box.layer.mask)
     }
 
-    func testNoShapeNoLayerMask() {
+    func testClipTrueNoShapeUsesClipsToBounds() {
         let box = layoutBox(clip: true, shape: nil)
-        XCTAssertNil(box.layer.mask)
+        XCTAssertNil(box.layer.mask, "No shape means no CAShapeLayer mask")
+        XCTAssertTrue(box.clipsToBounds, "clip=true without shape falls back to clipsToBounds")
     }
 
     // MARK: - Intrinsic Content Size
@@ -353,6 +354,182 @@ final class BoxLayoutTests: XCTestCase {
         box.sizing = .fill
         XCTAssertEqual(box.intrinsicContentSize.width, UIView.noIntrinsicMetric)
         XCTAssertEqual(box.intrinsicContentSize.height, UIView.noIntrinsicMetric)
+    }
+
+    // MARK: - Constraint Lifecycle
+
+    func testConstraintsInstalledOnAddToSuperview() {
+        let parent = UIView(frame: CGRect(x: 0, y: 0, width: 300, height: 300))
+        let box = BoxView()
+        box.sizing = .fixed(100, 80)
+        parent.addSubview(box)
+        let widthConstraints = box.constraints.filter { $0.firstAttribute == .width }
+        let heightConstraints = box.constraints.filter { $0.firstAttribute == .height }
+        XCTAssertFalse(widthConstraints.isEmpty, "fix width should install a width constraint")
+        XCTAssertFalse(heightConstraints.isEmpty, "fix height should install a height constraint")
+    }
+
+    func testConstraintsReplacedOnSizingChange() {
+        let parent = UIView(frame: CGRect(x: 0, y: 0, width: 300, height: 300))
+        let box = BoxView()
+        box.sizing = .fixed(100, 80)
+        parent.addSubview(box)
+
+        // Change sizing — old constraints should be removed
+        box.sizing = .fixed(200, 150)
+        let widthConstraints = box.constraints.filter { $0.firstAttribute == .width }
+        XCTAssertEqual(widthConstraints.count, 1, "Should have exactly one width constraint after change")
+        XCTAssertEqual(widthConstraints.first!.constant, 200, accuracy: acc)
+    }
+
+    func testConstraintsRemovedWhenSwitchingToHug() {
+        let parent = UIView(frame: CGRect(x: 0, y: 0, width: 300, height: 300))
+        let box = BoxView()
+        box.sizing = .fixed(100, 80)
+        parent.addSubview(box)
+
+        box.sizing = .hug
+        let widthConstraints = box.constraints.filter { $0.firstAttribute == .width }
+        let heightConstraints = box.constraints.filter { $0.firstAttribute == .height }
+        XCTAssertTrue(widthConstraints.isEmpty, "hug should not have width constraints")
+        XCTAssertTrue(heightConstraints.isEmpty, "hug should not have height constraints")
+    }
+
+    func testFillConstraintsPinToParent() {
+        let parent = UIView(frame: CGRect(x: 0, y: 0, width: 300, height: 300))
+        let box = BoxView()
+        box.sizing = .fill
+        parent.addSubview(box)
+        // Fill installs leading/trailing/top/bottom on the parent
+        let parentConstraints = parent.constraints
+        let leading = parentConstraints.filter { $0.firstAttribute == .leading || $0.secondAttribute == .leading }
+        let top = parentConstraints.filter { $0.firstAttribute == .top || $0.secondAttribute == .top }
+        XCTAssertFalse(leading.isEmpty, "fill width should pin leading to parent")
+        XCTAssertFalse(top.isEmpty, "fill height should pin top to parent")
+    }
+
+    // MARK: - Scroll Child Migration
+
+    func testChildrenMigratedIntoScrollView() {
+        let box = BoxView()
+        let c1 = child(50, 50)
+        let c2 = child(30, 30)
+        box.addSubview(c1)
+        box.addSubview(c2)
+        XCTAssertEqual(box.subviews.count, 2)
+
+        // Enable scroll — children should move into the scroll view
+        box.overflow = .scroll()
+        XCTAssertEqual(box.subviews.count, 2, "Content children should still be reported")
+        XCTAssertTrue(c1.superview is UIScrollView, "Children should be inside UIScrollView")
+        XCTAssertTrue(c2.superview is UIScrollView, "Children should be inside UIScrollView")
+    }
+
+    func testChildrenMigratedOutOfScrollView() {
+        let box = BoxView()
+        box.overflow = .scroll()
+        let c1 = child(50, 50)
+        box.addSubview(c1)
+        XCTAssertTrue(c1.superview is UIScrollView)
+
+        // Disable scroll — child should come back to BoxView
+        box.overflow = .clip
+        XCTAssertTrue(c1.superview === box, "Child should be direct subview of BoxView after scroll removed")
+        XCTAssertEqual(box.subviews.count, 1)
+    }
+
+    func testNewChildrenRouteToScrollView() {
+        let box = BoxView()
+        box.overflow = .scroll()
+        let c = child(50, 50)
+        box.addSubview(c)
+        XCTAssertTrue(c.superview is UIScrollView, "New children should be routed into scroll view")
+    }
+
+    // MARK: - Subview Ordering
+
+    func testSubviewsExcludesInternalViews() {
+        let box = BoxView()
+        let c = child(50, 50)
+        box.addSubview(c)
+        XCTAssertEqual(box.subviews.count, 1, "subviews should only include content children")
+        XCTAssertTrue(box.subviews.first === c)
+    }
+
+    func testInsertSubviewAtIndexRespectsInternalViews() {
+        let box = BoxView()
+        let c1 = child(50, 50)
+        let c2 = child(30, 30)
+        box.addSubview(c1)
+        box.insertSubview(c2, at: 0)
+        // c2 should be before c1 in content order
+        XCTAssertTrue(box.subviews.first === c2, "insertSubview at 0 should put child first in content order")
+        XCTAssertTrue(box.subviews.last === c1)
+    }
+
+    func testSubviewsWithScrollViewExcludesInternalViews() {
+        let box = BoxView()
+        box.overflow = .scroll()
+        let c = child(50, 50)
+        box.addSubview(c)
+        let reported = box.subviews
+        XCTAssertEqual(reported.count, 1)
+        XCTAssertTrue(reported.first === c)
+    }
+
+    // MARK: - Clipping Modes
+
+    func testClipTrueWithShapeSetsShapeMask() {
+        let box = layoutBox(clip: true, shape: .circle())
+        XCTAssertNotNil(box.layer.mask, "clip=true with shape should set a CAShapeLayer mask")
+        XCTAssertFalse(box.clipsToBounds, "Shape mask handles clipping, clipsToBounds not needed")
+    }
+
+    func testClipFalseNoMaskNoClipsToBounds() {
+        let box = layoutBox(clip: false, shape: .circle())
+        XCTAssertNil(box.layer.mask)
+        XCTAssertFalse(box.clipsToBounds)
+    }
+
+    func testOverflowVisibleDisablesClipping() {
+        let box = layoutBox(clip: true, shape: .circle(), overflow: .visible)
+        XCTAssertNil(box.layer.mask, "overflow .visible should suppress shape mask")
+        XCTAssertFalse(box.clipsToBounds, "overflow .visible should not clip")
+    }
+
+    func testShapeMaskCachedAcrossLayouts() {
+        let box = layoutBox(clip: true, shape: .circle(), containerSize: CGSize(width: 100, height: 100))
+        let firstMask = box.layer.mask
+        XCTAssertNotNil(firstMask)
+        // Trigger another layout with same bounds
+        box.layoutSubviews()
+        XCTAssertTrue(box.layer.mask === firstMask, "Mask should be reused when shape and bounds are unchanged")
+    }
+
+    func testShapeMaskRebuiltOnBoundsChange() {
+        let box = layoutBox(clip: true, shape: .circle(), containerSize: CGSize(width: 100, height: 100))
+        let firstMask = box.layer.mask
+        // Change bounds and re-layout
+        box.frame = CGRect(x: 0, y: 0, width: 200, height: 200)
+        box.layoutSubviews()
+        XCTAssertFalse(box.layer.mask === firstMask, "Mask should be rebuilt when bounds change")
+    }
+
+    // MARK: - Scroll Layout
+
+    func testScrollContentSizeUpdated() {
+        let c = child(300, 400)
+        let box = layoutBox(
+            sizing: .fixed(200, 200),
+            overflow: .scroll(),
+            children: [c]
+        )
+        // The scroll view should exist and have a content size based on child frames
+        let scrollView = Mirror(reflecting: box).children
+            .first { $0.label == "scrollView" }?.value as? UIScrollView
+        XCTAssertNotNil(scrollView, "Scroll view should exist")
+        XCTAssertGreaterThan(scrollView!.contentSize.height, 200,
+                            "Content size should exceed viewport for oversized child")
     }
 }
 

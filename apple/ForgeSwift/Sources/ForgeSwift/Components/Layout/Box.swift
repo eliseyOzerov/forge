@@ -191,7 +191,6 @@ final class BoxRenderer: ContainerRenderer {
 
         var needsSelfLayout = false
         var needsParentLayout = false
-        var needsDisplay = false
 
         // Frame affects own size (parent re-measures) and child layout
         if old.frame != box.frame {
@@ -200,7 +199,7 @@ final class BoxRenderer: ContainerRenderer {
             needsParentLayout = true
         }
 
-        // Padding/alignment/overflow affect child positioning
+        // Padding/alignment affect child positioning
         if old.padding != box.padding {
             boxView.padding = box.padding
             needsSelfLayout = true
@@ -209,14 +208,19 @@ final class BoxRenderer: ContainerRenderer {
             boxView.alignment = box.alignment
             needsSelfLayout = true
         }
-        // Overflow contains non-Equatable scroll state — always apply
-        boxView.overflow = box.overflow
-        needsSelfLayout = true
+        if old.overflow != box.overflow {
+            boxView.overflow = box.overflow
+            needsSelfLayout = true
+        }
 
-        // Shape/surface update the surface sublayer via didSet/layout
-        boxView.shape = box.shape
-        boxView.surface = box.surface
-        needsSelfLayout = true
+        if old.shape != box.shape {
+            boxView.shape = box.shape
+            needsSelfLayout = true
+        }
+        if old.surface != box.surface {
+            boxView.surface = box.surface
+            needsSelfLayout = true
+        }
 
         if old.clip != box.clip {
             boxView.clip = box.clip
@@ -267,7 +271,12 @@ class BoxView: UIView {
     var shape: AnyShape?
     var surface: Surface? { didSet { surfaceView.surface = surface; layoutSurfaceView() } }
     var clip: Bool = true
-    var sizing: Frame = .hug
+    var sizing: Frame = .hug {
+        didSet {
+            guard sizing != oldValue else { return }
+            updateSizingConstraints()
+        }
+    }
     var padding: Padding = .zero
     var alignment: Alignment = .center
     var overflow: Overflow = .clip {
@@ -280,6 +289,14 @@ class BoxView: UIView {
 
     // Surface painting — separate view that can overflow bounds
     private let surfaceView = SurfaceView()
+
+    // Auto Layout constraints installed for the current sizing mode
+    private var sizingConstraints: [NSLayoutConstraint] = []
+
+    // Shape mask caching — avoid re-creating every layout pass
+    private var lastClipShape: AnyShape?
+    private var lastClipBounds: CGRect = .zero
+    private var lastClipEnabled: Bool = true
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -364,21 +381,32 @@ class BoxView: UIView {
     /// this box's own sizing: fix → width/height, fill → pin to parent.
     override func didMoveToSuperview() {
         super.didMoveToSuperview()
+        updateSizingConstraints()
+    }
+
+    /// Tear down old sizing constraints and install new ones matching
+    /// the current `sizing` mode. Safe to call at any time.
+    private func updateSizingConstraints() {
+        NSLayoutConstraint.deactivate(sizingConstraints)
+        sizingConstraints.removeAll()
         guard let superview else { return }
         // Inside a PassthroughView (ComposedNode wrapper), attach() pins
         // to fill — don't add conflicting constraints.
         guard !(superview is PassthroughView) else { return }
-        constrain {
-            switch sizing.width {
-            case .fix(let w): widthAnchor.equal(w)
-            case .fill: leadingAnchor.equal(superview.leadingAnchor); trailingAnchor.equal(superview.trailingAnchor)
-            case .hug: break
-            }
-            switch sizing.height {
-            case .fix(let h): heightAnchor.equal(h)
-            case .fill: topAnchor.equal(superview.topAnchor); bottomAnchor.equal(superview.bottomAnchor)
-            case .hug: break
-            }
+        translatesAutoresizingMaskIntoConstraints = false
+        switch sizing.width {
+        case .fix(let w): sizingConstraints.append(widthAnchor.equal(w))
+        case .fill:
+            sizingConstraints.append(leadingAnchor.equal(superview.leadingAnchor))
+            sizingConstraints.append(trailingAnchor.equal(superview.trailingAnchor))
+        case .hug: break
+        }
+        switch sizing.height {
+        case .fix(let h): sizingConstraints.append(heightAnchor.equal(h))
+        case .fill:
+            sizingConstraints.append(topAnchor.equal(superview.topAnchor))
+            sizingConstraints.append(bottomAnchor.equal(superview.bottomAnchor))
+        case .hug: break
         }
     }
 
@@ -458,21 +486,62 @@ class BoxView: UIView {
         return CGPoint(x: x, y: y)
     }
 
-    /// Apply shape mask for clipping.
+    /// Apply shape mask for clipping. Caches to avoid re-creating
+    /// the mask layer every layout pass when nothing changed.
     private func applyShapeClip() {
-        if clip {
-            let resolvedShape: AnyShape = shape ?? RectShape().erased
-            let maskLayer = CAShapeLayer()
-            maskLayer.path = resolvedShape.path(in: Rect(bounds)).cgPath
-            layer.mask = maskLayer
+        // Determine effective clipping based on overflow
+        let effectiveClip: Bool
+        switch overflow {
+        case .visible: effectiveClip = false
+        default: effectiveClip = clip
+        }
+
+        if effectiveClip {
+            if let shape {
+                // Only rebuild if shape, bounds, or clip state changed
+                if shape != lastClipShape || bounds != lastClipBounds || lastClipEnabled != effectiveClip {
+                    let maskLayer = CAShapeLayer()
+                    maskLayer.path = shape.path(in: Rect(bounds)).cgPath
+                    layer.mask = maskLayer
+                    clipsToBounds = false
+                    lastClipShape = shape
+                    lastClipBounds = bounds
+                    lastClipEnabled = effectiveClip
+                }
+            } else {
+                // No shape — use clipsToBounds for rectangular clipping
+                layer.mask = nil
+                clipsToBounds = true
+                lastClipShape = nil
+                lastClipBounds = bounds
+                lastClipEnabled = effectiveClip
+            }
         } else {
-            layer.mask = nil
+            if lastClipEnabled != effectiveClip {
+                layer.mask = nil
+                clipsToBounds = false
+                lastClipShape = nil
+                lastClipBounds = .zero
+                lastClipEnabled = effectiveClip
+            }
         }
     }
 
     /// The actual content children (through scroll view if scrolling).
     private var contentChildren: [UIView] {
-        scrollView?.subviews ?? super.subviews.filter { $0 !== scrollView && $0 !== surfaceView }
+        if let sv = scrollView { return sv.subviews }
+        return super.subviews.filter { !isInternalView($0) }
+    }
+
+    /// Number of internal (non-content) direct subviews before content children.
+    private var internalViewCount: Int {
+        var count = 1 // surfaceView is always present
+        if scrollView != nil { count += 1 }
+        return count
+    }
+
+    private func isInternalView(_ view: UIView) -> Bool {
+        view === surfaceView || view === scrollView
     }
 
     // MARK: - Subview routing
@@ -485,11 +554,12 @@ class BoxView: UIView {
 
     override func insertSubview(_ view: UIView, at index: Int) {
         if let sv = scrollView { sv.insertSubview(view, at: index) }
-        else { super.insertSubview(view, at: index + 1) } // +1 to keep surfaceView at 0
+        else { super.insertSubview(view, at: index + internalViewCount) }
     }
 
     override var subviews: [UIView] {
-        scrollView?.subviews ?? super.subviews
+        if let sv = scrollView { return sv.subviews }
+        return super.subviews.filter { !isInternalView($0) }
     }
 }
 
@@ -497,12 +567,19 @@ class BoxView: UIView {
 
 extension BoxView: UIScrollViewDelegate {
     /// Create/remove UIScrollView based on overflow setting.
+    /// Migrates existing content children into/out of the scroll view.
     func configureScroll() {
         if case .scroll(let config) = overflow {
             if scrollView == nil {
                 let sv = UIScrollView()
                 sv.delegate = self
+                // Migrate existing content children into the scroll view
+                let existing = super.subviews.filter { !isInternalView($0) }
                 super.addSubview(sv)
+                for child in existing {
+                    child.removeFromSuperview()
+                    sv.addSubview(child)
+                }
                 scrollView = sv
             }
             let sv = scrollView!
@@ -515,10 +592,15 @@ extension BoxView: UIScrollViewDelegate {
             config.state?.scrollCommand = { [weak self] offset, animated in
                 self?.scrollView?.setContentOffset(CGPoint(x: offset.x, y: offset.y), animated: animated)
             }
-        } else {
-            scrollView?.removeFromSuperview()
+        } else if let sv = scrollView {
+            // Migrate children back out of the scroll view
+            let children = sv.subviews
+            sv.removeFromSuperview()
             scrollView = nil
             scrollState = nil
+            for child in children {
+                super.addSubview(child)
+            }
         }
     }
 

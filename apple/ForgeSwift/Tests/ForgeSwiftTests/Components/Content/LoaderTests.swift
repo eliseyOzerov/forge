@@ -244,7 +244,7 @@ final class LoaderTests: XCTestCase {
         }
         let half = UIGraphicsImageRenderer(size: CGSize(width: size, height: size)).image { ctx in
             let canvas = CGCanvas(ctx.cgContext)
-            canvas.fillRect(Rect(x: 0, y: 0, width: 32, height: 32), paint: Paint(.color(.red), opacity: 0.5))
+            canvas.fillRect(Rect(x: 0, y: 0, width: 32, height: 32), paint: Paint.color(.red).copy { $0.opacity = 0.5 })
         }
         // Both should have pixels
         XCTAssertTrue(hasNonClearPixels(full))

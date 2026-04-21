@@ -1,20 +1,19 @@
 import SwiftSyntax
 import SwiftSyntaxMacros
 
-/// `@Copyable` generates a fluent copy method for each stored property:
+/// `@Copy` generates fluent copy helpers for structs:
 ///
-///     @Copyable
+///     @Copy
 ///     struct BoxStyle {
 ///         var frame: Frame
 ///         var surface: Surface?
 ///     }
 ///
-/// Expands to:
+/// Expands to per-property setters **and** a closure-based `copy`:
 ///
-///     extension BoxStyle {
-///         func frame(_ value: Frame) -> BoxStyle { var c = self; c.frame = value; return c }
-///         func surface(_ value: Surface?) -> BoxStyle { var c = self; c.surface = value; return c }
-///     }
+///     func frame(_ value: Frame) -> BoxStyle { var c = self; c.frame = value; return c }
+///     func surface(_ value: Surface?) -> BoxStyle { var c = self; c.surface = value; return c }
+///     func copy(_ mutate: (inout BoxStyle) -> Void) -> BoxStyle { var c = self; mutate(&c); return c }
 public struct CopyMacro: MemberMacro {
     public static func expansion(
         of node: AttributeSyntax,
@@ -25,11 +24,19 @@ public struct CopyMacro: MemberMacro {
         let properties = storedProperties(of: declaration)
         let typeName = typeName(of: declaration)
 
-        return properties.map { prop in
+        var decls: [DeclSyntax] = properties.map { prop in
             """
             public func \(raw: prop.name)(_ value: \(raw: prop.type)) -> \(raw: typeName) { var c = self; c.\(raw: prop.name) = value; return c }
             """
         }
+
+        decls.append(
+            """
+            public func copy(_ mutate: (inout \(raw: typeName)) -> Void) -> \(raw: typeName) { var c = self; mutate(&c); return c }
+            """
+        )
+
+        return decls
     }
 }
 
