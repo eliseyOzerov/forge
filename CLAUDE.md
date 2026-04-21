@@ -60,6 +60,12 @@ func style(_ build: @escaping @MainActor (ButtonStyle, State) -> ButtonStyle) ->
 
 This lets callers keep defaults and override selectively. Utility/layout views that have no meaningful visual style may omit this.
 
+## Documentation
+
+- Every struct, class, enum, and protocol must have a short doc comment (`///`) describing its purpose and mentioning related types that are essential to its usefulness (e.g. `ButtonStyle` on `Button`, `Source` on `SourceState`).
+- A type lexicon lives at `docs/lexicon.md` — one sentence per Forge type (public or internal) plus the file path.
+- When researching the SDK, **check `docs/` first** for conceptual understanding; only read source files when you need actual implementation details.
+
 ## Swift File Ordering
 
 Each file must keep the main struct/type it represents at the top. If the filename is `Graphic.swift`, the first struct is `Graphic`. This does not apply to general library files that contain many types of equal importance.
