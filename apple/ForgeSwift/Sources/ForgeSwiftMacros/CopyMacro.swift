@@ -30,11 +30,35 @@ public struct CopyMacro: MemberMacro {
             """
         }
 
+        // copy(_ mutate:) — closure-based
         decls.append(
             """
             public func copy(_ mutate: (inout \(raw: typeName)) -> Void) -> \(raw: typeName) { var c = self; mutate(&c); return c }
             """
         )
+
+        // copy(a:b:c:) — named-parameter copy with optional sentinel defaults.
+        // Already-optional properties use double-optional (T??) so that
+        // passing `nil` explicitly sets the value to nil, while omitting
+        // the argument keeps the current value.
+        if !properties.isEmpty {
+            // Every parameter becomes T? (or T?? for already-optional types).
+            // Omitted = nil → keep current value. Passed = unwrap and assign.
+            // Double-optional lets callers explicitly pass nil to clear a field.
+            let params = properties.map { prop in
+                "\(prop.name): \(prop.type)? = nil"
+            }.joined(separator: ", ")
+
+            let assignments = properties.map { prop in
+                "if let \(prop.name) { c.\(prop.name) = \(prop.name) }"
+            }.joined(separator: "; ")
+
+            decls.append(
+                """
+                public func copy(\(raw: params)) -> \(raw: typeName) { var c = self; \(raw: assignments); return c }
+                """
+            )
+        }
 
         return decls
     }
@@ -45,6 +69,7 @@ public struct CopyMacro: MemberMacro {
 struct StoredProperty {
     let name: String
     let type: String
+    let isOptional: Bool
 }
 
 func typeName(of declaration: some DeclGroupSyntax) -> String {
@@ -75,10 +100,14 @@ func storedProperties(of declaration: some DeclGroupSyntax) -> [StoredProperty] 
         }
 
         guard let name = binding.pattern.as(IdentifierPatternSyntax.self)?.identifier.text,
-              let type = binding.typeAnnotation?.type.trimmedDescription else {
+              let typeNode = binding.typeAnnotation?.type else {
             return nil
         }
 
-        return StoredProperty(name: name, type: type)
+        let type = typeNode.trimmedDescription
+        let isOptional = typeNode.is(OptionalTypeSyntax.self)
+            || typeNode.is(ImplicitlyUnwrappedOptionalTypeSyntax.self)
+
+        return StoredProperty(name: name, type: type, isOptional: isOptional)
     }
 }
