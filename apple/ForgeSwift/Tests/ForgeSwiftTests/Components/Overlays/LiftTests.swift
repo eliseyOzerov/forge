@@ -3,66 +3,80 @@ import XCTest
 @testable import ForgeSwift
 
 @MainActor
-final class LiftControllerTests: XCTestCase {
+final class LiftTests: XCTestCase {
 
-    func testInitialValue() {
-        XCTAssertFalse(LiftController().value)
-        XCTAssertTrue(LiftController(true).value)
+    // MARK: - Inflate
+
+    func testInflateProducesNode() {
+        let binding = Binding(false)
+        let tree = Lift(lifted: binding) { _ in TestLeaf(label: "slot") }
+        let node = Node.inflate(tree)
+        XCTAssertTrue(node is ModelNode)
+        XCTAssertNotNil(node.platformView)
     }
 
-    func testSetFlipsValue() {
-        let c = LiftController()
-        c.set(true)
-        XCTAssertTrue(c.value)
-        c.set(false)
-        XCTAssertFalse(c.value)
+    func testBuilderReceivesFalseForSlotContent() {
+        var receivedLifted: Bool?
+        let binding = Binding(false)
+        let tree = Lift(lifted: binding) { lifted in
+            receivedLifted = lifted
+            return TestLeaf(label: "slot")
+        }
+        _ = Node.inflate(tree)
+        XCTAssertEqual(receivedLifted, false)
     }
 
-    func testToggleFlipsValue() {
-        let c = LiftController()
-        c.toggle()
-        XCTAssertTrue(c.value)
-        c.toggle()
-        XCTAssertFalse(c.value)
+    func testBuilderReceivesTrueWhenLifted() {
+        var receivedLifted: Bool?
+        let binding = Binding(true)
+        let tree = Lift(lifted: binding) { lifted in
+            receivedLifted = lifted
+            return TestLeaf(label: "slot")
+        }
+        _ = Node.inflate(tree)
+        // Slot content always receives false (the overlay gets true),
+        // but the model attempts to lift via the router.
+        XCTAssertEqual(receivedLifted, false)
     }
 
-    func testObserverFiresOnChange() {
-        let c = LiftController()
-        var calls: [Bool] = []
-        _ = c.observe { calls.append($0) }
-        c.set(true)
-        c.set(false)
-        XCTAssertEqual(calls, [true, false])
+    // MARK: - Binding integration
+
+    func testBindingValueReadable() {
+        let binding = Binding(false)
+        XCTAssertFalse(binding.value)
+        binding.value = true
+        XCTAssertTrue(binding.value)
     }
 
-    func testObserverSkipsIdempotentWrites() {
-        let c = LiftController()
-        var calls = 0
-        _ = c.observe { _ in calls += 1 }
-        c.set(false)  // same as initial, no fire
-        c.set(true)
-        c.set(true)   // same, no fire
-        XCTAssertEqual(calls, 1)
+    func testBindingOnChangeCallsHandler() {
+        var observed: [Bool] = []
+        let binding = Binding(false).onChange { observed.append($0) }
+        binding.value = true
+        binding.value = false
+        XCTAssertEqual(observed, [true, false])
     }
 
-    func testUnobserve() {
-        let c = LiftController()
-        var calls = 0
-        let id = c.observe { _ in calls += 1 }
-        c.set(true)
-        c.unobserve(id)
-        c.set(false)
-        XCTAssertEqual(calls, 1)
+    // MARK: - LiftOverlay properties
+
+    func testLiftOverlayIsNonOpaque() {
+        let overlay = LiftOverlay(
+            content: { TestLeaf(label: "") },
+            slotRect: Observable(.zero)
+        )
+        XCTAssertFalse(overlay.opaque)
+        XCTAssertEqual(overlay.duration, 0)
     }
 
-    // MARK: - LiftView
+    // MARK: - Model lifecycle
 
-    func testLiftViewReadsLocalValueWritesToCanonical() {
-        let canonical = LiftController()
-        let slotView = LiftView(value: false, canonical: canonical)
-        XCTAssertFalse(slotView.value)
-        slotView.set(true)
-        XCTAssertTrue(canonical.value)
+    func testModelPreservedOnUpdate() {
+        let binding = Binding(false)
+        let node = Node.inflate(Lift(lifted: binding) { _ in TestLeaf(label: "a") })
+        let modelBefore = (node as! ModelNode).model
+
+        node.update(from: Lift(lifted: binding) { _ in TestLeaf(label: "b") })
+        let modelAfter = (node as! ModelNode).model
+        XCTAssertTrue(modelBefore === modelAfter)
     }
 }
 #endif

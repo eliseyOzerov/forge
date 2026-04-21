@@ -337,11 +337,11 @@ final class NodeTests: XCTestCase {
         XCTAssertEqual(container.childNodes.count, 0)
     }
 
-    // MARK: - Resolver
+    // MARK: - Root
 
-    func testResolverMount() {
-        let resolver = Resolver()
-        let view = resolver.mount(TestLeaf(label: "root"))
+    func testRootMount() {
+        let root = Root()
+        let view = root.mount(TestLeaf(label: "root"))
         XCTAssertNotNil(view)
         XCTAssertEqual((view as? UILabel)?.text, "root")
     }

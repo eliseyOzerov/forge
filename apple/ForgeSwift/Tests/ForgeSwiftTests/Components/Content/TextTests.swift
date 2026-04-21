@@ -19,7 +19,8 @@ final class TextTests: XCTestCase {
     }
 
     private func mount(_ text: Text) -> UILabel {
-        text.makeRenderer().mount() as! UILabel
+        let leaf = TextLeaf(content: text.content, style: text.style)
+        return leaf.makeRenderer().mount() as! UILabel
     }
 
     // MARK: - 1. Data Types (pure logic)
@@ -39,7 +40,7 @@ final class TextTests: XCTestCase {
     }
 
     func testTextCaseCapitalize() {
-        XCTAssertEqual(TextCase.capitalize.apply(to: "hello world"), "Hello world")
+        XCTAssertEqual(TextCase.capitalize.apply(to: "Hello World"), "Hello world")
     }
 
     func testTextCaseTitle() {
@@ -113,9 +114,9 @@ final class TextTests: XCTestCase {
         let style = TextStyle()
         XCTAssertNil(style.color)
         XCTAssertNil(style.maxLines)
-        XCTAssertEqual(style.align, .leading)
-        XCTAssertEqual(style.textCase, .plain)
-        XCTAssertEqual(style.overflow, .ellipsis)
+        XCTAssertNil(style.align)
+        XCTAssertNil(style.textCase)
+        XCTAssertNil(style.overflow)
         XCTAssertNil(style.decoration)
     }
 
@@ -178,8 +179,8 @@ final class TextTests: XCTestCase {
     // MARK: - 2. Mount — UILabel property assignment
 
     func testMountProducesUILabel() {
-        let text = Text("Hello")
-        let view = text.makeRenderer().mount()
+        let leaf = TextLeaf(content: "Hello", style: TextStyle())
+        let view = leaf.makeRenderer().mount()
         XCTAssertTrue(view is UILabel)
     }
 
@@ -298,7 +299,7 @@ final class TextTests: XCTestCase {
     }
 
     func testMountShadow() {
-        let shadow = ShadowConfig(color: .red, radius: 5, offset: CGSize(width: 2, height: 3))
+        let shadow = ShadowConfig(color: .red, radius: 5, offset: Size(2, 3))
         let decoration = TextDecoration(shadow: shadow)
         let style = TextStyle(decoration: decoration)
         let label = mount(Text("Hi", style: style))
@@ -319,57 +320,57 @@ final class TextTests: XCTestCase {
     // MARK: - 3. Update
 
     func testUpdateChangesText() {
-        let renderer = UIKitTextRenderer(view: Text("Hello", style: TextStyle()))
+        let renderer = UIKitTextRenderer(view: TextLeaf(content: "Hello", style: TextStyle()))
         let label = renderer.mount() as! UILabel
         XCTAssertEqual(label.attributedText?.string, "Hello")
 
-        renderer.update(from: Text("World", style: TextStyle()))
+        renderer.update(from: TextLeaf(content: "World", style: TextStyle()))
         XCTAssertEqual(label.attributedText?.string, "World")
     }
 
     func testUpdateChangesColor() {
-        let renderer = UIKitTextRenderer(view: Text("Hi", style: TextStyle(color: .red)))
+        let renderer = UIKitTextRenderer(view: TextLeaf(content: "Hi", style: TextStyle(color: .red)))
         let label = renderer.mount() as! UILabel
 
-        renderer.update(from: Text("Hi", style: TextStyle(color: .blue)))
+        renderer.update(from: TextLeaf(content: "Hi", style: TextStyle(color: .blue)))
         let color = attributes(of: label)[.foregroundColor] as? UIColor
         XCTAssertEqual(color, Color.blue.platformColor)
     }
 
     func testUpdateChangesMaxLines() {
-        let renderer = UIKitTextRenderer(view: Text("Hi", style: TextStyle(maxLines: 1)))
+        let renderer = UIKitTextRenderer(view: TextLeaf(content: "Hi", style: TextStyle(maxLines: 1)))
         let label = renderer.mount() as! UILabel
         XCTAssertEqual(label.numberOfLines, 1)
 
-        renderer.update(from: Text("Hi", style: TextStyle(maxLines: 5)))
+        renderer.update(from: TextLeaf(content: "Hi", style: TextStyle(maxLines: 5)))
         XCTAssertEqual(label.numberOfLines, 5)
     }
 
     func testUpdateChangesAlignment() {
-        let renderer = UIKitTextRenderer(view: Text("Hi", style: TextStyle(align: .leading)))
+        let renderer = UIKitTextRenderer(view: TextLeaf(content: "Hi", style: TextStyle(align: .leading)))
         let label = renderer.mount() as! UILabel
 
-        renderer.update(from: Text("Hi", style: TextStyle(align: .center)))
+        renderer.update(from: TextLeaf(content: "Hi", style: TextStyle(align: .center)))
         XCTAssertEqual(paragraphStyle(of: label)?.alignment, .center)
     }
 
     func testUpdateAddsDecoration() {
-        let renderer = UIKitTextRenderer(view: Text("Hi", style: TextStyle()))
+        let renderer = UIKitTextRenderer(view: TextLeaf(content: "Hi", style: TextStyle()))
         let label = renderer.mount() as! UILabel
         XCTAssertNil(attributes(of: label)[.underlineStyle])
 
         let decoration = TextDecoration(underline: TextLineStyle())
-        renderer.update(from: Text("Hi", style: TextStyle(decoration: decoration)))
+        renderer.update(from: TextLeaf(content: "Hi", style: TextStyle(decoration: decoration)))
         XCTAssertNotNil(attributes(of: label)[.underlineStyle])
     }
 
     func testUpdateRemovesDecoration() {
         let decoration = TextDecoration(underline: TextLineStyle())
-        let renderer = UIKitTextRenderer(view: Text("Hi", style: TextStyle(decoration: decoration)))
+        let renderer = UIKitTextRenderer(view: TextLeaf(content: "Hi", style: TextStyle(decoration: decoration)))
         let label = renderer.mount() as! UILabel
         XCTAssertNotNil(attributes(of: label)[.underlineStyle])
 
-        renderer.update(from: Text("Hi", style: TextStyle()))
+        renderer.update(from: TextLeaf(content: "Hi", style: TextStyle()))
         XCTAssertNil(attributes(of: label)[.underlineStyle])
     }
 

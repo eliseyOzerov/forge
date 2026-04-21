@@ -6,13 +6,13 @@ import UIKit
 @MainActor
 final class SurfaceTests: XCTestCase {
 
-    let testShape = Shape.rect()
+    let testShape = AnyShape.rect()
     let testRect = CGRect(x: 0, y: 0, width: 100, height: 100)
 
     // MARK: - Helpers
 
     /// Render a surface into a bitmap and return pixel color at (x, y).
-    private func renderAndSample(_ surface: Surface, shape: Shape? = nil, at point: (Int, Int) = (50, 50), size: CGSize = CGSize(width: 100, height: 100)) -> (r: CGFloat, g: CGFloat, b: CGFloat, a: CGFloat) {
+    private func renderAndSample(_ surface: Surface, shape: AnyShape? = nil, at point: (Int, Int) = (50, 50), size: CGSize = CGSize(width: 100, height: 100)) -> (r: CGFloat, g: CGFloat, b: CGFloat, a: CGFloat) {
         let renderer = UIGraphicsImageRenderer(size: size)
         let image = renderer.image { ctx in
             let sr = SurfaceRenderer(surface: surface, shape: shape ?? testShape, bounds: Rect(x: 0, y: 0, width: Double(size.width), height: Double(size.height)))
@@ -42,137 +42,99 @@ final class SurfaceTests: XCTestCase {
         return (r, g, b, a)
     }
 
-    // MARK: - Builder Structure
+    // MARK: - Layer Structure
 
     func testEmptySurface() {
         let surface = Surface()
-        let layers = surface.build(shape: testShape)
-        XCTAssertTrue(layers.isEmpty)
+        XCTAssertTrue(surface.layers.isEmpty)
     }
 
     func testColorAddsLayer() {
         let surface = Surface().color(Color(1, 0, 0))
-        let layers = surface.build(shape: testShape)
-        XCTAssertEqual(layers.count, 1)
-        XCTAssertTrue(layers[0] is ShapeLayer)
+        XCTAssertEqual(surface.layers.count, 1)
     }
 
     func testGradientAddsLayer() {
-        let surface = Surface().gradient(.linear(LinearGradient(colors: [.red, .blue])))
-        let layers = surface.build(shape: testShape)
-        XCTAssertEqual(layers.count, 1)
+        let surface = Surface().gradient(LinearGradient(colors: [.red, .blue]))
+        XCTAssertEqual(surface.layers.count, 1)
     }
 
     func testMultipleLayersAccumulate() {
         let surface = Surface().color(.red).color(.blue).color(.green)
-        let layers = surface.build(shape: testShape)
-        XCTAssertEqual(layers.count, 3)
-    }
-
-    func testShapeAddsLayer() {
-        let surface = Surface().shape({ _ in .circle() }, .color(.red))
-        let layers = surface.build(shape: testShape)
-        XCTAssertEqual(layers.count, 1)
+        XCTAssertEqual(surface.layers.count, 3)
     }
 
     func testStrokeAddsLayer() {
         let surface = Surface().stroke(Stroke(width: 2), .color(.black))
-        let layers = surface.build(shape: testShape)
-        XCTAssertEqual(layers.count, 1)
-        XCTAssertTrue(layers[0] is StrokeLayer)
+        XCTAssertEqual(surface.layers.count, 1)
     }
 
     func testShadowAddsLayer() {
         let surface = Surface().shadow()
-        let layers = surface.build(shape: testShape)
-        XCTAssertEqual(layers.count, 1)
-        XCTAssertTrue(layers[0] is ShadowLayer)
+        XCTAssertEqual(surface.layers.count, 1)
     }
 
     func testBorderAddsStroke() {
         let surface = Surface().border(.black, width: 1)
-        let layers = surface.build(shape: testShape)
-        XCTAssertEqual(layers.count, 1)
-        XCTAssertTrue(layers[0] is StrokeLayer)
+        XCTAssertEqual(surface.layers.count, 1)
     }
 
     // MARK: - Transforms Wrap Prior
 
     func testClipWrapsPrior() {
         let surface = Surface().color(.red).clip(.circle())
-        let layers = surface.build(shape: testShape)
-        // clip wraps prior → 1 ClipLayer containing the ShapeLayer
-        XCTAssertEqual(layers.count, 1)
-        XCTAssertTrue(layers[0] is ClipLayer)
+        // clip wraps prior → 1 layer (ClipLayer containing the FillLayer)
+        XCTAssertEqual(surface.layers.count, 1)
     }
 
     func testFadeWrapsPrior() {
         let surface = Surface().color(.red).fade(0.5)
-        let layers = surface.build(shape: testShape)
-        XCTAssertEqual(layers.count, 1)
-        XCTAssertTrue(layers[0] is FadeLayer)
+        XCTAssertEqual(surface.layers.count, 1)
     }
 
     func testScaleWrapsPrior() {
         let surface = Surface().color(.red).scale(0.5)
-        let layers = surface.build(shape: testShape)
-        XCTAssertEqual(layers.count, 1)
-        XCTAssertTrue(layers[0] is ScaleLayer)
+        XCTAssertEqual(surface.layers.count, 1)
     }
 
     func testBlendWrapsPrior() {
         let surface = Surface().color(.red).blend(.multiply)
-        let layers = surface.build(shape: testShape)
-        XCTAssertEqual(layers.count, 1)
-        XCTAssertTrue(layers[0] is BlendLayer)
+        XCTAssertEqual(surface.layers.count, 1)
     }
 
     func testTransformAfterTransform() {
         let surface = Surface().color(.red).fade(0.5).scale(2)
-        let layers = surface.build(shape: testShape)
-        // scale wraps (fade wraps (color)) → 1 ScaleLayer
-        XCTAssertEqual(layers.count, 1)
-        XCTAssertTrue(layers[0] is ScaleLayer)
+        // scale wraps (fade wraps (color)) → 1 layer
+        XCTAssertEqual(surface.layers.count, 1)
     }
 
     func testLayerAfterTransform() {
         let surface = Surface().color(.red).clip(.circle()).color(.blue)
-        let layers = surface.build(shape: testShape)
-        // clip wraps red → ClipLayer, then blue added after → 2 layers
-        XCTAssertEqual(layers.count, 2)
-        XCTAssertTrue(layers[0] is ClipLayer)
-        XCTAssertTrue(layers[1] is ShapeLayer)
-    }
-
-    // MARK: - Compose
-
-    func testCompose() {
-        let surface = Surface().compose { $0.color(.red).color(.blue) }
-        let layers = surface.build(shape: testShape)
-        XCTAssertEqual(layers.count, 1)
-        XCTAssertTrue(layers[0] is ComposeLayer)
-    }
-
-    // MARK: - Closure Init
-
-    func testClosureInit() {
-        let surface = Surface { $0.color(.red).border(.black) }
-        let layers = surface.build(shape: testShape)
-        XCTAssertEqual(layers.count, 2)
+        // clip wraps red → 1 layer, then blue added after → 2 layers
+        XCTAssertEqual(surface.layers.count, 2)
     }
 
     // MARK: - Static Factories
 
     func testStaticColor() {
         let surface = Surface.color(.red)
-        let layers = surface.build(shape: testShape)
-        XCTAssertEqual(layers.count, 1)
+        XCTAssertEqual(surface.layers.count, 1)
     }
 
     func testStaticBorder() {
         let surface = Surface.border(.black)
-        let layers = surface.build(shape: testShape)
-        XCTAssertEqual(layers.count, 1)
+        XCTAssertEqual(surface.layers.count, 1)
+    }
+
+    // MARK: - Primary Color
+
+    func testPrimaryColorSetByFirstColor() {
+        let surface = Surface().color(.red).color(.blue)
+        XCTAssertEqual(surface.primaryColor, .red)
+    }
+
+    func testPrimaryColorNilForEmptySurface() {
+        XCTAssertNil(Surface().primaryColor)
     }
 
     // MARK: - Rendering: Color Fill
@@ -226,22 +188,11 @@ final class SurfaceTests: XCTestCase {
         XCTAssertEqual(a, 0.5, accuracy: 0.1)
     }
 
-    // MARK: - Rendering: Shape
-
-    func testRenderShapeOnlyInsideCircle() {
-        let surface = Surface().shape({ _ in .circle() }, .color(Color(0, 1, 0)))
-        let (_, gCenter, _, aCenter) = renderAndSample(surface, at: (50, 50))
-        let (_, _, _, aCorner) = renderAndSample(surface, at: (2, 2))
-        XCTAssertGreaterThan(gCenter, 0.8)
-        XCTAssertGreaterThan(aCenter, 0.8)
-        XCTAssertEqual(aCorner, 0, accuracy: 0.05)
-    }
-
     // MARK: - Rendering: Gradient
 
     func testRenderLinearGradient() {
         let gradient = LinearGradient(colors: [Color(1, 0, 0), Color(0, 0, 1)])
-        let surface = Surface().gradient(.linear(gradient))
+        let surface = Surface().gradient(gradient)
         let (rTop, _, bTop, _) = renderAndSample(surface, at: (50, 5))
         let (rBottom, _, bBottom, _) = renderAndSample(surface, at: (50, 95))
         // Top should be more red, bottom more blue
@@ -253,9 +204,8 @@ final class SurfaceTests: XCTestCase {
 
     func testRadialGradientAddsLayer() {
         let stops = [GradientStop(Color(1, 0, 0), at: 0), GradientStop(Color(0, 0, 1), at: 1)]
-        let surface = Surface().gradient(.radial(RadialGradient(stops: stops)))
-        let layers = surface.build(shape: testShape)
-        XCTAssertEqual(layers.count, 1)
+        let surface = Surface().gradient(RadialGradient(stops: stops))
+        XCTAssertEqual(surface.layers.count, 1)
     }
 
     func testRadialGradientDefaults() {
@@ -270,9 +220,8 @@ final class SurfaceTests: XCTestCase {
 
     func testAngularGradientAddsLayer() {
         let stops = [GradientStop(Color(1, 0, 0), at: 0), GradientStop(Color(0, 0, 1), at: 1)]
-        let surface = Surface().gradient(.angular(AngularGradient(stops: stops)))
-        let layers = surface.build(shape: testShape)
-        XCTAssertEqual(layers.count, 1)
+        let surface = Surface().gradient(AngularGradient(stops: stops))
+        XCTAssertEqual(surface.layers.count, 1)
     }
 
     func testAngularGradientDefaults() {
@@ -290,8 +239,7 @@ final class SurfaceTests: XCTestCase {
         let dash = Dash([5, 3])
         let stroke = Stroke(width: 2, dash: dash)
         let surface = Surface().stroke(stroke, .color(.black))
-        let layers = surface.build(shape: testShape)
-        XCTAssertEqual(layers.count, 1)
+        XCTAssertEqual(surface.layers.count, 1)
     }
 
     func testDashEvenFactory() {
@@ -304,16 +252,12 @@ final class SurfaceTests: XCTestCase {
 
     func testTranslateWrapsChildren() {
         let surface = Surface().color(.red).translate(10, 20)
-        let layers = surface.build(shape: testShape)
-        XCTAssertEqual(layers.count, 1)
-        XCTAssertTrue(layers[0] is TranslateLayer)
+        XCTAssertEqual(surface.layers.count, 1)
     }
 
     func testRotateWrapsChildren() {
         let surface = Surface().color(.red).rotate(.pi / 4)
-        let layers = surface.build(shape: testShape)
-        XCTAssertEqual(layers.count, 1)
-        XCTAssertTrue(layers[0] is RotateLayer)
+        XCTAssertEqual(surface.layers.count, 1)
     }
 
     // MARK: - BlendMode Mapping

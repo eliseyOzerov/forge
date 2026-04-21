@@ -196,7 +196,7 @@ final class StepperTests: XCTestCase {
     }
 
     func testDragConfigDefaults() {
-        let c = DragConfig.default
+        let c = StepperDragConfig.default
         XCTAssertEqual(c.sensitivity, 10)
         XCTAssertTrue(c.enabled)
     }
