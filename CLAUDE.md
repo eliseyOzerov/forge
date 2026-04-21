@@ -15,6 +15,13 @@
 - Always run tests before considering a task complete.
 - If implementation code was changed or added, add or update tests for that code.
 
+## Platform Portability
+
+Public Forge APIs must never contain platform-dependent code. This ensures portability across platforms.
+
+- Never gate public APIs inside `canImport` statements.
+- When building a Leaf, Proxy, or Container view, use `canImport` **only** inside `makeRenderer` to select the correct platform renderer (`[Component]UIKitRenderer` or `[Component]AppKitRenderer`).
+
 ## Swift File Ordering
 
 Each file must keep the main struct/type it represents at the top. If the filename is `Graphic.swift`, the first struct is `Graphic`. This does not apply to general library files that contain many types of equal importance.
