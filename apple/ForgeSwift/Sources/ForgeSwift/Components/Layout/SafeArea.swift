@@ -1,80 +1,62 @@
-//
-//  SafeArea.swift
-//  ForgeSwift
-//
-//  A layout wrapper that insets its child by the platform's safe-area
-//  insets. Forge doesn't apply safe-area behaviour implicitly — root
-//  content is edge-to-edge by default. When a screen wants to avoid
-//  the dynamic island / home indicator / notch, it wraps its body in
-//  `SafeArea { ... }`. Modeled on Flutter's SafeArea widget.
-//
-//  The `edges` parameter controls which edges are inset:
-//
-//      SafeArea { HomeView() }                  // all edges
-//      SafeArea(edges: .vertical) { ... }       // top + bottom only
-//      SafeArea(edges: [.top]) { ... }          // top only
-//      SafeArea(edges: .all.subtracting(.bottom)) { ... }
-//
-//  Implementation: a ContainerView with a single child and a backing
-//  UIView that reads its own `safeAreaInsets` in `layoutSubviews` and
-//  positions the child with those insets (filtered by `edges`). The
-//  child isn't double-inset when composed — a view positioned past
-//  the cutouts has `safeAreaInsets == .zero`, so nested SafeArea
-//  instances contribute nothing unless they're on a *new* cutout
-//  boundary (e.g. inside a modal that introduces its own insets).
-//
-
-#if canImport(UIKit)
-import UIKit
-
-// MARK: - SafeArea view
+// MARK: - SafeArea
 
 /// Container that insets content to respect device safe areas.
+///
+/// Forge doesn't apply safe-area behaviour implicitly — root content is
+/// edge-to-edge by default. When a screen wants to avoid the dynamic
+/// island / home indicator / notch, it wraps its body in `SafeArea`.
+///
+///     SafeArea { HomeView() }                          // all edges
+///     SafeArea(edges: .vertical) { ... }               // top + bottom
+///     SafeArea(edges: [.top]) { ... }                  // top only
+///     SafeArea(edges: .all.subtracting(.bottom)) { ... }
 public struct SafeArea: ContainerView {
     public let child: any View
     public let edges: Edge.Set
-    public let children: [any View]
+    public var children: [any View] { [child] }
 
     public init(
         edges: Edge.Set = .all,
         @ChildBuilder _ content: () -> any View
     ) {
-        let built = content()
-        self.child = built
+        self.child = content()
         self.edges = edges
-        self.children = [built]
     }
 
     public func makeRenderer() -> ContainerRenderer {
-        SafeAreaRenderer(view: self)
+        #if canImport(UIKit)
+        SafeAreaRenderer(edges: edges)
+        #else
+        fatalError("SafeArea not yet implemented for this platform")
+        #endif
     }
 }
 
-// MARK: - Renderer
+// MARK: - UIKit Renderer
+
+#if canImport(UIKit)
+import UIKit
 
 final class SafeAreaRenderer: ContainerRenderer {
     private weak var safeAreaView: SafeAreaView?
-    private var view: SafeArea
+    private var edges: Edge.Set
 
-    init(view: SafeArea) {
-        self.view = view
+    init(edges: Edge.Set) {
+        self.edges = edges
     }
 
     func update(from newView: any View) {
         guard let safeArea = newView as? SafeArea, let safeAreaView else { return }
-        let old = view
-        view = safeArea
-
-        if old.edges != safeArea.edges {
-            safeAreaView.edges = safeArea.edges
-            safeAreaView.setNeedsLayout()
-        }
+        guard edges != safeArea.edges else { return }
+        edges = safeArea.edges
+        safeAreaView.edges = edges
+        safeAreaView.setNeedsLayout()
     }
 
     func mount() -> PlatformView {
         let sv = SafeAreaView()
         self.safeAreaView = sv
-        sv.edges = view.edges
+        sv.edges = edges
         return sv
     }
 
@@ -99,9 +81,9 @@ final class SafeAreaRenderer: ContainerRenderer {
     }
 }
 
-// MARK: - Backing UIView
+// MARK: - SafeAreaView
 
-final class SafeAreaView: UIView {
+class SafeAreaView: UIView {
     var edges: Edge.Set = .all
 
     override func layoutSubviews() {
@@ -112,9 +94,6 @@ final class SafeAreaView: UIView {
 
     override func safeAreaInsetsDidChange() {
         super.safeAreaInsetsDidChange()
-        // Safe area changes on rotation, keyboard appearance, or when
-        // the dynamic island state shifts. Re-layout so the child
-        // picks up the new insets.
         setNeedsLayout()
     }
 
