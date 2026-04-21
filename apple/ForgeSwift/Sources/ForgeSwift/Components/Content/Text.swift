@@ -1,5 +1,31 @@
 import CoreText
 
+// MARK: - Text
+
+/// Text component that displays styled string content.
+public struct Text: BuiltView {
+    public var content: String
+    public var style: TextStyle
+
+    public init(_ content: String, style: TextStyle = TextStyle()) {
+        self.content = content
+        self.style = style
+    }
+
+    /// Configure style. The callback receives the current style for modification.
+    public func style(_ build: (TextStyle) -> TextStyle) -> Text {
+        var copy = self
+        copy.style = build(style)
+        return copy
+    }
+
+    public func build(context: ViewContext) -> any View {
+        let provided = context.tryRead(TextStyle.self)
+        let resolved = provided != nil ? style.merge(provided!) : style
+        return TextLeaf(content: content, style: resolved)
+    }
+}
+
 // MARK: - TextStyle
 
 /// Visual style for text (font, color, alignment, decoration, overflow).
@@ -12,6 +38,22 @@ public struct TextStyle: Sendable, Equatable {
     @Snap public var textCase: TextCase?
     @Snap public var overflow: TextOverflow?
     @Snap public var decoration: TextDecoration?
+}
+
+/// Resolved text leaf view with fully merged style, ready for rendering.
+struct TextLeaf: LeafView {
+    let content: String
+    let style: TextStyle
+
+    func makeRenderer() -> Renderer {
+        #if canImport(UIKit)
+        UIKitTextRenderer(view: self)
+        #elseif canImport(AppKit)
+        AppKitTextRenderer(content: content)
+        #else
+        fatalError("Text not yet implemented for this platform")
+        #endif
+    }
 }
 
 // MARK: - Font
@@ -36,48 +78,6 @@ public struct Font: Sendable, Equatable {
         guard bytes.count == 4 else { return 0 }
         return Int(bytes[0]) << 24 | Int(bytes[1]) << 16 | Int(bytes[2]) << 8 | Int(bytes[3])
     }
-}
-
-// MARK: - FontFeatures
-
-/// OpenType font features: stylistic sets, character alternates, and variation axes.
-public struct FontFeatures: Sendable, Equatable {
-    public var stylisticSets: Set<Int>
-    public var alternates: [Int: Int]
-    public var axes: [FontAxis: Double]
-    public var rawTags: Set<String>
-
-    public init(
-        stylisticSets: Set<Int> = [],
-        alternates: [Int: Int] = [:],
-        axes: [FontAxis: Double] = [:],
-        rawTags: Set<String> = []
-    ) {
-        self.stylisticSets = stylisticSets
-        self.alternates = alternates
-        self.axes = axes
-        self.rawTags = rawTags
-    }
-}
-
-// MARK: - FontAxis
-
-/// Variable font axis identifiers (weight, width, slant, etc.).
-public enum FontAxis: String, CaseIterable, Sendable {
-    case weight = "wght"
-    case width = "wdth"
-    case slant = "slnt"
-    case italic = "ital"
-    case opticalSize = "opsz"
-    case fill = "FILL"
-    case grade = "GRAD"
-    case monospace = "MONO"
-    case casualness = "CASL"
-    case cursive = "CRSV"
-    case softness = "SOFT"
-    case roundness = "ROND"
-
-    public var code: String { rawValue }
 }
 
 // MARK: - TextAlign
@@ -121,100 +121,73 @@ public enum TextCase: String, Sendable {
 // MARK: - TextDecoration
 
 /// Decorations applied to text (underline, strikethrough, shadow).
+@Init
 public struct TextDecoration: Sendable, Equatable {
     public var line: TextLineConfig?
     public var shadow: ShadowConfig?
-
-    public init(line: TextLineConfig? = nil, shadow: ShadowConfig? = nil) {
-        self.line = line
-        self.shadow = shadow
-    }
 }
 
+// MARK: - FontFeatures
+
+/// OpenType font features: stylistic sets, character alternates, and variation axes.
+@Init
+public struct FontFeatures: Sendable, Equatable {
+    public var stylisticSets: Set<Int> = []
+    public var alternates: [Int: Int] = [:]
+    public var axes: [FontAxis: Double] = [:]
+    public var rawTags: Set<String> = []
+}
+
+// MARK: - FontAxis
+
+/// Variable font axis identifiers (weight, width, slant, etc.).
+public enum FontAxis: String, CaseIterable, Sendable {
+    case weight = "wght"
+    case width = "wdth"
+    case slant = "slnt"
+    case italic = "ital"
+    case opticalSize = "opsz"
+    case fill = "FILL"
+    case grade = "GRAD"
+    case monospace = "MONO"
+    case casualness = "CASL"
+    case cursive = "CRSV"
+    case softness = "SOFT"
+    case roundness = "ROND"
+
+    public var code: String { rawValue }
+}
+
+// MARK: - TextLineConfig
+
 /// Configuration for an underline or strikethrough line.
+@Init
 public struct TextLineConfig: Sendable, Equatable {
     public var color: Color?
-    public var position: TextLinePosition
-    public var style: Int
-
-    public init(
-        color: Color? = nil,
-        position: TextLinePosition = .underline,
-        style: Int = 0x01
-    ) {
-        self.color = color
-        self.position = position
-        self.style = style
-    }
+    public var position: TextLinePosition = .underline
+    public var style: Int = 0x01
 
     public static let single = 0x01
     public static let double = 0x09
     public static let thick = 0x02
 }
 
+// MARK: - ShadowConfig
+
+/// Text shadow configuration (color, blur radius, offset).
+@Init
+public struct ShadowConfig: Sendable, Equatable {
+    public var color: Color = Color.black.withAlpha(0.33)
+    public var radius: Double = 1
+    public var offset: Size = Size(0, 1)
+}
+
+// MARK: - TextLinePosition
+
 /// Whether a text decoration line is an underline or strikethrough.
 public enum TextLinePosition: String, Sendable {
     case underline
     case strikethrough
-}
-
-/// Text shadow configuration (color, blur radius, offset).
-public struct ShadowConfig: Sendable, Equatable {
-    public var color: Color
-    public var radius: Double
-    public var offset: Size
-
-    public init(
-        color: Color = Color.black.withAlpha(0.33),
-        radius: Double = 1,
-        offset: Size = Size(0, 1)
-    ) {
-        self.color = color
-        self.radius = radius
-        self.offset = offset
-    }
-}
-
-// MARK: - Text
-
-/// Text component that displays styled string content.
-public struct Text: BuiltView {
-    public var content: String
-    public var style: TextStyle
-
-    public init(_ content: String, style: TextStyle = TextStyle()) {
-        self.content = content
-        self.style = style
-    }
-
-    /// Configure style. The callback receives the current style for modification.
-    public func style(_ build: (TextStyle) -> TextStyle) -> Text {
-        var copy = self
-        copy.style = build(style)
-        return copy
-    }
-
-    public func build(context: ViewContext) -> any View {
-        let provided = context.tryRead(TextStyle.self)
-        let resolved = provided != nil ? style.merge(provided!) : style
-        return TextLeaf(content: content, style: resolved)
-    }
-}
-
-/// Resolved text leaf view with fully merged style, ready for rendering.
-struct TextLeaf: LeafView {
-    let content: String
-    let style: TextStyle
-
-    func makeRenderer() -> Renderer {
-        #if canImport(UIKit)
-        UIKitTextRenderer(view: self)
-        #elseif canImport(AppKit)
-        AppKitTextRenderer(content: content)
-        #else
-        fatalError("Text not yet implemented for this platform")
-        #endif
-    }
 }
 
 // MARK: - TextSize
