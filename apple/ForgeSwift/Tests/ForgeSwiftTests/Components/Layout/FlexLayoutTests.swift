@@ -607,6 +607,96 @@ final class FlexLayoutTests: XCTestCase {
         XCTAssertEqual(c1.frame.origin.y, 0, accuracy: acc)
         XCTAssertEqual(c2.frame.origin.y, 60, accuracy: acc) // 40 + 20
     }
+
+    // MARK: - Fill Min/Max Clamping
+
+    func testFillMinClamped() {
+        // Fill with min=120 in a 200px row with a 100px fixed child.
+        // Free space = 100, share = 100, but min = 120 → clamped to 120.
+        let fixed = child(100, 30)
+        let fb = BoxView()
+        fb.sizing = Frame(.fill(min: 120), .hug())
+        fb.addSubview(FixedSizeView(size: CGSize(width: 30, height: 30)))
+        let flex = layoutFlex(
+            axis: .horizontal, alignment: .topLeft,
+            containerSize: CGSize(width: 200, height: 100),
+            children: [fixed, fb]
+        )
+        XCTAssertEqual(fb.frame.width, 120, accuracy: acc)
+    }
+
+    func testFillMaxClamped() {
+        // Fill with max=80 in a 200px row (no other children).
+        // Free space = 200, but max = 80 → clamped to 80.
+        let fb = BoxView()
+        fb.sizing = Frame(.fill(max: 80), .hug())
+        fb.addSubview(FixedSizeView(size: CGSize(width: 30, height: 30)))
+        let flex = layoutFlex(
+            axis: .horizontal, alignment: .topLeft,
+            containerSize: CGSize(width: 200, height: 100),
+            children: [fb]
+        )
+        XCTAssertEqual(fb.frame.width, 80, accuracy: acc)
+    }
+
+    func testFillMinMaxBothApplied() {
+        // Two fill children in 300px. Each gets 150, min=100 max=120 → clamped to 120.
+        let fb1 = BoxView()
+        fb1.sizing = Frame(.fill(min: 100, max: 120), .hug())
+        fb1.addSubview(FixedSizeView(size: CGSize(width: 30, height: 30)))
+        let fb2 = BoxView()
+        fb2.sizing = Frame(.fill(min: 100, max: 120), .hug())
+        fb2.addSubview(FixedSizeView(size: CGSize(width: 30, height: 30)))
+        let flex = layoutFlex(
+            axis: .horizontal, alignment: .topLeft,
+            containerSize: CGSize(width: 300, height: 100),
+            children: [fb1, fb2]
+        )
+        XCTAssertEqual(fb1.frame.width, 120, accuracy: acc)
+        XCTAssertEqual(fb2.frame.width, 120, accuracy: acc)
+    }
+
+    // MARK: - Single-line Cross Alignment Against Container
+
+    func testSingleLineCrossAlignCenter() {
+        // Single row in 200px tall container, tallest child = 40px.
+        // Center alignment → child centered in full 200px, not in 40px line.
+        let c1 = child(60, 40)
+        let flex = layoutFlex(
+            axis: .horizontal, alignment: .center,
+            containerSize: CGSize(width: 200, height: 200),
+            children: [c1]
+        )
+        // (200 - 40) * 0.5 = 80
+        XCTAssertEqual(c1.frame.origin.y, 80, accuracy: acc)
+    }
+
+    func testSingleLineCrossAlignBottom() {
+        let c1 = child(60, 40)
+        let flex = layoutFlex(
+            axis: .horizontal, alignment: .bottomLeft,
+            containerSize: CGSize(width: 200, height: 200),
+            children: [c1]
+        )
+        // (200 - 40) * 1.0 = 160
+        XCTAssertEqual(c1.frame.origin.y, 160, accuracy: acc)
+    }
+
+    // MARK: - Multi-line Stacks From Top
+
+    func testMultiLineStacksFromTop() {
+        // Wrapped row: lines should stack from y=0, not be centered.
+        let c1 = child(120, 30)
+        let c2 = child(120, 30)
+        let flex = layoutFlex(
+            axis: .horizontal, alignment: .center, wrap: true,
+            containerSize: CGSize(width: 200, height: 400),
+            children: [c1, c2]
+        )
+        // Line 1 at y=0, line 2 at y=30 (stacked from top)
+        XCTAssertEqual(c1.frame.origin.y, 0, accuracy: acc)
+        XCTAssertEqual(c2.frame.origin.y, 30, accuracy: acc)
+    }
 }
 
 #endif
