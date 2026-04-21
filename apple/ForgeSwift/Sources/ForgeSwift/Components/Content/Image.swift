@@ -1,19 +1,3 @@
-// MARK: - ImageStyle
-
-@Init @Copy
-public struct ImageStyle {
-    @Snap public var fit: ImageFit = .aspectFit
-    public var tintColor: Color? = nil
-    public var cornerRadius: Double = 0
-}
-
-public enum ImageFit: Sendable {
-    case aspectFit
-    case aspectFill
-    case fill
-    case center
-}
-
 // MARK: - Image
 
 #if canImport(UIKit)
@@ -36,6 +20,72 @@ public struct Image: LeafView {
 
     public func makeRenderer() -> Renderer {
         UIKitImageRenderer(view: self)
+    }
+}
+
+#endif
+
+// MARK: - ImageStyle
+
+@Init @Copy
+public struct ImageStyle {
+    @Snap public var fit: ImageFit = .aspectFit
+    public var tintColor: Color? = nil
+    public var cornerRadius: Double = 0
+}
+
+public enum ImageFit: Sendable {
+    case aspectFit
+    case aspectFill
+    case fill
+    case center
+}
+
+// MARK: - Renderer
+
+#if canImport(UIKit)
+
+final class UIKitImageRenderer: Renderer {
+    private weak var imageView: UIImageView?
+    private var view: Image
+
+    init(view: Image) {
+        self.view = view
+    }
+
+    func update(from newView: any View) {
+        guard let img = newView as? Image, let imageView else { return }
+        let old = view
+        view = img
+
+        let imageChanged = old.image !== img.image
+        if imageChanged {
+            imageView.superview?.setNeedsLayout()
+        }
+
+        // Always apply image+style (ImageFit/tint lack Equatable)
+        applyImage(to: imageView)
+        imageView.contentMode = img.style.fit.uiContentMode
+        imageView.layer.cornerRadius = img.style.cornerRadius
+    }
+
+    func mount() -> PlatformView {
+        let imageView = UIImageView()
+        imageView.clipsToBounds = true
+        self.imageView = imageView
+        imageView.contentMode = view.style.fit.uiContentMode
+        applyImage(to: imageView)
+        imageView.layer.cornerRadius = view.style.cornerRadius
+        return imageView
+    }
+
+    private func applyImage(to imageView: UIImageView) {
+        if let tint = view.style.tintColor {
+            imageView.image = view.image.withRenderingMode(.alwaysTemplate)
+            imageView.tintColor = tint.platformColor
+        } else {
+            imageView.image = view.image
+        }
     }
 }
 
@@ -115,17 +165,6 @@ public struct AsyncImage: ModelView {
     }
 }
 
-extension ImageFit {
-    var uiContentMode: UIView.ContentMode {
-        switch self {
-        case .aspectFit: .scaleAspectFit
-        case .aspectFill: .scaleAspectFill
-        case .fill: .scaleToFill
-        case .center: .center
-        }
-    }
-}
-
 // MARK: - AsyncImage ViewModel
 
 public final class AsyncImageModel: ViewModel<AsyncImage> {
@@ -177,48 +216,13 @@ public final class AsyncImageBuilder: ViewBuilder<AsyncImageModel> {
     }
 }
 
-// MARK: - Renderer
-
-final class UIKitImageRenderer: Renderer {
-    private weak var imageView: UIImageView?
-    private var view: Image
-
-    init(view: Image) {
-        self.view = view
-    }
-
-    func update(from newView: any View) {
-        guard let img = newView as? Image, let imageView else { return }
-        let old = view
-        view = img
-
-        let imageChanged = old.image !== img.image
-        if imageChanged {
-            imageView.superview?.setNeedsLayout()
-        }
-
-        // Always apply image+style (ImageFit/tint lack Equatable)
-        applyImage(to: imageView)
-        imageView.contentMode = img.style.fit.uiContentMode
-        imageView.layer.cornerRadius = img.style.cornerRadius
-    }
-
-    func mount() -> PlatformView {
-        let imageView = UIImageView()
-        imageView.clipsToBounds = true
-        self.imageView = imageView
-        imageView.contentMode = view.style.fit.uiContentMode
-        applyImage(to: imageView)
-        imageView.layer.cornerRadius = view.style.cornerRadius
-        return imageView
-    }
-
-    private func applyImage(to imageView: UIImageView) {
-        if let tint = view.style.tintColor {
-            imageView.image = view.image.withRenderingMode(.alwaysTemplate)
-            imageView.tintColor = tint.platformColor
-        } else {
-            imageView.image = view.image
+extension ImageFit {
+    var uiContentMode: UIView.ContentMode {
+        switch self {
+        case .aspectFit: .scaleAspectFit
+        case .aspectFill: .scaleAspectFill
+        case .fill: .scaleToFill
+        case .center: .center
         }
     }
 }

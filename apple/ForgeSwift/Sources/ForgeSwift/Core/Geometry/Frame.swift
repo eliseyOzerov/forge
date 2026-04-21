@@ -1,16 +1,5 @@
 import Foundation
 
-/// How a dimension should be sized.
-public enum Extent: Equatable, Sendable {
-    /// Shrink to child's intrinsic size, optionally clamped.
-    case hug(min: Double? = nil, max: Double? = nil)
-    /// Expand to fill available space. Flex determines ratio when
-    /// siblings compete. Min/max constrain the result.
-    case fill(flex: Double = 1, min: Double? = nil, max: Double? = nil)
-    /// Exact size in points.
-    case fix(Double)
-}
-
 /// Sizing constraints for a view.
 @Init @Copy
 public struct Frame: Equatable, Sendable, Lerpable {
@@ -47,6 +36,17 @@ public struct Frame: Equatable, Sendable, Lerpable {
         Frame(width: width.lerp(to: other.width, t: t),
               height: height.lerp(to: other.height, t: t))
     }
+}
+
+/// How a dimension should be sized.
+public enum Extent: Equatable, Sendable {
+    /// Shrink to child's intrinsic size, optionally clamped.
+    case hug(min: Double? = nil, max: Double? = nil)
+    /// Expand to fill available space. Flex determines ratio when
+    /// siblings compete. Min/max constrain the result.
+    case fill(flex: Double = 1, min: Double? = nil, max: Double? = nil)
+    /// Exact size in points.
+    case fix(Double)
 }
 
 extension Extent: Lerpable {

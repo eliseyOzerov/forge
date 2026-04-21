@@ -1,6 +1,356 @@
 import Foundation
 import CoreGraphics
 
+// MARK: - Graphic
+
+#if canImport(UIKit)
+import UIKit
+
+/// Vector graphic component. Parses SVG data, builds a Surface from it,
+/// renders into a cached bitmap.
+///
+/// Constructors:
+/// - `Graphic(svg:)` — from SVG string (synchronous)
+/// - `Graphic(data:)` — from raw Data (synchronous)
+/// - `Graphic(asset:)` — from bundle asset name (synchronous, optional error)
+/// - `Graphic(file:)` — from file URL (async)
+/// - `Graphic(url:)` — from remote URL (async)
+public struct Graphic: LeafView {
+    public let source: GraphicSource
+    public let overrides: [String: GraphicOverride]
+    public let color: Color?
+    public let size: CGSize?
+
+    public init(svg: String, color: Color? = nil, size: CGSize? = nil, overrides: [String: GraphicOverride] = [:]) {
+        self.source = .string(svg)
+        self.color = color; self.size = size; self.overrides = overrides
+    }
+
+    public init(data: Data, color: Color? = nil, size: CGSize? = nil, overrides: [String: GraphicOverride] = [:]) {
+        self.source = .data(data)
+        self.color = color; self.size = size; self.overrides = overrides
+    }
+
+    public init(asset name: String, color: Color? = nil, size: CGSize? = nil, overrides: [String: GraphicOverride] = [:]) {
+        self.source = .asset(name)
+        self.color = color; self.size = size; self.overrides = overrides
+    }
+
+    public init(file url: URL, color: Color? = nil, size: CGSize? = nil, overrides: [String: GraphicOverride] = [:]) {
+        self.source = .file(url)
+        self.color = color; self.size = size; self.overrides = overrides
+    }
+
+    public init(url: URL, color: Color? = nil, size: CGSize? = nil, overrides: [String: GraphicOverride] = [:]) {
+        self.source = .url(url)
+        self.color = color; self.size = size; self.overrides = overrides
+    }
+
+    public func makeRenderer() -> Renderer {
+        GraphicRenderer(view: self)
+    }
+}
+
+#else
+
+public struct Graphic: BuiltView {
+    public init() {}
+    public func build(context: ViewContext) -> any View { Text("TODO: Graphic") }
+}
+
+#endif
+
+// MARK: - GraphicSource
+
+public enum GraphicSource {
+    case string(String)
+    case data(Data)
+    case asset(String)
+    case file(URL)
+    case url(URL)
+}
+
+// MARK: - GraphicOverride
+
+public struct GraphicOverride {
+    public var fill: Color?
+    public var stroke: Color?
+    public var strokeWidth: Double?
+    public var opacity: Double?
+    public var isHidden: Bool
+
+    public init(fill: Color? = nil, stroke: Color? = nil, strokeWidth: Double? = nil, opacity: Double? = nil, isHidden: Bool = false) {
+        self.fill = fill; self.stroke = stroke; self.strokeWidth = strokeWidth; self.opacity = opacity; self.isHidden = isHidden
+    }
+}
+
+// MARK: - Renderer
+
+#if canImport(UIKit)
+
+final class GraphicRenderer: Renderer {
+    private weak var graphicView: GraphicView?
+    private var view: Graphic
+
+    init(view: Graphic) {
+        self.view = view
+    }
+
+    func update(from newView: any View) {
+        guard let graphic = newView as? Graphic, let graphicView else { return }
+        let old = view
+        view = graphic
+
+        // Source changed → reload document + redraw + relayout
+        let sourceChanged = !sourceEqual(old.source, graphic.source)
+        if sourceChanged {
+            applyDocument(to: graphicView)
+            graphicView.setNeedsDisplay()
+            graphicView.superview?.setNeedsLayout()
+        }
+
+        // Size changed → relayout + redraw
+        if old.size != graphic.size {
+            graphicView.graphicSize = graphic.size
+            graphicView.invalidateIntrinsicContentSize()
+            graphicView.setNeedsDisplay()
+            graphicView.superview?.setNeedsLayout()
+        }
+
+        // Color/overrides changed → redraw only
+        let colorChanged = old.color != graphic.color
+        if colorChanged {
+            graphicView.graphicColor = graphic.color
+            graphicView.cachedImage = nil
+            graphicView.setNeedsDisplay()
+        }
+
+        // Overrides — always apply (no Equatable)
+        graphicView.graphicOverrides = graphic.overrides
+        if !sourceChanged && !colorChanged {
+            graphicView.cachedImage = nil
+            graphicView.setNeedsDisplay()
+        }
+    }
+
+    func mount() -> PlatformView {
+        let gv = GraphicView()
+        self.graphicView = gv
+        applyDocument(to: gv)
+        gv.graphicColor = view.color
+        gv.graphicSize = view.size
+        gv.graphicOverrides = view.overrides
+        return gv
+    }
+
+    private func applyDocument(to gv: GraphicView) {
+        let doc: SVGDocument?
+        switch view.source {
+        case .string(let svg):
+            doc = SVGParser().parse(svg)
+        case .data(let data):
+            doc = SVGParser().parse(data)
+        case .asset(let name):
+            if let asset = NSDataAsset(name: name) {
+                doc = SVGParser().parse(asset.data)
+            } else if let url = Bundle.main.url(forResource: name, withExtension: "svg"),
+                      let data = try? Data(contentsOf: url) {
+                doc = SVGParser().parse(data)
+            } else {
+                doc = nil
+            }
+        case .file(let url):
+            doc = (try? Data(contentsOf: url)).flatMap { SVGParser().parse($0) }
+        case .url:
+            doc = nil
+        }
+        gv.document = doc
+        gv.cachedImage = nil
+        gv.invalidateIntrinsicContentSize()
+    }
+
+    private func sourceEqual(_ a: GraphicSource, _ b: GraphicSource) -> Bool {
+        switch (a, b) {
+        case (.string(let l), .string(let r)): return l == r
+        case (.data(let l), .data(let r)): return l == r
+        case (.asset(let l), .asset(let r)): return l == r
+        case (.file(let l), .file(let r)): return l == r
+        case (.url(let l), .url(let r)): return l == r
+        default: return false
+        }
+    }
+}
+
+// MARK: - GraphicView
+
+final class GraphicView: UIView {
+    var document: SVGDocument?
+    var graphicColor: Color?
+    var graphicSize: CGSize?
+    var graphicOverrides: [String: GraphicOverride] = [:]
+    var cachedImage: UIImage?
+    private var cachedBoundsSize: CGSize = .zero
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isOpaque = false
+        contentMode = .redraw
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    func setDocument(_ document: SVGDocument?, color: Color?, size: CGSize?, overrides: [String: GraphicOverride]) {
+        self.document = document
+        self.graphicColor = color
+        self.graphicSize = size
+        self.graphicOverrides = overrides
+        cachedImage = nil
+        setNeedsDisplay()
+        invalidateIntrinsicContentSize()
+    }
+
+    override func draw(_ rect: CGRect) {
+        guard let document else { return }
+
+        let size = bounds.size
+        if let cached = cachedImage, cachedBoundsSize == size {
+            cached.draw(in: bounds)
+            return
+        }
+
+        let painter = SVGPainter(document: document, overrides: graphicOverrides, globalColor: graphicColor)
+
+        let imgRenderer = UIGraphicsImageRenderer(size: size)
+        cachedImage = imgRenderer.image { imgCtx in
+            painter.paint(on: CGCanvas(imgCtx.cgContext))
+        }
+        cachedBoundsSize = size
+        cachedImage?.draw(in: bounds)
+    }
+
+    override var intrinsicContentSize: CGSize {
+        if let s = graphicSize { return s }
+        guard let document else { return CGSize(width: UIView.noIntrinsicMetric, height: UIView.noIntrinsicMetric) }
+        return document.viewBox.size
+    }
+}
+
+#endif
+
+// MARK: - SVG Painter
+
+/// Paints an SVGDocument directly onto a Canvas. No intermediate
+/// Surface or Layer tree — just immediate draw calls.
+public struct SVGPainter {
+    public let document: SVGDocument
+    public let overrides: [String: GraphicOverride]
+    public let globalColor: Color?
+
+    public init(document: SVGDocument, overrides: [String: GraphicOverride] = [:], globalColor: Color? = nil) {
+        self.document = document
+        self.overrides = overrides
+        self.globalColor = globalColor
+    }
+
+    public func paint(on canvas: Canvas) {
+        for element in document.elements {
+            paintElement(element, on: canvas)
+        }
+    }
+
+    // MARK: - Element → Canvas calls
+
+    private func paintElement(_ element: SVGElement, on canvas: Canvas) {
+        switch element {
+        case .path(let data):
+            let path = SVGPathDataParser.parse(data.d)
+            paintDrawn(path, attributes: data.attributes, id: data.id, on: canvas)
+
+        case .rect(let data):
+            let r = Rect(x: data.x, y: data.y, width: data.width, height: data.height)
+            let path = data.rx > 0 || data.ry > 0
+                ? RoundedModifiedShape(base: RectShape().erased, radii: [data.rx > 0 ? data.rx : data.ry], smooth: 0).path(in: r)
+                : RectShape().path(in: r)
+            paintDrawn(path, attributes: data.attributes, id: data.id, on: canvas)
+
+        case .circle(let data):
+            let r = Rect.fromCircle(center: Point(data.cx, data.cy), radius: data.r)
+            let path = EllipseShape().path(in: r)
+            paintDrawn(path, attributes: data.attributes, id: data.id, on: canvas)
+
+        case .ellipse(let data):
+            let r = Rect(x: data.cx - data.rx, y: data.cy - data.ry, width: data.rx * 2, height: data.ry * 2)
+            let path = EllipseShape().path(in: r)
+            paintDrawn(path, attributes: data.attributes, id: data.id, on: canvas)
+
+        case .line(let data):
+            var attrs = data.attributes; attrs.fill = .none
+            if case .none = attrs.stroke { attrs.stroke = .color(.black) }
+            let path = Path.line(from: Point(Double(data.x1), Double(data.y1)), to: Point(Double(data.x2), Double(data.y2)))
+            paintDrawn(path, attributes: attrs, id: data.id, on: canvas)
+
+        case .polygon(let data):
+            guard !data.points.isEmpty else { return }
+            paintDrawn(Path.polygon(data.points), attributes: data.attributes, id: data.id, on: canvas)
+
+        case .polyline(let data):
+            guard !data.points.isEmpty else { return }
+            paintDrawn(Path.polyline(data.points), attributes: data.attributes, id: data.id, on: canvas)
+
+        case .group(let data):
+            if overrides[data.id]?.isHidden == true { return }
+            let opacity = overrides[data.id]?.opacity ?? Double(data.attributes.opacity)
+            let hasTransform = data.attributes.transform != .identity
+
+            canvas.save()
+            if hasTransform { canvas.transform(Transform2D(data.attributes.transform)) }
+            if opacity < 1 { canvas.setAlpha(opacity) }
+            for child in data.children { paintElement(child, on: canvas) }
+            canvas.restore()
+        }
+    }
+
+    private func paintDrawn(_ path: Path, attributes: SVGPaintAttributes, id: String, on canvas: Canvas) {
+        let ov = overrides[id]
+        if ov?.isHidden == true { return }
+
+        let opacity = ov?.opacity ?? Double(attributes.opacity)
+        let hasTransform = attributes.transform != .identity
+
+        canvas.save()
+        if hasTransform { canvas.transform(Transform2D(attributes.transform)) }
+        if opacity < 1 { canvas.setAlpha(opacity) }
+
+        if let fillColor = resolveFill(attributes, override: ov) {
+            canvas.draw(path, with: .color(fillColor))
+        }
+        if let strokeColor = resolveStroke(attributes, override: ov) {
+            let width = ov?.strokeWidth ?? attributes.strokeWidth
+            let stroked = path.stroked(width: width, cap: StrokeCap(attributes.strokeLineCap), join: StrokeJoin(attributes.strokeLineJoin))
+            canvas.draw(stroked, with: .color(strokeColor))
+        }
+
+        canvas.restore()
+    }
+
+    // MARK: - Color Resolution
+
+    private func resolveFill(_ attrs: SVGPaintAttributes, override ov: GraphicOverride?) -> Color? {
+        if let c = ov?.fill { return c }
+        if let g = globalColor { switch attrs.fill { case .none: return nil; default: return g } }
+        return resolveColor(attrs.fill)
+    }
+
+    private func resolveStroke(_ attrs: SVGPaintAttributes, override ov: GraphicOverride?) -> Color? {
+        if let c = ov?.stroke { return c }
+        return resolveColor(attrs.stroke)
+    }
+
+    private func resolveColor(_ paint: SVGPaint) -> Color? {
+        switch paint { case .none: return nil; case .color(let c): return c; case .currentColor: return globalColor ?? .black }
+    }
+}
+
 // MARK: - SVG Document
 
 public struct SVGDocument {
@@ -406,7 +756,7 @@ enum SVGPathDataParser {
     private enum Token { case command(Character); case number(CGFloat) }
 
     private static func tokenize(_ d: String) -> [Token] {
-        var tokens: [Token] = []; var chars = Array(d); var i = 0
+        var tokens: [Token] = []; let chars = Array(d); var i = 0
         while i < chars.count {
             let c = chars[i]
             if c.isWhitespace || c == "," { i += 1; continue }
@@ -434,132 +784,6 @@ enum SVGPathDataParser {
     }
 }
 
-/// Paints an SVGDocument directly onto a Canvas. No intermediate
-/// Surface or Layer tree — just immediate draw calls.
-public struct SVGPainter {
-    public let document: SVGDocument
-    public let overrides: [String: GraphicOverride]
-    public let globalColor: Color?
-
-    public init(document: SVGDocument, overrides: [String: GraphicOverride] = [:], globalColor: Color? = nil) {
-        self.document = document
-        self.overrides = overrides
-        self.globalColor = globalColor
-    }
-
-    public func paint(on canvas: Canvas) {
-        for element in document.elements {
-            paintElement(element, on: canvas)
-        }
-    }
-
-    // MARK: - Element → Canvas calls
-
-    private func paintElement(_ element: SVGElement, on canvas: Canvas) {
-        switch element {
-        case .path(let data):
-            let path = SVGPathDataParser.parse(data.d)
-            paintDrawn(path, attributes: data.attributes, id: data.id, on: canvas)
-
-        case .rect(let data):
-            let r = Rect(x: data.x, y: data.y, width: data.width, height: data.height)
-            let path = data.rx > 0 || data.ry > 0
-                ? RoundedModifiedShape(base: RectShape().erased, radii: [data.rx > 0 ? data.rx : data.ry], smooth: 0).path(in: r)
-                : RectShape().path(in: r)
-            paintDrawn(path, attributes: data.attributes, id: data.id, on: canvas)
-
-        case .circle(let data):
-            let r = Rect.fromCircle(center: Point(data.cx, data.cy), radius: data.r)
-            let path = EllipseShape().path(in: r)
-            paintDrawn(path, attributes: data.attributes, id: data.id, on: canvas)
-
-        case .ellipse(let data):
-            let r = Rect(x: data.cx - data.rx, y: data.cy - data.ry, width: data.rx * 2, height: data.ry * 2)
-            let path = EllipseShape().path(in: r)
-            paintDrawn(path, attributes: data.attributes, id: data.id, on: canvas)
-
-        case .line(let data):
-            var attrs = data.attributes; attrs.fill = .none
-            if case .none = attrs.stroke { attrs.stroke = .color(.black) }
-            let path = Path.line(from: Point(Double(data.x1), Double(data.y1)), to: Point(Double(data.x2), Double(data.y2)))
-            paintDrawn(path, attributes: attrs, id: data.id, on: canvas)
-
-        case .polygon(let data):
-            guard !data.points.isEmpty else { return }
-            paintDrawn(Path.polygon(data.points), attributes: data.attributes, id: data.id, on: canvas)
-
-        case .polyline(let data):
-            guard !data.points.isEmpty else { return }
-            paintDrawn(Path.polyline(data.points), attributes: data.attributes, id: data.id, on: canvas)
-
-        case .group(let data):
-            if overrides[data.id]?.isHidden == true { return }
-            let opacity = overrides[data.id]?.opacity ?? Double(data.attributes.opacity)
-            let hasTransform = data.attributes.transform != .identity
-
-            canvas.save()
-            if hasTransform { canvas.transform(Transform2D(data.attributes.transform)) }
-            if opacity < 1 { canvas.setAlpha(opacity) }
-            for child in data.children { paintElement(child, on: canvas) }
-            canvas.restore()
-        }
-    }
-
-    private func paintDrawn(_ path: Path, attributes: SVGPaintAttributes, id: String, on canvas: Canvas) {
-        let ov = overrides[id]
-        if ov?.isHidden == true { return }
-
-        let opacity = ov?.opacity ?? Double(attributes.opacity)
-        let hasTransform = attributes.transform != .identity
-
-        canvas.save()
-        if hasTransform { canvas.transform(Transform2D(attributes.transform)) }
-        if opacity < 1 { canvas.setAlpha(opacity) }
-
-        if let fillColor = resolveFill(attributes, override: ov) {
-            canvas.draw(path, with: .color(fillColor))
-        }
-        if let strokeColor = resolveStroke(attributes, override: ov) {
-            let width = ov?.strokeWidth ?? attributes.strokeWidth
-            let stroked = path.stroked(width: width, cap: StrokeCap(attributes.strokeLineCap), join: StrokeJoin(attributes.strokeLineJoin))
-            canvas.draw(stroked, with: .color(strokeColor))
-        }
-
-        canvas.restore()
-    }
-
-    // MARK: - Color Resolution
-
-    private func resolveFill(_ attrs: SVGPaintAttributes, override ov: GraphicOverride?) -> Color? {
-        if let c = ov?.fill { return c }
-        if let g = globalColor { switch attrs.fill { case .none: return nil; default: return g } }
-        return resolveColor(attrs.fill)
-    }
-
-    private func resolveStroke(_ attrs: SVGPaintAttributes, override ov: GraphicOverride?) -> Color? {
-        if let c = ov?.stroke { return c }
-        return resolveColor(attrs.stroke)
-    }
-
-    private func resolveColor(_ paint: SVGPaint) -> Color? {
-        switch paint { case .none: return nil; case .color(let c): return c; case .currentColor: return globalColor ?? .black }
-    }
-}
-
-// MARK: - GraphicOverride
-
-public struct GraphicOverride {
-    public var fill: Color?
-    public var stroke: Color?
-    public var strokeWidth: Double?
-    public var opacity: Double?
-    public var isHidden: Bool
-
-    public init(fill: Color? = nil, stroke: Color? = nil, strokeWidth: Double? = nil, opacity: Double? = nil, isHidden: Bool = false) {
-        self.fill = fill; self.stroke = stroke; self.strokeWidth = strokeWidth; self.opacity = opacity; self.isHidden = isHidden
-    }
-}
-
 // MARK: - Helpers
 
 extension StrokeCap {
@@ -573,217 +797,3 @@ extension StrokeJoin {
         switch cgLineJoin { case .miter: self = .miter; case .round: self = .round; case .bevel: self = .bevel; @unknown default: self = .miter }
     }
 }
-
-#if canImport(UIKit)
-import UIKit
-
-/// Vector graphic component. Parses SVG data, builds a Surface from it,
-/// renders into a cached bitmap.
-///
-/// Constructors:
-/// - `Graphic(svg:)` — from SVG string (synchronous)
-/// - `Graphic(data:)` — from raw Data (synchronous)
-/// - `Graphic(asset:)` — from bundle asset name (synchronous, optional error)
-/// - `Graphic(file:)` — from file URL (async)
-/// - `Graphic(url:)` — from remote URL (async)
-public struct Graphic: LeafView {
-    public let source: GraphicSource
-    public let overrides: [String: GraphicOverride]
-    public let color: Color?
-    public let size: CGSize?
-
-    public init(svg: String, color: Color? = nil, size: CGSize? = nil, overrides: [String: GraphicOverride] = [:]) {
-        self.source = .string(svg)
-        self.color = color; self.size = size; self.overrides = overrides
-    }
-
-    public init(data: Data, color: Color? = nil, size: CGSize? = nil, overrides: [String: GraphicOverride] = [:]) {
-        self.source = .data(data)
-        self.color = color; self.size = size; self.overrides = overrides
-    }
-
-    public init(asset name: String, color: Color? = nil, size: CGSize? = nil, overrides: [String: GraphicOverride] = [:]) {
-        self.source = .asset(name)
-        self.color = color; self.size = size; self.overrides = overrides
-    }
-
-    public init(file url: URL, color: Color? = nil, size: CGSize? = nil, overrides: [String: GraphicOverride] = [:]) {
-        self.source = .file(url)
-        self.color = color; self.size = size; self.overrides = overrides
-    }
-
-    public init(url: URL, color: Color? = nil, size: CGSize? = nil, overrides: [String: GraphicOverride] = [:]) {
-        self.source = .url(url)
-        self.color = color; self.size = size; self.overrides = overrides
-    }
-
-    public func makeRenderer() -> Renderer {
-        GraphicRenderer(view: self)
-    }
-}
-
-public enum GraphicSource {
-    case string(String)
-    case data(Data)
-    case asset(String)
-    case file(URL)
-    case url(URL)
-}
-
-// MARK: - Renderer
-
-final class GraphicRenderer: Renderer {
-    private weak var graphicView: GraphicView?
-    private var view: Graphic
-
-    init(view: Graphic) {
-        self.view = view
-    }
-
-    func update(from newView: any View) {
-        guard let graphic = newView as? Graphic, let graphicView else { return }
-        let old = view
-        view = graphic
-
-        // Source changed → reload document + redraw + relayout
-        let sourceChanged = !sourceEqual(old.source, graphic.source)
-        if sourceChanged {
-            applyDocument(to: graphicView)
-            graphicView.setNeedsDisplay()
-            graphicView.superview?.setNeedsLayout()
-        }
-
-        // Size changed → relayout + redraw
-        if old.size != graphic.size {
-            graphicView.graphicSize = graphic.size
-            graphicView.invalidateIntrinsicContentSize()
-            graphicView.setNeedsDisplay()
-            graphicView.superview?.setNeedsLayout()
-        }
-
-        // Color/overrides changed → redraw only
-        let colorChanged = old.color != graphic.color
-        if colorChanged {
-            graphicView.graphicColor = graphic.color
-            graphicView.cachedImage = nil
-            graphicView.setNeedsDisplay()
-        }
-
-        // Overrides — always apply (no Equatable)
-        graphicView.graphicOverrides = graphic.overrides
-        if !sourceChanged && !colorChanged {
-            graphicView.cachedImage = nil
-            graphicView.setNeedsDisplay()
-        }
-    }
-
-    func mount() -> PlatformView {
-        let gv = GraphicView()
-        self.graphicView = gv
-        applyDocument(to: gv)
-        gv.graphicColor = view.color
-        gv.graphicSize = view.size
-        gv.graphicOverrides = view.overrides
-        return gv
-    }
-
-    private func applyDocument(to gv: GraphicView) {
-        let doc: SVGDocument?
-        switch view.source {
-        case .string(let svg):
-            doc = SVGParser().parse(svg)
-        case .data(let data):
-            doc = SVGParser().parse(data)
-        case .asset(let name):
-            if let asset = NSDataAsset(name: name) {
-                doc = SVGParser().parse(asset.data)
-            } else if let url = Bundle.main.url(forResource: name, withExtension: "svg"),
-                      let data = try? Data(contentsOf: url) {
-                doc = SVGParser().parse(data)
-            } else {
-                doc = nil
-            }
-        case .file(let url):
-            doc = (try? Data(contentsOf: url)).flatMap { SVGParser().parse($0) }
-        case .url:
-            doc = nil
-        }
-        gv.document = doc
-        gv.cachedImage = nil
-        gv.invalidateIntrinsicContentSize()
-    }
-
-    private func sourceEqual(_ a: GraphicSource, _ b: GraphicSource) -> Bool {
-        switch (a, b) {
-        case (.string(let l), .string(let r)): return l == r
-        case (.data(let l), .data(let r)): return l == r
-        case (.asset(let l), .asset(let r)): return l == r
-        case (.file(let l), .file(let r)): return l == r
-        case (.url(let l), .url(let r)): return l == r
-        default: return false
-        }
-    }
-}
-
-// MARK: - GraphicView
-
-final class GraphicView: UIView {
-    var document: SVGDocument?
-    var graphicColor: Color?
-    var graphicSize: CGSize?
-    var graphicOverrides: [String: GraphicOverride] = [:]
-    var cachedImage: UIImage?
-    private var cachedBoundsSize: CGSize = .zero
-
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        isOpaque = false
-        contentMode = .redraw
-    }
-
-    required init?(coder: NSCoder) { fatalError() }
-
-    func setDocument(_ document: SVGDocument?, color: Color?, size: CGSize?, overrides: [String: GraphicOverride]) {
-        self.document = document
-        self.graphicColor = color
-        self.graphicSize = size
-        self.graphicOverrides = overrides
-        cachedImage = nil
-        setNeedsDisplay()
-        invalidateIntrinsicContentSize()
-    }
-
-    override func draw(_ rect: CGRect) {
-        guard let document else { return }
-
-        let size = bounds.size
-        if let cached = cachedImage, cachedBoundsSize == size {
-            cached.draw(in: bounds)
-            return
-        }
-
-        let painter = SVGPainter(document: document, overrides: graphicOverrides, globalColor: graphicColor)
-
-        let imgRenderer = UIGraphicsImageRenderer(size: size)
-        cachedImage = imgRenderer.image { imgCtx in
-            painter.paint(on: CGCanvas(imgCtx.cgContext))
-        }
-        cachedBoundsSize = size
-        cachedImage?.draw(in: bounds)
-    }
-
-    override var intrinsicContentSize: CGSize {
-        if let s = graphicSize { return s }
-        guard let document else { return CGSize(width: UIView.noIntrinsicMetric, height: UIView.noIntrinsicMetric) }
-        return document.viewBox.size
-    }
-}
-
-#else
-
-public struct Graphic: BuiltView {
-    public init() {}
-    public func build(context: ViewContext) -> any View { Text("TODO: Graphic") }
-}
-
-#endif

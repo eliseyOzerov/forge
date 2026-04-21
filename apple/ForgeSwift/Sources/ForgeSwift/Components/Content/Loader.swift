@@ -1,5 +1,27 @@
 import Foundation
 
+// MARK: - Loader
+
+public struct Loader: LeafView {
+    public let style: LoaderStyle
+    public let color: Color
+    public let size: Double
+
+    public init(_ style: LoaderStyle = .circular, color: Color = .blue, size: Double = 32) {
+        self.style = style
+        self.color = color
+        self.size = size
+    }
+
+    public func makeRenderer() -> Renderer {
+        #if canImport(UIKit)
+        return LoaderRenderer(view: self)
+        #else
+        fatalError("Loader not implemented on this platform")
+        #endif
+    }
+}
+
 // MARK: - LoaderStyle
 
 public enum LoaderStyle: Sendable {
@@ -53,27 +75,57 @@ public protocol LoaderPainter {
     func paint(on canvas: Canvas, progress t: Double, bounds: Rect, color: Color)
 }
 
-// MARK: - Loader
+// MARK: - UIKit Renderer
 
-public struct Loader: LeafView {
-    public let style: LoaderStyle
-    public let color: Color
-    public let size: Double
+#if canImport(UIKit)
+import UIKit
 
-    public init(_ style: LoaderStyle = .circular, color: Color = .blue, size: Double = 32) {
-        self.style = style
-        self.color = color
-        self.size = size
+final class LoaderRenderer: Renderer {
+    private weak var loaderView: LoaderView?
+    private var view: Loader
+
+    init(view: Loader) {
+        self.view = view
     }
 
-    public func makeRenderer() -> Renderer {
-        #if canImport(UIKit)
-        return LoaderRenderer(view: self)
-        #else
-        fatalError("Loader not implemented on this platform")
-        #endif
+    func update(from newView: any View) {
+        guard let loader = newView as? Loader, let loaderView else { return }
+        let old = view
+        view = loader
+
+        let sizeChanged = old.size != loader.size
+        if sizeChanged {
+            loaderView.loaderSize = loader.size
+            loaderView.invalidateIntrinsicContentSize()
+            loaderView.superview?.setNeedsLayout()
+        }
+
+        // LoaderStyle lacks Equatable — always apply painter + duration
+        loaderView.painter = loader.style.painter()
+        loaderView.duration = loader.style.duration
+
+        if old.color != loader.color {
+            loaderView.loaderColor = loader.color
+        }
+
+        loaderView.setNeedsDisplay()
+    }
+
+    func mount() -> PlatformView {
+        let lv = LoaderView()
+        self.loaderView = lv
+        lv.painter = view.style.painter()
+        lv.loaderColor = view.color
+        lv.loaderSize = view.size
+        lv.duration = view.style.duration
+        lv.isOpaque = false
+        lv.backgroundColor = .clear
+        lv.invalidateIntrinsicContentSize()
+        return lv
     }
 }
+
+#endif
 
 // MARK: - Painters
 
@@ -281,55 +333,9 @@ struct FadePainter: LoaderPainter {
     }
 }
 
-// MARK: - UIKit Renderer
+// MARK: - LoaderView
 
 #if canImport(UIKit)
-import UIKit
-
-final class LoaderRenderer: Renderer {
-    private weak var loaderView: LoaderView?
-    private var view: Loader
-
-    init(view: Loader) {
-        self.view = view
-    }
-
-    func update(from newView: any View) {
-        guard let loader = newView as? Loader, let loaderView else { return }
-        let old = view
-        view = loader
-
-        let sizeChanged = old.size != loader.size
-        if sizeChanged {
-            loaderView.loaderSize = loader.size
-            loaderView.invalidateIntrinsicContentSize()
-            loaderView.superview?.setNeedsLayout()
-        }
-
-        // LoaderStyle lacks Equatable — always apply painter + duration
-        loaderView.painter = loader.style.painter()
-        loaderView.duration = loader.style.duration
-
-        if old.color != loader.color {
-            loaderView.loaderColor = loader.color
-        }
-
-        loaderView.setNeedsDisplay()
-    }
-
-    func mount() -> PlatformView {
-        let lv = LoaderView()
-        self.loaderView = lv
-        lv.painter = view.style.painter()
-        lv.loaderColor = view.color
-        lv.loaderSize = view.size
-        lv.duration = view.style.duration
-        lv.isOpaque = false
-        lv.backgroundColor = .clear
-        lv.invalidateIntrinsicContentSize()
-        return lv
-    }
-}
 
 final class LoaderView: UIView {
     var painter: (any LoaderPainter) = CircularPainter()

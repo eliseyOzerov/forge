@@ -298,7 +298,7 @@ class BoxView: UIView {
             return
         }
 
-        let resolvedShape: AnyShape = shape ?? RectShape()
+        let resolvedShape: AnyShape = shape ?? RectShape().erased
         let viewRect = Rect(bounds)
         let path = resolvedShape.path(in: viewRect)
         let pathRect = path.boundingBox
@@ -459,7 +459,7 @@ class BoxView: UIView {
     /// Apply shape mask for clipping.
     private func applyShapeClip() {
         if clip {
-            let resolvedShape: AnyShape = shape ?? RectShape()
+            let resolvedShape: AnyShape = shape ?? RectShape().erased
             let maskLayer = CAShapeLayer()
             maskLayer.path = resolvedShape.path(in: Rect(bounds)).cgPath
             layer.mask = maskLayer

@@ -1,108 +1,5 @@
 import Foundation
 
-// MARK: - TrackStyle
-
-public struct TrackStyle {
-    public var inactive: BoxStyle
-    public var active: BoxStyle
-    public var mark: BoxStyle?
-    public var divisions: TrackDivisions?
-
-    public init(
-        inactive: BoxStyle = .frame(.fillWidth.height(.fix(4))).surface(.color(Color(0.85, 0.85, 0.85))).shape(.capsule()),
-        active: BoxStyle = .frame(.fillWidth.height(.fix(4))).surface(.color(Color(0.2, 0.5, 1.0))).shape(.capsule()),
-        mark: BoxStyle? = nil,
-        divisions: TrackDivisions? = nil
-    ) {
-        self.inactive = inactive; self.active = active
-        self.mark = mark; self.divisions = divisions
-    }
-}
-
-public struct TrackDivisions {
-    public var count: Int
-    public var magnetStrength: Double
-    public var label: DivisionLabelStyle?
-
-    public init(
-        count: Int = 5,
-        magnetStrength: Double = 0,
-        label: DivisionLabelStyle? = nil
-    ) {
-        self.count = count; self.magnetStrength = magnetStrength; self.label = label
-    }
-}
-
-public struct DivisionLabelStyle {
-    public var text: TextStyle
-    public var placement: Alignment
-    public var formatter: TextFormatter<Double>?
-    public var show: Mapper<Double, Bool>?
-
-    public init(
-        text: TextStyle = .font(.size(10)),
-        placement: Alignment = .bottomCenter,
-        formatter: TextFormatter<Double>? = nil,
-        show: Mapper<Double, Bool>? = nil
-    ) {
-        self.text = text; self.placement = placement
-        self.formatter = formatter; self.show = show
-    }
-}
-
-// MARK: - ThumbStyle
-
-public struct ThumbStyle {
-    public var box: BoxStyle
-    public var label: ThumbLabelStyle?
-
-    public init(
-        box: BoxStyle = .frame(.square(24)).surface(.color(.white).shadow(blur: 4)).shape(.circle()),
-        label: ThumbLabelStyle? = nil
-    ) {
-        self.box = box; self.label = label
-    }
-}
-
-public struct ThumbLabelStyle {
-    public var text: TextStyle
-    public var box: BoxStyle
-    public var visible: Bool
-    public var formatter: TextFormatter<Double>?
-
-    public init(
-        text: TextStyle = .font(.size(12).weight(600)).color(.white),
-        box: BoxStyle = .surface(.color(Color(0.2, 0.2, 0.2))).shape(.capsule()).padding(Padding(horizontal: 8, vertical: 4)),
-        visible: Bool = false,
-        formatter: TextFormatter<Double>? = nil
-    ) {
-        self.text = text; self.box = box; self.visible = visible; self.formatter = formatter
-    }
-}
-
-// MARK: - SliderStyle
-
-public struct SliderStyle {
-    public var track: StateProperty<TrackStyle>
-    public var thumb: StateProperty<ThumbStyle>
-    public var axis: Axis
-    public var origin: Alignment
-    public var haptic: HapticStyle
-    public var animation: Animation
-
-    public init(
-        track: StateProperty<TrackStyle> = .constant(TrackStyle()),
-        thumb: StateProperty<ThumbStyle> = .constant(ThumbStyle()),
-        axis: Axis = .horizontal,
-        origin: Alignment = .centerLeft,
-        haptic: HapticStyle = .light,
-        animation: Animation = Animation(duration: 0.2, curve: .easeOut)
-    ) {
-        self.track = track; self.thumb = thumb; self.axis = axis
-        self.origin = origin; self.haptic = haptic; self.animation = animation
-    }
-}
-
 // MARK: - Slider
 
 #if canImport(UIKit)
@@ -425,6 +322,107 @@ final class SliderView: UIView {
 }
 
 #endif
+
+// MARK: - SliderStyle
+
+public struct SliderStyle {
+    public var track: StateProperty<TrackStyle>
+    public var thumb: StateProperty<ThumbStyle>
+    public var axis: Axis
+    public var origin: Alignment
+    public var haptic: HapticStyle
+    public var animation: Animation
+
+    public init(
+        track: StateProperty<TrackStyle> = .constant(TrackStyle()),
+        thumb: StateProperty<ThumbStyle> = .constant(ThumbStyle()),
+        axis: Axis = .horizontal,
+        origin: Alignment = .centerLeft,
+        haptic: HapticStyle = .light,
+        animation: Animation = Animation(duration: 0.2, curve: .easeOut)
+    ) {
+        self.track = track; self.thumb = thumb; self.axis = axis
+        self.origin = origin; self.haptic = haptic; self.animation = animation
+    }
+}
+
+// MARK: - TrackStyle
+
+public struct TrackStyle {
+    public var inactive: BoxStyle
+    public var active: BoxStyle
+    public var mark: BoxStyle?
+    public var divisions: TrackDivisions?
+
+    public init(
+        inactive: BoxStyle = .frame(.fillWidth.height(.fix(4))).surface(.color(Color(0.85, 0.85, 0.85))).shape(.capsule()),
+        active: BoxStyle = .frame(.fillWidth.height(.fix(4))).surface(.color(Color(0.2, 0.5, 1.0))).shape(.capsule()),
+        mark: BoxStyle? = nil,
+        divisions: TrackDivisions? = nil
+    ) {
+        self.inactive = inactive; self.active = active
+        self.mark = mark; self.divisions = divisions
+    }
+}
+
+public struct ThumbStyle {
+    public var box: BoxStyle
+    public var label: ThumbLabelStyle?
+
+    public init(
+        box: BoxStyle = .frame(.square(24)).surface(.color(.white).shadow(blur: 4)).shape(.circle()),
+        label: ThumbLabelStyle? = nil
+    ) {
+        self.box = box; self.label = label
+    }
+}
+
+public struct TrackDivisions {
+    public var count: Int
+    public var magnetStrength: Double
+    public var label: DivisionLabelStyle?
+
+    public init(
+        count: Int = 5,
+        magnetStrength: Double = 0,
+        label: DivisionLabelStyle? = nil
+    ) {
+        self.count = count; self.magnetStrength = magnetStrength; self.label = label
+    }
+}
+
+public struct DivisionLabelStyle {
+    public var text: TextStyle
+    public var placement: Alignment
+    public var formatter: TextFormatter<Double>?
+    public var show: Mapper<Double, Bool>?
+
+    public init(
+        text: TextStyle = .font(.size(10)),
+        placement: Alignment = .bottomCenter,
+        formatter: TextFormatter<Double>? = nil,
+        show: Mapper<Double, Bool>? = nil
+    ) {
+        self.text = text; self.placement = placement
+        self.formatter = formatter; self.show = show
+    }
+}
+
+public struct ThumbLabelStyle {
+    public var text: TextStyle
+    public var box: BoxStyle
+    public var visible: Bool
+    public var formatter: TextFormatter<Double>?
+
+    public init(
+        text: TextStyle = .font(.size(12).weight(600)).color(.white),
+        box: BoxStyle = .surface(.color(Color(0.2, 0.2, 0.2))).shape(.capsule()).padding(Padding(horizontal: 8, vertical: 4)),
+        visible: Bool = false,
+        formatter: TextFormatter<Double>? = nil
+    ) {
+        self.text = text; self.box = box; self.visible = visible; self.formatter = formatter
+    }
+}
 
 // MARK: - SliderRole
 

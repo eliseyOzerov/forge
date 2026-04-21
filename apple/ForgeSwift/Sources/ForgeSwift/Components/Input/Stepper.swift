@@ -1,97 +1,9 @@
 import Foundation
 
-// MARK: - Config Types
-
-public struct LongPressConfig {
-    public var delay: Double
-    public var interval: Double
-    public var acceleration: Double
-
-    public init(delay: Double = 0.5, interval: Double = 0.15, acceleration: Double = 0.9) {
-        self.delay = delay; self.interval = interval; self.acceleration = acceleration
-    }
-
-    nonisolated(unsafe) public static let `default` = LongPressConfig()
-}
-
-public struct StepperDragConfig {
-    public var sensitivity: Double
-    public var axis: Axis
-    public var enabled: Bool
-
-    public init(sensitivity: Double = 10, axis: Axis = .vertical, enabled: Bool = true) {
-        self.sensitivity = sensitivity; self.axis = axis; self.enabled = enabled
-    }
-
-    nonisolated(unsafe) public static let `default` = StepperDragConfig()
-}
-
-public enum TransitionDirection { case up, down, fade }
-
-public struct ValueTransition {
-    public var animation: Animation
-    public var direction: TransitionDirection
-
-    public init(animation: Animation = .fast, direction: TransitionDirection = .up) {
-        self.animation = animation; self.direction = direction
-    }
-
-    nonisolated(unsafe) public static let `default` = ValueTransition()
-}
-
-// MARK: - StepperStyle
-
-/// Configuration for a stepper +/- button: its visual style and optional custom content.
-public struct StepperButton {
-    public var style: ButtonStyle
-    public var view: (any View)?
-
-    public init(
-        style: ButtonStyle = .box(.frame(.square(36)).surface(.color(Color(0.9, 0.9, 0.9))).shape(.roundedRect(radius: 6))).textStyle(.font(.size(18).weight(600))),
-        view: (any View)? = nil
-    ) {
-        self.style = style; self.view = view
-    }
-}
-
-public struct StepperStyle<T> {
-    public var container: BoxStyle
-    public var field: BoxStyle
-    public var decrement: StepperButton
-    public var increment: StepperButton
-    public var text: TextStyle
-    public var spacing: Double
-    public var formatter: TextFormatter<T>?
-    public var longPress: LongPressConfig
-    public var drag: StepperDragConfig
-    public var haptic: HapticStyle
-    public var transition: ValueTransition
-
-    public init(
-        container: BoxStyle = .padding(.zero),
-        field: BoxStyle = .surface(.color(Color(0.95, 0.95, 0.95))).shape(.roundedRect(radius: 6)).padding(Padding(horizontal: 8, vertical: 4)),
-        decrement: StepperButton = StepperButton(),
-        increment: StepperButton = StepperButton(),
-        text: TextStyle = .font(.size(16)).align(.center),
-        spacing: Double = 4,
-        formatter: TextFormatter<T>? = nil,
-        longPress: LongPressConfig = .default,
-        drag: StepperDragConfig = .default,
-        haptic: HapticStyle = .light,
-        transition: ValueTransition = .default
-    ) {
-        self.container = container; self.field = field
-        self.decrement = decrement; self.increment = increment
-        self.text = text; self.spacing = spacing; self.formatter = formatter
-        self.longPress = longPress; self.drag = drag
-        self.haptic = haptic; self.transition = transition
-    }
-}
+// MARK: - Stepper
 
 #if canImport(UIKit)
 import UIKit
-
-// MARK: - Stepper
 
 public struct Stepper<T: Numeric & Comparable & LosslessStringConvertible>: ModelView {
     public let value: Binding<T>
@@ -450,3 +362,91 @@ final class StepperFieldView<T: Numeric & Comparable & LosslessStringConvertible
 }
 
 #endif
+
+// MARK: - StepperStyle
+
+public struct StepperStyle<T> {
+    public var container: BoxStyle
+    public var field: BoxStyle
+    public var decrement: StepperButton
+    public var increment: StepperButton
+    public var text: TextStyle
+    public var spacing: Double
+    public var formatter: TextFormatter<T>?
+    public var longPress: LongPressConfig
+    public var drag: StepperDragConfig
+    public var haptic: HapticStyle
+    public var transition: ValueTransition
+
+    public init(
+        container: BoxStyle = .padding(.zero),
+        field: BoxStyle = .surface(.color(Color(0.95, 0.95, 0.95))).shape(.roundedRect(radius: 6)).padding(Padding(horizontal: 8, vertical: 4)),
+        decrement: StepperButton = StepperButton(),
+        increment: StepperButton = StepperButton(),
+        text: TextStyle = .font(.size(16)).align(.center),
+        spacing: Double = 4,
+        formatter: TextFormatter<T>? = nil,
+        longPress: LongPressConfig = .default,
+        drag: StepperDragConfig = .default,
+        haptic: HapticStyle = .light,
+        transition: ValueTransition = .default
+    ) {
+        self.container = container; self.field = field
+        self.decrement = decrement; self.increment = increment
+        self.text = text; self.spacing = spacing; self.formatter = formatter
+        self.longPress = longPress; self.drag = drag
+        self.haptic = haptic; self.transition = transition
+    }
+}
+
+/// Configuration for a stepper +/- button: its visual style and optional custom content.
+public struct StepperButton {
+    public var style: ButtonStyle
+    public var view: (any View)?
+
+    public init(
+        style: ButtonStyle = .box(.frame(.square(36)).surface(.color(Color(0.9, 0.9, 0.9))).shape(.roundedRect(radius: 6))).textStyle(.font(.size(18).weight(600))),
+        view: (any View)? = nil
+    ) {
+        self.style = style; self.view = view
+    }
+}
+
+// MARK: - Config Types
+
+public struct LongPressConfig {
+    public var delay: Double
+    public var interval: Double
+    public var acceleration: Double
+
+    public init(delay: Double = 0.5, interval: Double = 0.15, acceleration: Double = 0.9) {
+        self.delay = delay; self.interval = interval; self.acceleration = acceleration
+    }
+
+    nonisolated(unsafe) public static let `default` = LongPressConfig()
+}
+
+public struct StepperDragConfig {
+    public var sensitivity: Double
+    public var axis: Axis
+    public var enabled: Bool
+
+    public init(sensitivity: Double = 10, axis: Axis = .vertical, enabled: Bool = true) {
+        self.sensitivity = sensitivity; self.axis = axis; self.enabled = enabled
+    }
+
+    nonisolated(unsafe) public static let `default` = StepperDragConfig()
+}
+
+public struct ValueTransition {
+    public var animation: Animation
+    public var direction: TransitionDirection
+
+    public init(animation: Animation = .fast, direction: TransitionDirection = .up) {
+        self.animation = animation; self.direction = direction
+    }
+
+    nonisolated(unsafe) public static let `default` = ValueTransition()
+}
+
+public enum TransitionDirection { case up, down, fade }

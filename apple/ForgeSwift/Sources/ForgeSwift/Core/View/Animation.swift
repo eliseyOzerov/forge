@@ -1,51 +1,32 @@
 import Foundation
 import QuartzCore
 
-// MARK: - Lerpable
+// MARK: - Animation
 
-/// A type that can be linearly interpolated between two values.
-/// `t` ranges from 0 (self) to 1 (other).
-public protocol Lerpable {
-    func lerp(to other: Self, t: Double) -> Self
-}
+/// Duration + delay + curve for a single animated transition.
+public struct Animation: Equatable {
+    public var duration: Double
+    public var delay: Double
+    public var curve: Curve
 
-extension Double: Lerpable {
-    public func lerp(to other: Double, t: Double) -> Double {
-        self + (other - self) * t
+    public static func ==(lhs: Animation, rhs: Animation) -> Bool {
+        lhs.duration == rhs.duration && lhs.delay == rhs.delay && lhs.curve.id == rhs.curve.id
     }
-}
 
-extension Float: Lerpable {
-    public func lerp(to other: Float, t: Double) -> Float {
-        self + (other - self) * Float(t)
+    public init(duration: Double = 0.2, delay: Double = 0, curve: Curve = .easeInOut) {
+        self.duration = duration
+        self.delay = delay
+        self.curve = curve
     }
-}
 
-extension Int: Lerpable {
-    public func lerp(to other: Int, t: Double) -> Int {
-        Int(Double(self) + Double(other - self) * t)
-    }
-}
+    nonisolated(unsafe) public static let `default` = Animation()
+    nonisolated(unsafe) public static let fast = Animation(duration: 0.1)
+    nonisolated(unsafe) public static let slow = Animation(duration: 0.4)
+    nonisolated(unsafe) public static let none = Animation(duration: 0)
 
-/// Lerp two optional Lerpable values. If both present, lerp. Otherwise snap.
-public func lerpOptional<T: Lerpable>(_ a: T?, _ b: T?, t: Double) -> T? {
-    guard let a, let b else { return t < 0.5 ? a : b }
-    return a.lerp(to: b, t: t)
-}
-
-// MARK: - Mergeable
-
-/// A type whose instances can be merged, with `self`'s non-nil fields
-/// winning and `other`'s filling the gaps.
-/// `explicit.merge(theme).merge(defaults)` — left to right, highest priority first.
-public protocol Mergeable {
-    func merge(_ other: Self) -> Self
-}
-
-public extension Mergeable {
-    func merge(_ other: Self?) -> Self {
-        guard let other else { return self }
-        return merge(other)
+    /// Apply the curve to a linear t value (clamped to 0...1).
+    public func apply(_ t: Double) -> Double {
+        curve(min(max(t, 0), 1))
     }
 }
 
@@ -155,35 +136,6 @@ private func cubicBezierSample(_ t: Double, a: Double, b: Double) -> Double {
 private func cubicBezierSlope(_ t: Double, a: Double, b: Double) -> Double {
     let t2 = t * t
     return 3 * a * (1 - t) * (1 - t) - 6 * a * t * (1 - t) + 6 * b * t * (1 - t) - 3 * b * t2 + 3 * t2
-}
-
-// MARK: - Animation
-
-/// Duration + delay + curve for a single animated transition.
-public struct Animation: Equatable {
-    public var duration: Double
-    public var delay: Double
-    public var curve: Curve
-
-    public static func ==(lhs: Animation, rhs: Animation) -> Bool {
-        lhs.duration == rhs.duration && lhs.delay == rhs.delay && lhs.curve.id == rhs.curve.id
-    }
-
-    public init(duration: Double = 0.2, delay: Double = 0, curve: Curve = .easeInOut) {
-        self.duration = duration
-        self.delay = delay
-        self.curve = curve
-    }
-
-    nonisolated(unsafe) public static let `default` = Animation()
-    nonisolated(unsafe) public static let fast = Animation(duration: 0.1)
-    nonisolated(unsafe) public static let slow = Animation(duration: 0.4)
-    nonisolated(unsafe) public static let none = Animation(duration: 0)
-
-    /// Apply the curve to a linear t value (clamped to 0...1).
-    public func apply(_ t: Double) -> Double {
-        curve(min(max(t, 0), 1))
-    }
 }
 
 // MARK: - Track
@@ -498,4 +450,52 @@ public final class MotionDriver: Observable<Double> {
     private func startTicker() {}
     private func stopTicker() {}
     #endif
+}
+
+// MARK: - Lerpable
+
+/// A type that can be linearly interpolated between two values.
+/// `t` ranges from 0 (self) to 1 (other).
+public protocol Lerpable {
+    func lerp(to other: Self, t: Double) -> Self
+}
+
+extension Double: Lerpable {
+    public func lerp(to other: Double, t: Double) -> Double {
+        self + (other - self) * t
+    }
+}
+
+extension Float: Lerpable {
+    public func lerp(to other: Float, t: Double) -> Float {
+        self + (other - self) * Float(t)
+    }
+}
+
+extension Int: Lerpable {
+    public func lerp(to other: Int, t: Double) -> Int {
+        Int(Double(self) + Double(other - self) * t)
+    }
+}
+
+/// Lerp two optional Lerpable values. If both present, lerp. Otherwise snap.
+public func lerpOptional<T: Lerpable>(_ a: T?, _ b: T?, t: Double) -> T? {
+    guard let a, let b else { return t < 0.5 ? a : b }
+    return a.lerp(to: b, t: t)
+}
+
+// MARK: - Mergeable
+
+/// A type whose instances can be merged, with `self`'s non-nil fields
+/// winning and `other`'s filling the gaps.
+/// `explicit.merge(theme).merge(defaults)` — left to right, highest priority first.
+public protocol Mergeable {
+    func merge(_ other: Self) -> Self
+}
+
+public extension Mergeable {
+    func merge(_ other: Self?) -> Self {
+        guard let other else { return self }
+        return merge(other)
+    }
 }

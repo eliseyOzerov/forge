@@ -1,80 +1,5 @@
 import Foundation
 
-// MARK: - ButtonStyle
-
-@Init @Copy @Lerp
-public struct ButtonStyle: Equatable {
-    public var box: BoxStyle = BoxStyle()
-    public var textStyle: TextStyle = TextStyle()
-    @Snap public var haptic: HapticStyle = .light
-    @Snap public var animation: Animation? = .default
-}
-
-// MARK: - ButtonRole
-
-public struct ButtonRole: NamedKey {
-    public let name: String
-    public init(_ name: String) { self.name = name }
-}
-
-public extension ButtonRole {
-    static let primary    = ButtonRole("primary")
-    static let secondary  = ButtonRole("secondary")
-    static let tertiary   = ButtonRole("tertiary")
-    static let quaternary = ButtonRole("quaternary")
-
-    static let defaultChain: [ButtonRole] = [.primary, .secondary, .tertiary, .quaternary]
-}
-
-// MARK: - ButtonTheme
-
-public struct ButtonTheme: Copyable {
-    public var styles: [ButtonRole: ButtonStyle]
-    public var chain: [ButtonRole]
-
-    public init(_ styles: [ButtonRole: ButtonStyle], chain: [ButtonRole] = ButtonRole.defaultChain) {
-        self.styles = styles
-        self.chain = chain
-    }
-
-    public init(_ priority: PriorityTokens<ButtonStyle>) {
-        var map: [ButtonRole: ButtonStyle] = [:]
-        for (level, style) in priority.values {
-            map[ButtonRole(level.name)] = style
-        }
-        self.init(map)
-    }
-
-    public init(
-        primary: ButtonStyle,
-        secondary: ButtonStyle? = nil,
-        tertiary: ButtonStyle? = nil,
-        quaternary: ButtonStyle? = nil
-    ) {
-        self.init(PriorityTokens(
-            primary: primary, secondary: secondary,
-            tertiary: tertiary, quaternary: quaternary
-        ))
-    }
-
-    public subscript(_ role: ButtonRole) -> ButtonStyle {
-        styles.cascade(role, chain: chain) ?? ButtonStyle()
-    }
-
-    public var primary:    ButtonStyle { self[.primary] }
-    public var secondary:  ButtonStyle { self[.secondary] }
-    public var tertiary:   ButtonStyle { self[.tertiary] }
-    public var quaternary: ButtonStyle { self[.quaternary] }
-
-    public static func standard() -> ButtonTheme {
-        ButtonTheme(primary: ButtonStyle())
-    }
-}
-
-public extension ThemeSlot where T == ButtonTheme {
-    static var button: ThemeSlot<ButtonTheme> { .init(ButtonTheme.self) }
-}
-
 // MARK: - Button
 
 /// A tappable component. Wraps a single child view in an interactive
@@ -142,6 +67,16 @@ public extension Button {
         copy.style = StateProperty { state in build(ButtonStyle(), state) }
         return copy
     }
+}
+
+// MARK: - ButtonStyle
+
+@Init @Copy @Lerp
+public struct ButtonStyle: Equatable {
+    public var box: BoxStyle = BoxStyle()
+    public var textStyle: TextStyle = TextStyle()
+    @Snap public var haptic: HapticStyle = .light
+    @Snap public var animation: Animation? = .default
 }
 
 // MARK: - Model
@@ -247,6 +182,71 @@ public final class ButtonBuilder: ViewBuilder<ButtonModel> {
         }
         #endif
     }
+}
+
+// MARK: - ButtonRole
+
+public struct ButtonRole: NamedKey {
+    public let name: String
+    public init(_ name: String) { self.name = name }
+}
+
+public extension ButtonRole {
+    static let primary    = ButtonRole("primary")
+    static let secondary  = ButtonRole("secondary")
+    static let tertiary   = ButtonRole("tertiary")
+    static let quaternary = ButtonRole("quaternary")
+
+    static let defaultChain: [ButtonRole] = [.primary, .secondary, .tertiary, .quaternary]
+}
+
+// MARK: - ButtonTheme
+
+public struct ButtonTheme: Copyable {
+    public var styles: [ButtonRole: ButtonStyle]
+    public var chain: [ButtonRole]
+
+    public init(_ styles: [ButtonRole: ButtonStyle], chain: [ButtonRole] = ButtonRole.defaultChain) {
+        self.styles = styles
+        self.chain = chain
+    }
+
+    public init(_ priority: PriorityTokens<ButtonStyle>) {
+        var map: [ButtonRole: ButtonStyle] = [:]
+        for (level, style) in priority.values {
+            map[ButtonRole(level.name)] = style
+        }
+        self.init(map)
+    }
+
+    public init(
+        primary: ButtonStyle,
+        secondary: ButtonStyle? = nil,
+        tertiary: ButtonStyle? = nil,
+        quaternary: ButtonStyle? = nil
+    ) {
+        self.init(PriorityTokens(
+            primary: primary, secondary: secondary,
+            tertiary: tertiary, quaternary: quaternary
+        ))
+    }
+
+    public subscript(_ role: ButtonRole) -> ButtonStyle {
+        styles.cascade(role, chain: chain) ?? ButtonStyle()
+    }
+
+    public var primary:    ButtonStyle { self[.primary] }
+    public var secondary:  ButtonStyle { self[.secondary] }
+    public var tertiary:   ButtonStyle { self[.tertiary] }
+    public var quaternary: ButtonStyle { self[.quaternary] }
+
+    public static func standard() -> ButtonTheme {
+        ButtonTheme(primary: ButtonStyle())
+    }
+}
+
+public extension ThemeSlot where T == ButtonTheme {
+    static var button: ThemeSlot<ButtonTheme> { .init(ButtonTheme.self) }
 }
 
 #if canImport(UIKit)

@@ -1,23 +1,3 @@
-// MARK: - IconStyle
-
-@Init @Copy
-public struct IconStyle {
-    public var size: Double = 24
-    @Snap public var weight: IconWeight = .regular
-    public var color: Color? = nil
-    @Snap public var renderingMode: IconRenderingMode = .template
-}
-
-public enum IconWeight: Sendable {
-    case ultraLight, thin, light, regular, medium, semibold, bold, heavy, black
-}
-
-public enum IconRenderingMode: Sendable {
-    case template, original, hierarchical, palette
-
-    var isTemplate: Bool { self == .template }
-}
-
 // MARK: - Icon
 
 public struct Icon: LeafView {
@@ -43,6 +23,26 @@ public struct Icon: LeafView {
         fatalError("Icon not yet implemented for this platform")
         #endif
     }
+}
+
+// MARK: - IconStyle
+
+@Init @Copy
+public struct IconStyle {
+    public var size: Double = 24
+    @Snap public var weight: IconWeight = .regular
+    public var color: Color? = nil
+    @Snap public var renderingMode: IconRenderingMode = .template
+}
+
+public enum IconWeight: Sendable {
+    case ultraLight, thin, light, regular, medium, semibold, bold, heavy, black
+}
+
+public enum IconRenderingMode: Sendable {
+    case template, original, hierarchical, palette
+
+    var isTemplate: Bool { self == .template }
 }
 
 // MARK: - IconRole

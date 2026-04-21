@@ -1,5 +1,103 @@
 import Foundation
 
+// MARK: - NavigationBar
+
+/// Full navigation bar component. Composes NavBarContentRow inside a
+/// styled Box with optional bottom accessory. The bar handles its own
+/// height, surface, padding, and safe area insets.
+///
+///     NavigationBar(
+///         main: Text("Home"),
+///         trailing: Button(onTap: { ... }) { Icon("plus") },
+///         surface: .color(.systemBackground)
+///     )
+///
+/// The `bottom` slot sits below the main content row (search bars,
+/// segmented controls, etc.). The surface can cover just the content
+/// row or extend to include the bottom via `includeBottomInSurface`.
+public struct NavigationBar: BuiltView {
+    public let leading: (any View)?
+    public let main: (any View)?
+    public let trailing: (any View)?
+    public let bottom: (any View)?
+    public let alignment: Alignment
+    public let centerMode: NavBarCenterMode
+    public let height: Double
+    public let padding: Padding
+    public let surface: Surface?
+    public let hidden: Bool
+    public let includeBottomInSurface: Bool
+
+    public init(
+        leading: (any View)? = nil,
+        main: (any View)? = nil,
+        trailing: (any View)? = nil,
+        bottom: (any View)? = nil,
+        alignment: Alignment = .center,
+        centerMode: NavBarCenterMode = .absolute,
+        height: Double = 44,
+        padding: Padding = .zero,
+        surface: Surface? = nil,
+        hidden: Bool = false,
+        includeBottomInSurface: Bool = false
+    ) {
+        self.leading = leading
+        self.main = main
+        self.trailing = trailing
+        self.bottom = bottom
+        self.alignment = alignment
+        self.centerMode = centerMode
+        self.height = height
+        self.padding = padding
+        self.surface = surface
+        self.hidden = hidden
+        self.includeBottomInSurface = includeBottomInSurface
+    }
+
+    public func build(context: ViewContext) -> any View {
+        if hidden { return EmptyView() }
+
+        let row = NavBarContentRow(
+            leading: leading,
+            main: main,
+            trailing: trailing,
+            alignment: alignment,
+            centerMode: centerMode
+        )
+
+        let contentRow = Box(
+            .frame(.height(.fix(height))).padding(padding)
+        ) { row }
+
+        #if canImport(UIKit)
+        // SafeArea top inset pushes content below the status bar.
+        // The surface extends edge-to-edge behind the status bar.
+        var body: any View = SafeArea(edges: .top) { contentRow }
+        #else
+        var body: any View = contentRow
+        #endif
+
+        if !includeBottomInSurface, let surface {
+            body = Box(surface: surface) { body }
+        }
+
+        #if canImport(UIKit)
+        if let bottom {
+            body = Column {
+                body
+                bottom
+            }
+        }
+        #endif
+
+        if includeBottomInSurface, let surface {
+            return Box(surface: surface) { body }
+        }
+
+        return body
+    }
+}
+
 // MARK: - NavigationItem
 
 /// Per-screen navigation-bar configuration, declared by the hosted
@@ -317,101 +415,3 @@ final class NavBarContentRowView: UIView {
     }
 }
 #endif
-
-// MARK: - NavigationBar
-
-/// Full navigation bar component. Composes NavBarContentRow inside a
-/// styled Box with optional bottom accessory. The bar handles its own
-/// height, surface, padding, and safe area insets.
-///
-///     NavigationBar(
-///         main: Text("Home"),
-///         trailing: Button(onTap: { ... }) { Icon("plus") },
-///         surface: .color(.systemBackground)
-///     )
-///
-/// The `bottom` slot sits below the main content row (search bars,
-/// segmented controls, etc.). The surface can cover just the content
-/// row or extend to include the bottom via `includeBottomInSurface`.
-public struct NavigationBar: BuiltView {
-    public let leading: (any View)?
-    public let main: (any View)?
-    public let trailing: (any View)?
-    public let bottom: (any View)?
-    public let alignment: Alignment
-    public let centerMode: NavBarCenterMode
-    public let height: Double
-    public let padding: Padding
-    public let surface: Surface?
-    public let hidden: Bool
-    public let includeBottomInSurface: Bool
-
-    public init(
-        leading: (any View)? = nil,
-        main: (any View)? = nil,
-        trailing: (any View)? = nil,
-        bottom: (any View)? = nil,
-        alignment: Alignment = .center,
-        centerMode: NavBarCenterMode = .absolute,
-        height: Double = 44,
-        padding: Padding = .zero,
-        surface: Surface? = nil,
-        hidden: Bool = false,
-        includeBottomInSurface: Bool = false
-    ) {
-        self.leading = leading
-        self.main = main
-        self.trailing = trailing
-        self.bottom = bottom
-        self.alignment = alignment
-        self.centerMode = centerMode
-        self.height = height
-        self.padding = padding
-        self.surface = surface
-        self.hidden = hidden
-        self.includeBottomInSurface = includeBottomInSurface
-    }
-
-    public func build(context: ViewContext) -> any View {
-        if hidden { return EmptyView() }
-
-        let row = NavBarContentRow(
-            leading: leading,
-            main: main,
-            trailing: trailing,
-            alignment: alignment,
-            centerMode: centerMode
-        )
-
-        let contentRow = Box(
-            .frame(.height(.fix(height))).padding(padding)
-        ) { row }
-
-        #if canImport(UIKit)
-        // SafeArea top inset pushes content below the status bar.
-        // The surface extends edge-to-edge behind the status bar.
-        var body: any View = SafeArea(edges: .top) { contentRow }
-        #else
-        var body: any View = contentRow
-        #endif
-
-        if !includeBottomInSurface, let surface {
-            body = Box(surface: surface) { body }
-        }
-
-        #if canImport(UIKit)
-        if let bottom {
-            body = Column {
-                body
-                bottom
-            }
-        }
-        #endif
-
-        if includeBottomInSurface, let surface {
-            return Box(surface: surface) { body }
-        }
-
-        return body
-    }
-}

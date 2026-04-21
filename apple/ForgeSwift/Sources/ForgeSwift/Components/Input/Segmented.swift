@@ -1,6 +1,33 @@
 #if canImport(UIKit)
 import UIKit
 
+// MARK: - Segmented
+
+public struct Segmented<T: Hashable>: ModelView {
+    public let value: Binding<T>
+    public let items: [T]
+    public let states: State
+    public let label: String?
+    public let style: StateProperty<SegmentedStyle<T>>
+
+    public init(
+        value: Binding<T>,
+        items: [T],
+        states: State = .idle,
+        label: String? = nil,
+        style: StateProperty<SegmentedStyle<T>> = .constant(SegmentedStyle<T>())
+    ) {
+        self.value = value
+        self.items = items
+        self.states = states
+        self.label = label
+        self.style = style
+    }
+
+    public func model(context: ViewContext) -> SegmentedModel<T> { SegmentedModel(context: context) }
+    public func builder(model: SegmentedModel<T>) -> SegmentedBuilder<T> { SegmentedBuilder(model: model) }
+}
+
 // MARK: - SegmentedStyle
 
 public struct SegmentedStyle<T> {
@@ -44,33 +71,6 @@ public struct SegmentedStyle<T> {
         self.haptic = haptic
         self.dragEnabled = dragEnabled
     }
-}
-
-// MARK: - Segmented
-
-public struct Segmented<T: Hashable>: ModelView {
-    public let value: Binding<T>
-    public let items: [T]
-    public let states: State
-    public let label: String?
-    public let style: StateProperty<SegmentedStyle<T>>
-
-    public init(
-        value: Binding<T>,
-        items: [T],
-        states: State = .idle,
-        label: String? = nil,
-        style: StateProperty<SegmentedStyle<T>> = .constant(SegmentedStyle<T>())
-    ) {
-        self.value = value
-        self.items = items
-        self.states = states
-        self.label = label
-        self.style = style
-    }
-
-    public func model(context: ViewContext) -> SegmentedModel<T> { SegmentedModel(context: context) }
-    public func builder(model: SegmentedModel<T>) -> SegmentedBuilder<T> { SegmentedBuilder(model: model) }
 }
 
 // MARK: - Model

@@ -2,13 +2,28 @@
 import UIKit
 import Foundation
 
-// MARK: - TogglePainter
+// MARK: - Toggle
 
-/// Draws a toggle's visual state onto a Canvas.
-/// Receives State (.selected = on, .pressed = finger down) and the
-/// curved animation progress (0 = off, 1 = on).
-public protocol TogglePainter {
-    func paint(on canvas: Canvas, bounds: Rect, state: State, progress: Double)
+public struct Toggle: ModelView {
+    public let value: Binding<Bool>
+    public let style: StateProperty<ToggleStyle>
+    public let states: State
+    public let label: String?
+
+    public init(
+        value: Binding<Bool>,
+        style: StateProperty<ToggleStyle> = .constant(ToggleStyle()),
+        states: State = .idle,
+        label: String? = nil
+    ) {
+        self.value = value
+        self.style = style
+        self.states = states
+        self.label = label
+    }
+
+    public func model(context: ViewContext) -> ToggleModel { ToggleModel(context: context) }
+    public func builder(model: ToggleModel) -> ToggleBuilder { ToggleBuilder(model: model) }
 }
 
 // MARK: - ToggleStyle
@@ -32,28 +47,13 @@ public struct ToggleStyle {
     }
 }
 
-// MARK: - Toggle
+// MARK: - TogglePainter
 
-public struct Toggle: ModelView {
-    public let value: Binding<Bool>
-    public let style: StateProperty<ToggleStyle>
-    public let states: State
-    public let label: String?
-
-    public init(
-        value: Binding<Bool>,
-        style: StateProperty<ToggleStyle> = .constant(ToggleStyle()),
-        states: State = .idle,
-        label: String? = nil
-    ) {
-        self.value = value
-        self.style = style
-        self.states = states
-        self.label = label
-    }
-
-    public func model(context: ViewContext) -> ToggleModel { ToggleModel(context: context) }
-    public func builder(model: ToggleModel) -> ToggleBuilder { ToggleBuilder(model: model) }
+/// Draws a toggle's visual state onto a Canvas.
+/// Receives State (.selected = on, .pressed = finger down) and the
+/// curved animation progress (0 = off, 1 = on).
+public protocol TogglePainter {
+    func paint(on canvas: Canvas, bounds: Rect, state: State, progress: Double)
 }
 
 // MARK: - Model

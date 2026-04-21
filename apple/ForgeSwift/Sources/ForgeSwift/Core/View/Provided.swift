@@ -15,22 +15,6 @@
 //  on the next build pass, same as Node.watch(observable).
 //
 
-// MARK: - Slot
-
-/// Type-erased base so Node can store mixed-T slots in one dict.
-@MainActor public protocol AnyProvidedSlot: AnyObject {}
-
-/// Per-provider storage cell. The Observable wrapper is what makes
-/// "the provider replaced its value" reactive — consumers subscribe
-/// to it via Node.watch, so a slot write fires consumer rebuilds.
-@MainActor public final class ProvidedSlot<T>: AnyProvidedSlot {
-    public let observable: Observable<T>
-
-    public init(_ value: T) {
-        self.observable = Observable(value)
-    }
-}
-
 // MARK: - Provided
 
 /// A view that injects one or more values into its subtree.
@@ -70,6 +54,22 @@ public struct Provided<each T>: BuiltView {
         return child
     }
 }
+
+// MARK: - Slot
+
+/// Per-provider storage cell. The Observable wrapper is what makes
+/// "the provider replaced its value" reactive — consumers subscribe
+/// to it via Node.watch, so a slot write fires consumer rebuilds.
+@MainActor public final class ProvidedSlot<T>: AnyProvidedSlot {
+    public let observable: Observable<T>
+
+    public init(_ value: T) {
+        self.observable = Observable(value)
+    }
+}
+
+/// Type-erased base so Node can store mixed-T slots in one dict.
+@MainActor public protocol AnyProvidedSlot: AnyObject {}
 
 // The ViewContext Provided-slot lookup methods live on Node itself
 // (see `Node+ViewContext.swift` — or an extension inside Node.swift

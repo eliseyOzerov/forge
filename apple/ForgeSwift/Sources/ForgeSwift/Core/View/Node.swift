@@ -33,43 +33,6 @@ import UIKit
 import AppKit
 #endif
 
-/// Transparent wrapper view used by BuiltNode and ModelNode.
-/// Delegates sizing to its single child and pins that child to fill.
-#if canImport(UIKit)
-class PassthroughView: UIView {
-    override func sizeThatFits(_ size: CGSize) -> CGSize {
-        subviews.first?.sizeThatFits(size) ?? .zero
-    }
-
-    override var intrinsicContentSize: CGSize {
-        subviews.first?.intrinsicContentSize ?? CGSize(width: UIView.noIntrinsicMetric, height: UIView.noIntrinsicMetric)
-    }
-
-    override func setNeedsLayout() {
-        super.setNeedsLayout()
-        superview?.setNeedsLayout()
-    }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        subviews.first?.frame = bounds
-    }
-
-    /// Unwrap through proxies to find the innermost BoxView's sizing.
-    var innerSizing: Frame? {
-        if let box = subviews.first as? BoxView { return box.sizing }
-        if let proxy = subviews.first as? PassthroughView { return proxy.innerSizing }
-        return nil
-    }
-}
-#elseif canImport(AppKit)
-class PassthroughView: NSView {
-    override var intrinsicContentSize: NSSize {
-        subviews.first?.intrinsicContentSize ?? NSSize(width: NSView.noIntrinsicMetric, height: NSView.noIntrinsicMetric)
-    }
-}
-#endif
-
 @MainActor public class Node {
     public weak var parent: Node?
     public var platformView: PlatformView?
@@ -439,39 +402,7 @@ public final class OffstageNode: Node {
         (platformView as? OffstageView)?.isOffstage = isOffstage
     }
 }
-
-/// Platform view that reports zero size when offstage and hides
-/// its content. When onstage, passes through to the child's size.
-final class OffstageView: UIView {
-    var isOffstage: Bool = true {
-        didSet {
-            guard isOffstage != oldValue else { return }
-            isHidden = isOffstage
-            superview?.setNeedsLayout()
-        }
-    }
-
-    override func sizeThatFits(_ size: CGSize) -> CGSize {
-        if isOffstage { return .zero }
-        return subviews.first?.sizeThatFits(size) ?? .zero
-    }
-
-    override var intrinsicContentSize: CGSize {
-        if isOffstage {
-            return CGSize(width: UIView.noIntrinsicMetric, height: UIView.noIntrinsicMetric)
-        }
-        return subviews.first?.intrinsicContentSize
-            ?? CGSize(width: UIView.noIntrinsicMetric, height: UIView.noIntrinsicMetric)
-    }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        subviews.first?.frame = bounds
-    }
-}
 #endif
-
-// MARK: - ModelNode
 
 // MARK: - ProxyNode
 
@@ -529,6 +460,8 @@ public final class ProxyNode: Node {
         childNode = nil
     }
 }
+
+// MARK: - ModelNode
 
 /// Backs stateful composites (ModelView). Owns the Model (created
 /// once at mount via `model(context:)`) and produces a fresh Builder
@@ -638,17 +571,6 @@ public final class ModelNode: Node {
             }
         }
     }
-}
-
-/// Closure-captured lifecycle dispatch for a ModelNode. The closures
-/// are constructed inside the generic bounce in `makeModel(for:)`,
-/// which means they can close over the typed `V` (and the typed
-/// Model conforming to `ViewModel<V>`) without the ModelNode itself
-/// carrying either as a stored generic parameter.
-private struct ModelLifecycle {
-    let didUpdate: (Any) -> Void
-    let didRebuild: () -> Void
-    let didDispose: () -> Void
 }
 
 // MARK: - ContainerNode
@@ -789,4 +711,90 @@ public final class ContainerNode: Node {
         _ = current
         return nil
     }
+}
+
+// MARK: - PassthroughView
+
+/// Transparent wrapper view used by BuiltNode and ModelNode.
+/// Delegates sizing to its single child and pins that child to fill.
+#if canImport(UIKit)
+class PassthroughView: UIView {
+    override func sizeThatFits(_ size: CGSize) -> CGSize {
+        subviews.first?.sizeThatFits(size) ?? .zero
+    }
+
+    override var intrinsicContentSize: CGSize {
+        subviews.first?.intrinsicContentSize ?? CGSize(width: UIView.noIntrinsicMetric, height: UIView.noIntrinsicMetric)
+    }
+
+    override func setNeedsLayout() {
+        super.setNeedsLayout()
+        superview?.setNeedsLayout()
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        subviews.first?.frame = bounds
+    }
+
+    /// Unwrap through proxies to find the innermost BoxView's sizing.
+    var innerSizing: Frame? {
+        if let box = subviews.first as? BoxView { return box.sizing }
+        if let proxy = subviews.first as? PassthroughView { return proxy.innerSizing }
+        return nil
+    }
+}
+#elseif canImport(AppKit)
+class PassthroughView: NSView {
+    override var intrinsicContentSize: NSSize {
+        subviews.first?.intrinsicContentSize ?? NSSize(width: NSView.noIntrinsicMetric, height: NSView.noIntrinsicMetric)
+    }
+}
+#endif
+
+// MARK: - OffstageView
+
+/// Platform view that reports zero size when offstage and hides
+/// its content. When onstage, passes through to the child's size.
+#if canImport(UIKit)
+final class OffstageView: UIView {
+    var isOffstage: Bool = true {
+        didSet {
+            guard isOffstage != oldValue else { return }
+            isHidden = isOffstage
+            superview?.setNeedsLayout()
+        }
+    }
+
+    override func sizeThatFits(_ size: CGSize) -> CGSize {
+        if isOffstage { return .zero }
+        return subviews.first?.sizeThatFits(size) ?? .zero
+    }
+
+    override var intrinsicContentSize: CGSize {
+        if isOffstage {
+            return CGSize(width: UIView.noIntrinsicMetric, height: UIView.noIntrinsicMetric)
+        }
+        return subviews.first?.intrinsicContentSize
+            ?? CGSize(width: UIView.noIntrinsicMetric, height: UIView.noIntrinsicMetric)
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        subviews.first?.frame = bounds
+    }
+}
+#endif
+
+// MARK: - ModelLifecycle
+
+/// Closure-captured lifecycle dispatch for a ModelNode. The closures
+/// are constructed inside the generic bounce in `makeModel(for:)`,
+/// which means they can close over the typed `V` (and the typed
+/// Model conforming to `ViewModel<V>`) without the ModelNode itself
+/// carrying either as a stored generic parameter.
+private struct ModelLifecycle {
+    let didUpdate: (Any) -> Void
+    let didRebuild: () -> Void
+    let didDispose: () -> Void
 }

@@ -40,21 +40,6 @@ public struct AccessibilityConfig {
 #if canImport(UIKit)
 import UIKit
 
-extension AccessibilityTraits {
-    var uiTraits: UIAccessibilityTraits {
-        var result: UIAccessibilityTraits = []
-        if contains(.button)     { result.insert(.button) }
-        if contains(.link)       { result.insert(.link) }
-        if contains(.image)      { result.insert(.image) }
-        if contains(.selected)   { result.insert(.selected) }
-        if contains(.adjustable) { result.insert(.adjustable) }
-        if contains(.header)     { result.insert(.header) }
-        if contains(.notEnabled) { result.insert(.notEnabled) }
-        if contains(.staticText) { result.insert(.staticText) }
-        return result
-    }
-}
-
 // MARK: - Gesture
 
 /// A transparent wrapper that attaches gesture recognizers to its
@@ -102,6 +87,23 @@ public struct Gesture: ProxyView {
 
     public func makeRenderer() -> ProxyRenderer {
         GestureRenderer(view: self)
+    }
+}
+
+// MARK: - AccessibilityTraits (UIKit)
+
+extension AccessibilityTraits {
+    var uiTraits: UIAccessibilityTraits {
+        var result: UIAccessibilityTraits = []
+        if contains(.button)     { result.insert(.button) }
+        if contains(.link)       { result.insert(.link) }
+        if contains(.image)      { result.insert(.image) }
+        if contains(.selected)   { result.insert(.selected) }
+        if contains(.adjustable) { result.insert(.adjustable) }
+        if contains(.header)     { result.insert(.header) }
+        if contains(.notEnabled) { result.insert(.notEnabled) }
+        if contains(.staticText) { result.insert(.staticText) }
+        return result
     }
 }
 
