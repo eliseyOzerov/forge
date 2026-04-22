@@ -53,6 +53,28 @@ public enum Extent: Equatable, Sendable {
     case flex(_ weight: Int = 1, min: Double? = nil, max: Double? = nil)
 }
 
+public extension Extent {
+    /// The optional minimum clamp, if any.
+    var min: Double? {
+        switch self {
+        case .fix: nil
+        case .hug(let min, _): min
+        case .fill(_, let min, _): min
+        case .flex(_, let min, _): min
+        }
+    }
+
+    /// The optional maximum clamp, if any.
+    var max: Double? {
+        switch self {
+        case .fix: nil
+        case .hug(_, let max): max
+        case .fill(_, _, let max): max
+        case .flex(_, _, let max): max
+        }
+    }
+}
+
 extension Extent: Lerpable {
     public func lerp(to other: Extent, t: Double) -> Extent {
         switch (self, other) {

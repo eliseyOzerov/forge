@@ -126,7 +126,142 @@ final class BoxLayoutTests: XCTestCase {
         XCTAssertEqual(size.height, 250, accuracy: acc)
     }
 
-    // MARK: - sizeThatFits: Mixed
+    // MARK: - sizeThatFits: Fix (additional)
+
+    func testSizeThatFitsFixIgnoresProposed() {
+        let box = BoxView()
+        box.sizing = .fixed(80, 60)
+        let a = box.sizeThatFits(CGSize(width: 300, height: 300))
+        let b = box.sizeThatFits(CGSize(width: 50, height: 50))
+        XCTAssertEqual(a.width, 80, accuracy: acc)
+        XCTAssertEqual(b.width, 80, accuracy: acc)
+    }
+
+    func testSizeThatFitsFixIgnoresPadding() {
+        let box = BoxView()
+        box.sizing = .fixed(100, 80)
+        box.padding = .all(20)
+        let size = box.sizeThatFits(CGSize(width: 300, height: 300))
+        // Fix returns the outer size — padding eats into it, doesn't add to it.
+        XCTAssertEqual(size.width, 100, accuracy: acc)
+        XCTAssertEqual(size.height, 80, accuracy: acc)
+    }
+
+    // MARK: - sizeThatFits: Fill (additional)
+
+    func testSizeThatFitsFillIgnoresChildren() {
+        let box = BoxView()
+        box.sizing = .fill
+        box.addSubview(child(500, 500))
+        let size = box.sizeThatFits(CGSize(width: 200, height: 200))
+        XCTAssertEqual(size.width, 200, accuracy: acc)
+        XCTAssertEqual(size.height, 200, accuracy: acc)
+    }
+
+    func testSizeThatFitsFillFraction() {
+        let box = BoxView()
+        box.sizing = Frame(.fill(0.5), .fill(0.25))
+        let size = box.sizeThatFits(CGSize(width: 200, height: 400))
+        XCTAssertEqual(size.width, 100, accuracy: acc)
+        XCTAssertEqual(size.height, 100, accuracy: acc)
+    }
+
+    func testSizeThatFitsFillWithMin() {
+        let box = BoxView()
+        box.sizing = Frame(.fill(1, min: 150), .fill(1, min: 150))
+        let size = box.sizeThatFits(CGSize(width: 100, height: 100))
+        XCTAssertEqual(size.width, 150, accuracy: acc)
+        XCTAssertEqual(size.height, 150, accuracy: acc)
+    }
+
+    func testSizeThatFitsFillWithMax() {
+        let box = BoxView()
+        box.sizing = Frame(.fill(1, max: 150), .fill(1, max: 150))
+        let size = box.sizeThatFits(CGSize(width: 300, height: 300))
+        XCTAssertEqual(size.width, 150, accuracy: acc)
+        XCTAssertEqual(size.height, 150, accuracy: acc)
+    }
+
+    // MARK: - sizeThatFits: Hug (additional)
+
+    func testSizeThatFitsHugWithMin() {
+        let box = BoxView()
+        box.sizing = Frame(.hug(min: 100), .hug(min: 80))
+        box.addSubview(child(40, 30))
+        let size = box.sizeThatFits(CGSize(width: 300, height: 300))
+        XCTAssertEqual(size.width, 100, accuracy: acc)
+        XCTAssertEqual(size.height, 80, accuracy: acc)
+    }
+
+    func testSizeThatFitsHugWithMinNoEffect() {
+        let box = BoxView()
+        box.sizing = Frame(.hug(min: 50), .hug(min: 50))
+        box.addSubview(child(80, 60))
+        let size = box.sizeThatFits(CGSize(width: 300, height: 300))
+        // Content already exceeds min.
+        XCTAssertEqual(size.width, 80, accuracy: acc)
+        XCTAssertEqual(size.height, 60, accuracy: acc)
+    }
+
+    func testSizeThatFitsHugWithMax() {
+        let box = BoxView()
+        box.sizing = Frame(.hug(max: 60), .hug(max: 40))
+        box.addSubview(child(100, 80))
+        let size = box.sizeThatFits(CGSize(width: 300, height: 300))
+        XCTAssertEqual(size.width, 60, accuracy: acc)
+        XCTAssertEqual(size.height, 40, accuracy: acc)
+    }
+
+    func testSizeThatFitsHugWithMinAndMax() {
+        let box = BoxView()
+        box.sizing = Frame(.hug(min: 50, max: 90), .hug(min: 50, max: 90))
+        box.addSubview(child(30, 30))
+        let size = box.sizeThatFits(CGSize(width: 300, height: 300))
+        // Content 30 clamped to min 50.
+        XCTAssertEqual(size.width, 50, accuracy: acc)
+        XCTAssertEqual(size.height, 50, accuracy: acc)
+    }
+
+    // MARK: - sizeThatFits: Flex
+
+    func testSizeThatFitsFlexReturnsIntrinsic() {
+        let box = BoxView()
+        box.sizing = Frame(.flex(), .flex())
+        box.addSubview(child(80, 60))
+        let size = box.sizeThatFits(CGSize(width: 300, height: 300))
+        XCTAssertEqual(size.width, 80, accuracy: acc)
+        XCTAssertEqual(size.height, 60, accuracy: acc)
+    }
+
+    func testSizeThatFitsFlexWithPadding() {
+        let box = BoxView()
+        box.sizing = Frame(.flex(), .flex())
+        box.padding = .all(10)
+        box.addSubview(child(80, 60))
+        let size = box.sizeThatFits(CGSize(width: 300, height: 300))
+        XCTAssertEqual(size.width, 100, accuracy: acc)
+        XCTAssertEqual(size.height, 80, accuracy: acc)
+    }
+
+    func testSizeThatFitsFlexZeroProposalReturnsIntrinsic() {
+        let box = BoxView()
+        box.sizing = Frame(.flex(), .flex())
+        box.addSubview(child(80, 60))
+        let size = box.sizeThatFits(CGSize(width: 0, height: 0))
+        XCTAssertEqual(size.width, 80, accuracy: acc)
+        XCTAssertEqual(size.height, 60, accuracy: acc)
+    }
+
+    func testSizeThatFitsFlexWithMin() {
+        let box = BoxView()
+        box.sizing = Frame(.flex(1, min: 100), .flex(1, min: 100))
+        box.addSubview(child(40, 30))
+        let size = box.sizeThatFits(CGSize(width: 300, height: 300))
+        XCTAssertEqual(size.width, 100, accuracy: acc)
+        XCTAssertEqual(size.height, 100, accuracy: acc)
+    }
+
+    // MARK: - sizeThatFits: Mixed (additional)
 
     func testSizeThatFitsMixedWidthFixHeightHug() {
         let box = BoxView()

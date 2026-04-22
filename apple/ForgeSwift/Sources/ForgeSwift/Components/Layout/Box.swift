@@ -325,27 +325,34 @@ class BoxView: UIView {
     // MARK: - Sizing
 
     /// How big this view wants to be given a proposal.
-    /// fix → exact value, fill → proposed size, hug → content size + padding.
-    /// Children are proposed the size minus padding so they don't overflow.
+    ///
+    /// - **fix** — exact value, ignores proposal and children.
+    /// - **fill** — fraction of proposed. `fill(0.5)` = half.
+    /// - **flex / hug** — content size + padding (intrinsic size).
+    ///
+    /// Min/max on fill, flex, and hug clamp the result.
     override func sizeThatFits(_ size: CGSize) -> CGSize {
         let innerSize = CGSize(
-            width: max(0, size.width - padding.leading - padding.trailing),
-            height: max(0, size.height - padding.top - padding.bottom)
+            width: max(0, size.width - padding.horizontal),
+            height: max(0, size.height - padding.vertical)
         )
         let content = childrenSize(proposing: innerSize)
-        let w: CGFloat = switch sizing.width {
-        case .fix(let v): v
-        case .fill(let f, _, _): size.width * f
-        case .flex: size.width
-        case .hug: content.width + padding.leading + padding.trailing
+        let width = content.width + padding.horizontal
+        let height = content.height + padding.vertical
+
+        func resolve(_ extent: Extent, _ proposed: CGFloat, _ content: CGFloat) -> CGFloat {
+            let raw: Double = switch extent {
+            case .fix(let v): v
+            case .fill(let f, _, _): Double(proposed) * f
+            case .flex, .hug: Double(content)
+            }
+            return CGFloat(raw.clamped(min: extent.min, max: extent.max))
         }
-        let h: CGFloat = switch sizing.height {
-        case .fix(let v): v
-        case .fill(let f, _, _): size.height * f
-        case .flex: size.height
-        case .hug: content.height + padding.top + padding.bottom
-        }
-        return CGSize(width: w, height: h)
+
+        return CGSize(
+            width: resolve(sizing.width, size.width, width),
+            height: resolve(sizing.height, size.height, height)
+        )
     }
 
     /// fix → exact value, otherwise noIntrinsicMetric.
