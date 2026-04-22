@@ -14,56 +14,66 @@
 /// ```
 // MARK: - BoxStyle
 
-/// Visual styling for Box (surface, shape, padding, frame).
+/// Visual styling for Box (layout, rendering, clipping).
 @Init @Copy @Lerp
 public struct BoxStyle: Equatable {
+    // Layout
     public var frame: Frame = .hug
-    public var surface: Surface? = nil
-    public var shape: AnyShape? = nil
     public var padding: Padding = .zero
     public var alignment: Alignment = .center
-    @Snap public var clip: Bool = true
     @Snap public var overflow: Overflow = .clip
+
+    // Rendering
+    public var surface: Surface? = nil
+    public var shape: AnyShape? = nil
+    @Snap public var clip: Bool = true
 }
 
 // MARK: - Box
 
 @Init
 public struct Box: ContainerView {
+    // Layout
     public var frame: Frame = .hug
-    public var surface: Surface? = nil
-    public var shape: AnyShape? = nil
     public var padding: Padding = .zero
     public var alignment: Alignment = .center
-    public var clip: Bool = true
     public var overflow: Overflow = .clip
+
+    // Rendering
+    public var surface: Surface? = nil
+    public var shape: AnyShape? = nil
+    public var clip: Bool = true
+
+    // Content
     public var children: [any View] = []
 
     public init(
         frame: Frame = .hug,
-        surface: Surface? = nil,
-        shape: AnyShape? = nil,
         padding: Padding = .zero,
         alignment: Alignment = .center,
-        clip: Bool = true,
         overflow: Overflow = .clip,
+        surface: Surface? = nil,
+        shape: AnyShape? = nil,
+        clip: Bool = true,
         @ChildrenBuilder content: () -> [any View]
     ) {
-        self.init(frame: frame, surface: surface, shape: shape,
-                  padding: padding, alignment: alignment,
-                  clip: clip, overflow: overflow, children: content())
+        self.init(frame: frame, padding: padding, alignment: alignment,
+                  overflow: overflow, surface: surface, shape: shape,
+                  clip: clip, children: content())
     }
 
     public init(_ style: BoxStyle, children: [any View] = []) {
-        self.init(frame: style.frame, surface: style.surface, shape: style.shape,
-                  padding: style.padding, alignment: style.alignment,
-                  clip: style.clip, overflow: style.overflow, children: children)
+        self.init(frame: style.frame, padding: style.padding,
+                  alignment: style.alignment, overflow: style.overflow,
+                  surface: style.surface, shape: style.shape,
+                  clip: style.clip, children: children)
     }
 
     public init(_ style: BoxStyle, @ChildrenBuilder content: () -> [any View]) {
-        self.init(frame: style.frame, surface: style.surface, shape: style.shape,
-                  padding: style.padding, alignment: style.alignment,
-                  clip: style.clip, overflow: style.overflow, children: content())
+        self.init(frame: style.frame, padding: style.padding,
+                  alignment: style.alignment, overflow: style.overflow,
+                  surface: style.surface, shape: style.shape,
+                  clip: style.clip, children: content())
     }
 
     public func makeRenderer() -> ContainerRenderer {
@@ -187,13 +197,18 @@ final class BoxRenderer: ContainerRenderer {
     func mount() -> PlatformView {
         let bv = BoxView()
         self.boxView = bv
+
+        // Layout
         bv.sizing = view.frame
-        bv.shape = view.shape
-        bv.surface = view.surface
-        bv.clip = view.clip
         bv.padding = view.padding
         bv.alignment = view.alignment
         bv.overflow = view.overflow
+
+        // Rendering
+        bv.surface = view.surface
+        bv.shape = view.shape
+        bv.clip = view.clip
+
         return bv
     }
 
@@ -205,14 +220,12 @@ final class BoxRenderer: ContainerRenderer {
         var needsSelfLayout = false
         var needsParentLayout = false
 
-        // Frame affects own size (parent re-measures) and child layout
+        // Layout
         if old.frame != box.frame {
             boxView.sizing = box.frame
             needsSelfLayout = true
             needsParentLayout = true
         }
-
-        // Padding/alignment affect child positioning
         if old.padding != box.padding {
             boxView.padding = box.padding
             needsSelfLayout = true
@@ -226,15 +239,15 @@ final class BoxRenderer: ContainerRenderer {
             needsSelfLayout = true
         }
 
-        if old.shape != box.shape {
-            boxView.shape = box.shape
-            needsSelfLayout = true
-        }
+        // Rendering
         if old.surface != box.surface {
             boxView.surface = box.surface
             needsSelfLayout = true
         }
-
+        if old.shape != box.shape {
+            boxView.shape = box.shape
+            needsSelfLayout = true
+        }
         if old.clip != box.clip {
             boxView.clip = box.clip
             needsSelfLayout = true
@@ -263,32 +276,40 @@ final class BoxRenderer: ContainerRenderer {
 /// (alignment-based positioning), frame constraints, shape clipping,
 /// and optional scroll overflow.
 class BoxView: UIView {
-    var shape: AnyShape?
-    var surface: Surface? { didSet { surfaceView.surface = surface; layoutSurfaceView() } }
-    var clip: Bool = true
+
+    // MARK: - Layout Properties
+
     var sizing: Frame = .hug {
         didSet {
-            guard sizing != oldValue else { return }
+            guard sizing != oldValue else { return };
             updateSizingConstraints()
         }
     }
     var padding: Padding = .zero
     var alignment: Alignment = .center
     var overflow: Overflow = .clip {
-        didSet { configureScroll() }
+        didSet {
+            configureScroll()
+        }
     }
 
-    // Scroll support (lazily created when overflow == .scroll)
+    // MARK: - Rendering Properties
+
+    var surface: Surface? {
+        didSet {
+            surfaceView.surface = surface;
+            layoutSurfaceView()
+        }
+    }
+    var shape: AnyShape?
+    var clip: Bool = true
+
+    // MARK: - Internal State
+
+    private let surfaceView = SurfaceView()
     private var scrollView: UIScrollView?
     private var scrollState: ScrollState?
-
-    // Surface painting — separate view that can overflow bounds
-    private let surfaceView = SurfaceView()
-
-    // Auto Layout constraints installed for the current sizing mode
     private var sizingConstraints: [NSLayoutConstraint] = []
-
-    // Shape mask caching — avoid re-creating every layout pass
     private var lastClipShape: AnyShape?
     private var lastClipBounds: CGRect = .zero
     private var lastClipEnabled: Bool = true
