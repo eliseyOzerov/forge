@@ -171,6 +171,103 @@ public extension ThemeSlot where T == BoxTheme {
     static var box: ThemeSlot<BoxTheme> { .init(BoxTheme.self) }
 }
 
+// MARK: - BoxLayout
+
+/// Independent layout: all children share the same space, each aligned
+/// within the padded bounds.
+///
+/// ## Measurement
+///
+/// The box first checks its own frame per axis:
+/// - **Fixed** — return the fixed size. Children don't affect own size.
+/// - **Fill** — return the proposed size (100% of available).
+/// - **Hug** — measure all children against the inner bounds
+///   (proposed minus padding, clamped to min/max). Own size is the
+///   largest child on each axis, plus padding.
+///
+/// Overflow affects the proposal to children:
+/// - **clip / visible** — children proposed inner bounds.
+/// - **scroll** — children proposed unlimited on the scroll axis.
+/// - **fit** — children proposed inner bounds; sizes clamped after.
+///
+/// ## Layout
+///
+/// Each child is positioned independently using alignment:
+///
+///     fx = (alignment.x + 1) / 2
+///     origin.x = padding.leading + (innerWidth - childWidth) * fx
+public final class BoxLayout: Layout {
+    public var padding: Padding
+    public var alignment: Alignment
+    public var frame: Frame
+    public var overflow: Overflow
+    public var slots: [LayoutSlot]
+
+    private var bounds: Size = .zero
+    private var inner: Size = .zero
+
+    public init(
+        padding: Padding = .zero,
+        alignment: Alignment = .center,
+        frame: Frame = .hug,
+        overflow: Overflow = .clip,
+        slots: [LayoutSlot] = []
+    ) {
+        self.padding = padding
+        self.alignment = alignment
+        self.frame = frame
+        self.overflow = overflow
+        self.slots = slots
+    }
+
+    // MARK: - Measurable
+
+    public func measure(proposed: Size) -> Size {
+                
+        let proposedInner = proposeBounds(proposed: bounds)
+        
+        let inner: Size = slots.reduce(.zero) { result, slot in
+            slot.child.measure(proposed: proposedInner)
+        }
+        
+        
+        
+        return bounds
+    }
+
+    // MARK: - Layout
+
+    public func start(_ bounds: Size) {
+        self.bounds = bounds
+    }
+
+    public func layout() {
+        fatalError("TODO")
+    }
+
+    // MARK: - Proposal
+
+    /// The size to propose to children given the parent's proposal.
+    ///
+    /// - **fix** — `fixedValue - padding`. The space is known.
+    /// - **hug** — `(proposed - padding).clamped(min, max)`.
+    /// - **fill** — `0`. Measure children at zero to find their minimum.
+    public func proposeBounds(proposed: Size) -> Size {
+        func resolve(_ extent: Extent, _ proposed: Double, _ padding: Double) -> Double {
+            let raw: Double = switch extent {
+            case .fix(let v): v - padding
+            case .hug(let min, let max): (proposed - padding).clamped(min: min, max: max)
+            case .fill: 0
+            }
+            return Swift.max(0, raw)
+        }
+        return Size(
+            resolve(frame.width, proposed.width, padding.horizontal),
+            resolve(frame.height, proposed.height, padding.vertical)
+        )
+    }
+}
+
 // MARK: - UIKit Renderer
 
 #if canImport(UIKit)
@@ -182,6 +279,19 @@ final class BoxRenderer: ContainerRenderer {
 
     init(view: Box) {
         self.view = view
+    }
+    
+    func mount() -> PlatformView {
+        let bv = BoxView()
+        self.boxView = bv
+        bv.sizing = view.frame
+        bv.shape = view.shape
+        bv.surface = view.surface
+        bv.clip = view.clip
+        bv.padding = view.padding
+        bv.alignment = view.alignment
+        bv.overflow = view.overflow
+        return bv
     }
 
     func update(from newView: any View) {
@@ -231,30 +341,12 @@ final class BoxRenderer: ContainerRenderer {
         if needsParentLayout { boxView.superview?.setNeedsLayout() }
     }
 
-    func mount() -> PlatformView {
-        let bv = BoxView()
-        self.boxView = bv
-        bv.sizing = view.frame
-        bv.shape = view.shape
-        bv.surface = view.surface
-        bv.clip = view.clip
-        bv.padding = view.padding
-        bv.alignment = view.alignment
-        bv.overflow = view.overflow
-        return bv
-    }
-
     func insert(_ platformView: PlatformView, at index: Int, into container: PlatformView) {
         container.insertSubview(platformView, at: index)
     }
 
     func remove(_ platformView: PlatformView, from container: PlatformView) {
         platformView.removeFromSuperview()
-    }
-
-    func move(_ platformView: PlatformView, to index: Int, in container: PlatformView) {
-        platformView.removeFromSuperview()
-        container.insertSubview(platformView, at: index)
     }
 
     func index(of platformView: PlatformView, in container: PlatformView) -> Int? {

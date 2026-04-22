@@ -1,6 +1,18 @@
 import CoreGraphics
 import Foundation
 
+// MARK: - Double + Clamp
+
+public extension Double {
+    /// Clamp to optional bounds. `nil` means unbounded on that side.
+    func clamped(min: Double? = nil, max: Double? = nil) -> Double {
+        var v = self
+        if let min { v = Swift.max(v, min) }
+        if let max { v = Swift.min(v, max) }
+        return v
+    }
+}
+
 // MARK: - Vector Protocol
 
 /// A fixed-dimension numeric vector. All generic linear algebra

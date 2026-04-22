@@ -2,297 +2,143 @@
 import XCTest
 @testable import ForgeSwift
 
-// MARK: - Mock Children
-
-/// A mock LayoutChild with a fixed intrinsic size.
-private final class MockChild: LayoutChild {
-    let intrinsicSize: Size
-    var size: Size = .zero
-    var position: Vec2 = .zero
-    var resize: (() -> Void)?
-
-    init(_ width: Double, _ height: Double) {
-        self.intrinsicSize = Size(width, height)
-    }
-
-    func measure(proposed: Size) -> Size { intrinsicSize }
-}
-
-/// A mock LayoutChild that returns the proposed size (fill behavior).
-private final class FillChild: LayoutChild {
-    var size: Size = .zero
-    var position: Vec2 = .zero
-    var resize: (() -> Void)?
-
-    func measure(proposed: Size) -> Size { proposed }
-}
-
-/// A mock LayoutChild that returns proposed * fraction.
-private final class FractionalChild: LayoutChild {
-    let fraction: Double
-    var size: Size = .zero
-    var position: Vec2 = .zero
-    var resize: (() -> Void)?
-
-    init(_ fraction: Double) { self.fraction = fraction }
-
-    func measure(proposed: Size) -> Size {
-        Size(proposed.width * fraction, proposed.height * fraction)
-    }
-}
-
-// MARK: - Helpers
-
-@MainActor
-private func runBoxLayout(
-    _ layout: inout BoxLayout,
-    bounds: Size,
-    children: [any LayoutChild]
-) -> [LayoutSlot] {
-    layout.start(bounds)
-    var slots: [LayoutSlot] = []
-    for (i, child) in children.enumerated() {
-        let slot = LayoutSlot(index: i, child: child)
-        layout.measure(slot, slots)
-        slots.append(slot)
-    }
-    for (i, slot) in slots.enumerated() {
-        layout.layout(slot, Array(slots[..<i]))
-    }
-    return slots
-}
-
-// MARK: - Tests
-
 @MainActor
 final class LayoutTests: XCTestCase {
 
     private let acc = 0.5
 
-    // MARK: - Frame: Fixed
+    // MARK: - proposeBounds: Fix
 
-    func testFixedIgnoresChildSize() {
-        var layout = BoxLayout(frame: .fixed(150, 100))
-        let slots = runBoxLayout(&layout, bounds: Size(200, 200), children: [MockChild(80, 40)])
-        let size = layout.size(slots)
-        XCTAssertEqual(size.width, 150, accuracy: acc)
-        XCTAssertEqual(size.height, 100, accuracy: acc)
+    func testProposeBoundsFixNoPadding() {
+        let layout = BoxLayout(frame: .fixed(100, 80))
+        let bounds = layout.proposeBounds(proposed: Size(200, 200))
+        XCTAssertEqual(bounds.width, 100, accuracy: acc)
+        XCTAssertEqual(bounds.height, 80, accuracy: acc)
     }
 
-    func testFixedIgnoresBounds() {
-        var layout = BoxLayout(frame: .fixed(300, 300))
-        let slots = runBoxLayout(&layout, bounds: Size(200, 200), children: [])
-        let size = layout.size(slots)
-        XCTAssertEqual(size.width, 300, accuracy: acc)
-        XCTAssertEqual(size.height, 300, accuracy: acc)
+    func testProposeBoundsFixWithPadding() {
+        let layout = BoxLayout(padding: .all(15), frame: .fixed(100, 80))
+        let bounds = layout.proposeBounds(proposed: Size(200, 200))
+        XCTAssertEqual(bounds.width, 70, accuracy: acc)
+        XCTAssertEqual(bounds.height, 50, accuracy: acc)
     }
 
-    // MARK: - Frame: Fill
-
-    func testFillReturnsBounds() {
-        var layout = BoxLayout(frame: .fill)
-        let slots = runBoxLayout(&layout, bounds: Size(300, 250), children: [MockChild(80, 40)])
-        let size = layout.size(slots)
-        XCTAssertEqual(size.width, 300, accuracy: acc)
-        XCTAssertEqual(size.height, 250, accuracy: acc)
+    func testProposeBoundsFixPaddingExceedsFixed() {
+        let layout = BoxLayout(padding: .all(60), frame: .fixed(100, 80))
+        let bounds = layout.proposeBounds(proposed: Size(200, 200))
+        XCTAssertEqual(bounds.width, 0, accuracy: acc)
+        XCTAssertEqual(bounds.height, 0, accuracy: acc)
     }
 
-    func testFillWidthHugHeight() {
-        var layout = BoxLayout(frame: .fillWidth)
-        let slots = runBoxLayout(&layout, bounds: Size(300, 250), children: [MockChild(80, 40)])
-        let size = layout.size(slots)
-        XCTAssertEqual(size.width, 300, accuracy: acc)
-        XCTAssertEqual(size.height, 40, accuracy: acc)
+    func testProposeBoundsFixIgnoresProposed() {
+        let layout = BoxLayout(frame: .fixed(80, 60))
+        let a = layout.proposeBounds(proposed: Size(300, 300))
+        let b = layout.proposeBounds(proposed: Size(50, 50))
+        XCTAssertEqual(a.width, 80, accuracy: acc)
+        XCTAssertEqual(b.width, 80, accuracy: acc)
     }
 
-    func testFillNoChildren() {
-        var layout = BoxLayout(frame: .fill)
-        let slots = runBoxLayout(&layout, bounds: Size(200, 200), children: [])
-        let size = layout.size(slots)
-        XCTAssertEqual(size.width, 200, accuracy: acc)
-        XCTAssertEqual(size.height, 200, accuracy: acc)
+    // MARK: - proposeBounds: Hug
+
+    func testProposeBoundsHugNoPadding() {
+        let layout = BoxLayout()
+        let bounds = layout.proposeBounds(proposed: Size(200, 200))
+        XCTAssertEqual(bounds.width, 200, accuracy: acc)
+        XCTAssertEqual(bounds.height, 200, accuracy: acc)
     }
 
-    // MARK: - Frame: Hug
-
-    func testHugSingleChild() {
-        var layout = BoxLayout()
-        let slots = runBoxLayout(&layout, bounds: Size(200, 200), children: [MockChild(80, 40)])
-        let size = layout.size(slots)
-        XCTAssertEqual(size.width, 80, accuracy: acc)
-        XCTAssertEqual(size.height, 40, accuracy: acc)
+    func testProposeBoundsHugWithPadding() {
+        let layout = BoxLayout(padding: .all(20))
+        let bounds = layout.proposeBounds(proposed: Size(200, 200))
+        XCTAssertEqual(bounds.width, 160, accuracy: acc)
+        XCTAssertEqual(bounds.height, 160, accuracy: acc)
     }
 
-    func testHugMultipleChildrenUsesLargest() {
-        var layout = BoxLayout()
-        let slots = runBoxLayout(&layout, bounds: Size(200, 200), children: [
-            MockChild(80, 40), MockChild(60, 100)
-        ])
-        let size = layout.size(slots)
-        XCTAssertEqual(size.width, 80, accuracy: acc)
-        XCTAssertEqual(size.height, 100, accuracy: acc)
+    func testProposeBoundsHugPaddingExceedsProposed() {
+        let layout = BoxLayout(padding: .all(25))
+        let bounds = layout.proposeBounds(proposed: Size(30, 30))
+        XCTAssertEqual(bounds.width, 0, accuracy: acc)
+        XCTAssertEqual(bounds.height, 0, accuracy: acc)
     }
 
-    func testHugWithPadding() {
-        var layout = BoxLayout(padding: .all(10))
-        let slots = runBoxLayout(&layout, bounds: Size(200, 200), children: [MockChild(80, 40)])
-        let size = layout.size(slots)
-        XCTAssertEqual(size.width, 100, accuracy: acc)
-        XCTAssertEqual(size.height, 60, accuracy: acc)
+    func testProposeBoundsHugMinClampsUp() {
+        // proposed (50) - padding (0) = 50, clamped to min 100
+        let layout = BoxLayout(frame: Frame(.hug(min: 100), .hug(min: 100)))
+        let bounds = layout.proposeBounds(proposed: Size(50, 50))
+        XCTAssertEqual(bounds.width, 100, accuracy: acc)
+        XCTAssertEqual(bounds.height, 100, accuracy: acc)
     }
 
-    func testHugNoChildren() {
-        var layout = BoxLayout()
-        let slots = runBoxLayout(&layout, bounds: Size(200, 200), children: [])
-        let size = layout.size(slots)
-        XCTAssertEqual(size.width, 0, accuracy: acc)
-        XCTAssertEqual(size.height, 0, accuracy: acc)
+    func testProposeBoundsHugMinNoEffectWhenLarger() {
+        // proposed (200) - padding (0) = 200, already > min 100
+        let layout = BoxLayout(frame: Frame(.hug(min: 100), .hug(min: 100)))
+        let bounds = layout.proposeBounds(proposed: Size(200, 200))
+        XCTAssertEqual(bounds.width, 200, accuracy: acc)
+        XCTAssertEqual(bounds.height, 200, accuracy: acc)
     }
 
-    func testHugWithMinClamps() {
-        var layout = BoxLayout(frame: Frame(.hug(min: 100), .hug(min: 80)))
-        let slots = runBoxLayout(&layout, bounds: Size(200, 200), children: [MockChild(40, 30)])
-        let size = layout.size(slots)
-        XCTAssertEqual(size.width, 100, accuracy: acc)
-        XCTAssertEqual(size.height, 80, accuracy: acc)
+    func testProposeBoundsHugMaxClampsDown() {
+        // proposed (200) - padding (0) = 200, clamped to max 150
+        let layout = BoxLayout(frame: Frame(.hug(max: 150), .hug(max: 150)))
+        let bounds = layout.proposeBounds(proposed: Size(200, 200))
+        XCTAssertEqual(bounds.width, 150, accuracy: acc)
+        XCTAssertEqual(bounds.height, 150, accuracy: acc)
     }
 
-    func testHugWithMaxClamps() {
-        var layout = BoxLayout(frame: Frame(.hug(max: 60), .hug(max: 50)))
-        let slots = runBoxLayout(&layout, bounds: Size(200, 200), children: [MockChild(80, 80)])
-        let size = layout.size(slots)
-        XCTAssertEqual(size.width, 60, accuracy: acc)
-        XCTAssertEqual(size.height, 50, accuracy: acc)
+    func testProposeBoundsHugMaxNoEffectWhenSmaller() {
+        // proposed (100) - padding (0) = 100, already < max 150
+        let layout = BoxLayout(frame: Frame(.hug(max: 150), .hug(max: 150)))
+        let bounds = layout.proposeBounds(proposed: Size(100, 100))
+        XCTAssertEqual(bounds.width, 100, accuracy: acc)
+        XCTAssertEqual(bounds.height, 100, accuracy: acc)
     }
 
-    // MARK: - Hug with fill child
-
-    func testHugWithFillChildReturnsBounds() {
-        var layout = BoxLayout()
-        let slots = runBoxLayout(&layout, bounds: Size(200, 200), children: [FillChild()])
-        let size = layout.size(slots)
-        // Fill child returns 200x200, hug wraps to that.
-        XCTAssertEqual(size.width, 200, accuracy: acc)
-        XCTAssertEqual(size.height, 200, accuracy: acc)
+    func testProposeBoundsHugMinWithPadding() {
+        // proposed (80) - padding (40) = 40, clamped to min 100
+        let layout = BoxLayout(padding: .all(20), frame: Frame(.hug(min: 100), .hug(min: 100)))
+        let bounds = layout.proposeBounds(proposed: Size(80, 80))
+        XCTAssertEqual(bounds.width, 100, accuracy: acc)
+        XCTAssertEqual(bounds.height, 100, accuracy: acc)
     }
 
-    func testHugWithFractionalChild() {
-        var layout = BoxLayout()
-        let slots = runBoxLayout(&layout, bounds: Size(200, 200), children: [FractionalChild(0.5)])
-        let size = layout.size(slots)
-        // Fractional child returns 100x100, hug wraps to that.
-        XCTAssertEqual(size.width, 100, accuracy: acc)
-        XCTAssertEqual(size.height, 100, accuracy: acc)
+    // MARK: - proposeBounds: Fill
+
+    func testProposeBoundsFillReturnsZero() {
+        let layout = BoxLayout(frame: .fill)
+        let bounds = layout.proposeBounds(proposed: Size(200, 200))
+        XCTAssertEqual(bounds.width, 0, accuracy: acc)
+        XCTAssertEqual(bounds.height, 0, accuracy: acc)
     }
 
-    // MARK: - Child proposal
-
-    func testChildProposedInnerBounds() {
-        var layout = BoxLayout(padding: Padding(horizontal: 15, vertical: 25), frame: .fill)
-        let slots = runBoxLayout(&layout, bounds: Size(200, 200), children: [FillChild()])
-        // Fill child proposed inner (170x150), returns that.
-        XCTAssertEqual(slots[0].rect.width, 170, accuracy: acc)
-        XCTAssertEqual(slots[0].rect.height, 150, accuracy: acc)
+    func testProposeBoundsFillWithPaddingReturnsZero() {
+        let layout = BoxLayout(padding: .all(20), frame: .fill)
+        let bounds = layout.proposeBounds(proposed: Size(200, 200))
+        XCTAssertEqual(bounds.width, 0, accuracy: acc)
+        XCTAssertEqual(bounds.height, 0, accuracy: acc)
     }
 
-    // MARK: - Alignment
-
-    func testCenterAlignment() {
-        var layout = BoxLayout(alignment: .center, frame: .fill)
-        let slots = runBoxLayout(&layout, bounds: Size(200, 200), children: [MockChild(80, 40)])
-        XCTAssertEqual(slots[0].rect.x, 60, accuracy: acc)
-        XCTAssertEqual(slots[0].rect.y, 80, accuracy: acc)
+    func testProposeBoundsFillMinMaxDontAffectProposal() {
+        let layout = BoxLayout(frame: Frame(.fill(min: 50, max: 150), .fill(min: 50, max: 150)))
+        let bounds = layout.proposeBounds(proposed: Size(200, 200))
+        XCTAssertEqual(bounds.width, 0, accuracy: acc)
+        XCTAssertEqual(bounds.height, 0, accuracy: acc)
     }
 
-    func testTopLeftAlignment() {
-        var layout = BoxLayout(alignment: .topLeft, frame: .fill)
-        let slots = runBoxLayout(&layout, bounds: Size(200, 200), children: [MockChild(80, 40)])
-        XCTAssertEqual(slots[0].rect.x, 0, accuracy: acc)
-        XCTAssertEqual(slots[0].rect.y, 0, accuracy: acc)
+    // MARK: - proposeBounds: Mixed axes
+
+    func testProposeBoundsFixWidthHugHeight() {
+        let layout = BoxLayout(padding: .all(10), frame: .fillWidth)
+        let bounds = layout.proposeBounds(proposed: Size(200, 200))
+        // Width is fill → 0, height is hug → 200 - 20 = 180
+        XCTAssertEqual(bounds.width, 0, accuracy: acc)
+        XCTAssertEqual(bounds.height, 180, accuracy: acc)
     }
 
-    func testBottomRightAlignment() {
-        var layout = BoxLayout(alignment: .bottomRight, frame: .fill)
-        let slots = runBoxLayout(&layout, bounds: Size(200, 200), children: [MockChild(80, 40)])
-        XCTAssertEqual(slots[0].rect.x, 120, accuracy: acc)
-        XCTAssertEqual(slots[0].rect.y, 160, accuracy: acc)
-    }
-
-    func testAlignmentWithPadding() {
-        var layout = BoxLayout(padding: .all(20), alignment: .topLeft, frame: .fill)
-        let slots = runBoxLayout(&layout, bounds: Size(200, 200), children: [MockChild(80, 40)])
-        XCTAssertEqual(slots[0].rect.x, 20, accuracy: acc)
-        XCTAssertEqual(slots[0].rect.y, 20, accuracy: acc)
-    }
-
-    func testCenterAlignmentWithPadding() {
-        var layout = BoxLayout(padding: .all(20), alignment: .center, frame: .fill)
-        let slots = runBoxLayout(&layout, bounds: Size(200, 200), children: [MockChild(80, 40)])
-        // Inner: 160x160, child: 80x40, offset: (40, 60) + padding (20, 20)
-        XCTAssertEqual(slots[0].rect.x, 60, accuracy: acc)
-        XCTAssertEqual(slots[0].rect.y, 80, accuracy: acc)
-    }
-
-    // MARK: - Multiple children (overlay)
-
-    func testMultipleChildrenCentered() {
-        var layout = BoxLayout(alignment: .center, frame: .fill)
-        let slots = runBoxLayout(&layout, bounds: Size(200, 200), children: [
-            MockChild(100, 60), MockChild(40, 30)
-        ])
-        XCTAssertEqual(slots[0].rect.x, 50, accuracy: acc)
-        XCTAssertEqual(slots[0].rect.y, 70, accuracy: acc)
-        XCTAssertEqual(slots[1].rect.x, 80, accuracy: acc)
-        XCTAssertEqual(slots[1].rect.y, 85, accuracy: acc)
-    }
-
-    // MARK: - Overflow: scroll
-
-    func testScrollProposesUnlimitedOnScrollAxis() {
-        var layout = BoxLayout(overflow: .scroll(ScrollConfig(axis: .vertical)))
-        let child = FillChild()
-        let slots = runBoxLayout(&layout, bounds: Size(200, 200), children: [child])
-        // Vertical scroll: width proposed normally (200), height unlimited.
-        XCTAssertEqual(slots[0].rect.width, 200, accuracy: acc)
-        XCTAssertTrue(slots[0].rect.height > 1_000_000)
-    }
-
-    func testScrollHorizontalProposesUnlimitedWidth() {
-        var layout = BoxLayout(overflow: .scroll(ScrollConfig(axis: .horizontal)))
-        let child = FillChild()
-        let slots = runBoxLayout(&layout, bounds: Size(200, 200), children: [child])
-        XCTAssertTrue(slots[0].rect.width > 1_000_000)
-        XCTAssertEqual(slots[0].rect.height, 200, accuracy: acc)
-    }
-
-    // MARK: - Child larger than container
-
-    func testChildLargerThanContainerClip() {
-        var layout = BoxLayout(alignment: .topLeft, frame: .fill, overflow: .clip)
-        let slots = runBoxLayout(&layout, bounds: Size(200, 200), children: [MockChild(300, 300)])
-        // Child keeps its natural size, positioned at origin.
-        XCTAssertEqual(slots[0].rect.width, 300, accuracy: acc)
-        XCTAssertEqual(slots[0].rect.height, 300, accuracy: acc)
-        XCTAssertEqual(slots[0].rect.x, 0, accuracy: acc)
-        XCTAssertEqual(slots[0].rect.y, 0, accuracy: acc)
-    }
-
-    func testChildLargerThanContainerCentered() {
-        var layout = BoxLayout(alignment: .center, frame: .fill, overflow: .clip)
-        let slots = runBoxLayout(&layout, bounds: Size(200, 200), children: [MockChild(300, 300)])
-        // Child is larger — alignment can't push it, stays at padding edge.
-        XCTAssertEqual(slots[0].rect.x, 0, accuracy: acc)
-        XCTAssertEqual(slots[0].rect.y, 0, accuracy: acc)
-    }
-
-    // MARK: - Resize callback
-
-    func testResizeCallbackFires() {
-        let child = MockChild(80, 40)
-        var called = false
-        child.resize = { called = true }
-        child.resize?()
-        XCTAssertTrue(called)
+    func testProposeBoundsAsymmetricPadding() {
+        let layout = BoxLayout(padding: Padding(horizontal: 10, vertical: 30), frame: .fixed(100, 100))
+        let bounds = layout.proposeBounds(proposed: Size(200, 200))
+        XCTAssertEqual(bounds.width, 80, accuracy: acc)
+        XCTAssertEqual(bounds.height, 40, accuracy: acc)
     }
 }
 
