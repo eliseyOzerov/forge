@@ -40,13 +40,10 @@ final class LayoutTests: XCTestCase {
         var laid: [LayoutSlot] = []
         for (i, child) in children.enumerated() {
             var slot = LayoutSlot(index: i, child: child)
-            layout.propose(&slot, laid)
-            slot.rect = Rect(
-                x: 0, y: 0,
-                width: child.measure(proposed: slot.bounds).width,
-                height: child.measure(proposed: slot.bounds).height
-            )
-            layout.position(&slot, laid)
+            layout.measure(&slot, laid)
+            let measured = child.measure(proposed: slot.bounds)
+            slot.rect = Rect(x: 0, y: 0, width: measured.width, height: measured.height)
+            layout.layout(&slot, laid)
             child.rect = slot.rect
             laid.append(slot)
         }

@@ -7,7 +7,7 @@
 /// Three categories of layout exist:
 ///
 /// - **Sequential** — position of child N depends on children 0…N-1
-///   (Flex, Wrap, Masonry). Reads `laid` in `position`.
+///   (Flex, Wrap, Masonry). Reads `laid` in ``Layout/layout(_:_:)``.
 /// - **Independent** — each child positioned in isolation within parent
 ///   bounds (Box/Stack). Ignores `laid`.
 /// - **Geometric** — position is a pure function of index + parameters
@@ -43,8 +43,9 @@
 
 /// Per-child data during a layout pass. Created by the layout engine
 /// before each child is measured. The ``Layout`` algorithm writes
-/// `bounds` (the proposal) and the origin of `rect` (the position).
-/// The engine fills `rect.size` after measuring the child.
+/// `bounds` (the proposal) in ``Layout/measure(_:_:)`` and the origin
+/// of `rect` in ``Layout/layout(_:_:)``. The engine fills `rect.size`
+/// after measuring the child.
 public struct LayoutSlot {
     /// Index in the child list.
     public let index: Int
@@ -52,11 +53,11 @@ public struct LayoutSlot {
     /// The child's layout interface (measure + rect).
     public let child: any LayoutChild
 
-    /// Proposed size for this child, set by ``Layout/propose(_:_:)``.
+    /// Proposed size for this child, set by ``Layout/measure(_:_:)``.
     public var bounds: Size = .zero
 
-    /// The child's rect. After `propose`, the engine measures the child
-    /// and fills `size`. After `position`, the origin is set.
+    /// The child's rect. After `measure`, the engine fills `size` from
+    /// the child's response. After `layout`, the origin is set.
     public var rect: Rect = .zero
 
     public init(index: Int, child: any LayoutChild) {
@@ -76,24 +77,24 @@ public struct LayoutSlot {
 ///
 /// 1. ``start(_:)`` — once, with the parent's bounds. Reset any state.
 /// 2. For each child:
-///    a. ``propose(_:_:)`` — set `slot.bounds` (the size proposal).
+///    a. ``measure(_:_:)`` — set `slot.bounds` (the size proposal).
 ///    b. Engine measures the child: `slot.rect.size = child.measure(proposed: slot.bounds)`.
-///    c. ``position(_:_:)`` — set `slot.rect.origin`.
+///    c. ``layout(_:_:)`` — set `slot.rect.origin`.
 /// 3. ``size(_:)`` — return the layout's own size.
 public protocol Layout {
     /// Reset state for a new layout pass with the given parent bounds.
     mutating func start(_ bounds: Size)
 
-    /// Set `slot.bounds` — the proposed size for this child. `laid`
-    /// contains all previously laid-out slots.
-    mutating func propose(_ slot: inout LayoutSlot, _ laid: [LayoutSlot])
+    /// Set `slot.bounds` — the proposed size for this child. `measured`
+    /// contains all previously measured slots.
+    mutating func measure(_ slot: inout LayoutSlot, _ measured: [LayoutSlot])
 
     /// Set `slot.rect.origin` — the child's position. `slot.rect.size`
     /// has been filled by the engine after measuring. `laid` contains
-    /// all previously positioned slots.
-    mutating func position(_ slot: inout LayoutSlot, _ laid: [LayoutSlot])
+    /// all previously laid-out slots.
+    mutating func layout(_ slot: inout LayoutSlot, _ laid: [LayoutSlot])
 
-    /// Return the layout's own size after all children are positioned.
+    /// Return the layout's own size after all children are laid out.
     mutating func size(_ laid: [LayoutSlot]) -> Size
 }
 
@@ -127,11 +128,11 @@ public struct BoxLayout: Layout {
         )
     }
 
-    public mutating func propose(_ slot: inout LayoutSlot, _ laid: [LayoutSlot]) {
+    public mutating func measure(_ slot: inout LayoutSlot, _ measured: [LayoutSlot]) {
         slot.bounds = inner
     }
 
-    public mutating func position(_ slot: inout LayoutSlot, _ laid: [LayoutSlot]) {
+    public mutating func layout(_ slot: inout LayoutSlot, _ laid: [LayoutSlot]) {
         let fx = (alignment.x + 1) / 2
         let fy = (alignment.y + 1) / 2
         let x = padding.leading + max(0, inner.width - slot.rect.width) * fx
