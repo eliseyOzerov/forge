@@ -187,15 +187,15 @@ final class ComposedLayoutTests: XCTestCase {
 
     // MARK: - Complex Compositions
 
-    func testRowOfEqualWidthFillBoxes() {
-        let b1 = makeBox(sizing: Frame(.fill(), .hug()), children: [child(10, 30)])
-        let b2 = makeBox(sizing: Frame(.fill(), .hug()), children: [child(10, 30)])
-        let b3 = makeBox(sizing: Frame(.fill(), .hug()), children: [child(10, 30)])
+    func testRowOfEqualWidthFlexBoxes() {
+        let b1 = makeBox(sizing: Frame(.flex(), .hug()), children: [child(10, 30)])
+        let b2 = makeBox(sizing: Frame(.flex(), .hug()), children: [child(10, 30)])
+        let b3 = makeBox(sizing: Frame(.flex(), .hug()), children: [child(10, 30)])
         let row = makeFlex(axis: .horizontal, alignment: .topLeft, children: [b1, b2, b3])
 
         layout(row, size: CGSize(width: 300, height: 100))
 
-        // Three fill boxes, each flex=1, total=3 → each gets 100
+        // Three flex boxes, each weight=1, total=3 → each gets 100
         XCTAssertEqual(b1.frame.width, 100, accuracy: acc)
         XCTAssertEqual(b2.frame.width, 100, accuracy: acc)
         XCTAssertEqual(b3.frame.width, 100, accuracy: acc)
@@ -204,9 +204,9 @@ final class ComposedLayoutTests: XCTestCase {
         XCTAssertEqual(b3.frame.origin.x, 200, accuracy: acc)
     }
 
-    func testColumnWithHeaderAndFillBody() {
+    func testColumnWithHeaderAndFlexBody() {
         let header = makeBox(sizing: Frame(.fill(), .fix(50)), children: [child(100, 50)])
-        let body = makeBox(sizing: Frame(.fill(), .fill()), children: [child(100, 100)])
+        let body = makeBox(sizing: Frame(.fill(), .flex()), children: [child(100, 100)])
         let column = makeFlex(axis: .vertical, alignment: .topLeft, children: [header, body])
 
         layout(column, size: CGSize(width: 300, height: 400))
@@ -253,7 +253,7 @@ final class ComposedLayoutTests: XCTestCase {
     func testFillBoxInsideFillBoxInsideFlex() {
         let innerContent = child(30, 30)
         let innerBox = makeBox(sizing: .fill, children: [innerContent])
-        let outerBox = makeBox(sizing: Frame(.fill(), .hug()), children: [innerBox])
+        let outerBox = makeBox(sizing: Frame(.flex(), .hug()), children: [innerBox])
         let row = makeFlex(axis: .horizontal, alignment: .topLeft, children: [outerBox])
 
         layout(row, size: CGSize(width: 300, height: 200))
@@ -266,9 +266,9 @@ final class ComposedLayoutTests: XCTestCase {
     }
 
     func testColumnWithMixedSizingChildren() {
-        // Header (fixed), body (fill), footer (fixed)
+        // Header (fixed), body (flex), footer (fixed)
         let header = makeBox(sizing: Frame(.fill(), .fix(40)))
-        let body = makeBox(sizing: Frame(.fill(), .fill()))
+        let body = makeBox(sizing: Frame(.fill(), .flex()))
         let footer = makeBox(sizing: Frame(.fill(), .fix(60)))
         let column = makeFlex(axis: .vertical, alignment: .topLeft, children: [header, body, footer])
 

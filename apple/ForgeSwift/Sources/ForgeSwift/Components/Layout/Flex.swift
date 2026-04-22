@@ -275,39 +275,57 @@ final class FlexView: UIView {
 
     // MARK: - Step 3: Resolve fill sizes
 
-    private func fillExtent(of view: UIView) -> Extent? {
+    private func expandableExtent(of view: UIView) -> Extent? {
         let sizing: Frame?
         if let box = view as? BoxView { sizing = box.sizing }
         else if let proxy = view as? PassthroughView { sizing = proxy.innerSizing }
         else { return nil }
         guard let s = sizing else { return nil }
         let extent = isH ? s.width : s.height
-        if case .fill = extent { return extent }
-        return nil
+        switch extent {
+        case .fill, .flex: return extent
+        default: return nil
+        }
     }
 
     private func resolveFills(_ line: inout FlexLine, mainExtent: CGFloat, crossExtent: CGFloat) {
         var totalFixed: CGFloat = 0
-        var totalFlex: Double = 0
+        var totalFlexWeight: Double = 0
+        var totalFillFraction: Double = 0
         for slot in line.slots {
-            if let ext = fillExtent(of: slot.view), case .fill(let flex, _, _) = ext { totalFlex += flex }
-            else { totalFixed += main(of: slot.intrinsicSize) }
+            guard let ext = expandableExtent(of: slot.view) else {
+                totalFixed += main(of: slot.intrinsicSize)
+                continue
+            }
+            switch ext {
+            case .flex(let weight, _, _): totalFlexWeight += Double(weight)
+            case .fill(let fraction, _, _): totalFillFraction += fraction
+            default: break
+            }
         }
 
         let spacingTotal = flexSpread == .packed ? flexSpacing * Double(line.slots.count - 1) : 0
-        let freeSpace = max(0, mainExtent - totalFixed - spacingTotal)
+
+        // Fill children take their fraction of the full main extent first.
+        let fillConsumed = mainExtent * min(1.0, totalFillFraction)
+        // Flex children split the remaining space by weight.
+        let freeSpace = max(0, mainExtent - totalFixed - fillConsumed - spacingTotal)
 
         for i in 0..<line.slots.count {
-            if let ext = fillExtent(of: line.slots[i].view), case .fill(let flex, let minVal, let maxVal) = ext {
-                let normalizedFlex = max(1.0, totalFlex)
-                var share = freeSpace * flex / normalizedFlex
-                if let lo = minVal { share = max(share, lo) }
-                if let hi = maxVal { share = min(share, hi) }
-                let crossSize = isH
-                    ? line.slots[i].view.sizeThatFits(CGSize(width: share, height: crossExtent)).height
-                    : line.slots[i].view.sizeThatFits(CGSize(width: crossExtent, height: share)).width
-                line.slots[i].resolvedSize = isH ? CGSize(width: share, height: crossSize) : CGSize(width: crossSize, height: share)
+            guard let ext = expandableExtent(of: line.slots[i].view) else { continue }
+            let share: CGFloat
+            switch ext {
+            case .fill(let fraction, let minVal, let maxVal):
+                share = (mainExtent * fraction).clamped(min: minVal, max: maxVal)
+            case .flex(let weight, let minVal, let maxVal):
+                let normalizedFlex = max(1.0, totalFlexWeight)
+                share = (freeSpace * Double(weight) / normalizedFlex).clamped(min: minVal, max: maxVal)
+            default: continue
             }
+            let crossSize = isH
+                ? line.slots[i].view.sizeThatFits(CGSize(width: share, height: crossExtent)).height
+                : line.slots[i].view.sizeThatFits(CGSize(width: crossExtent, height: share)).width
+            line.slots[i].resolvedSize = isH ? CGSize(width: share, height: crossSize) : CGSize(width: crossSize, height: share)
         }
 
         line.crossSize = line.slots.reduce(CGFloat(0)) { max($0, cross(of: $1.resolvedSize)) }
@@ -393,7 +411,7 @@ final class FlexView: UIView {
         var hasFillChild = false
 
         for slot in slots {
-            if fillExtent(of: slot.view) != nil {
+            if expandableExtent(of: slot.view) != nil {
                 hasFillChild = true
             } else {
                 mainTotal += main(of: slot.intrinsicSize)

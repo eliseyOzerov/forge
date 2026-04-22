@@ -335,12 +335,14 @@ class BoxView: UIView {
         let content = childrenSize(proposing: innerSize)
         let w: CGFloat = switch sizing.width {
         case .fix(let v): v
-        case .fill: size.width
+        case .fill(let f, _, _): size.width * f
+        case .flex: size.width
         case .hug: content.width + padding.leading + padding.trailing
         }
         let h: CGFloat = switch sizing.height {
         case .fix(let v): v
-        case .fill: size.height
+        case .fill(let f, _, _): size.height * f
+        case .flex: size.height
         case .hug: content.height + padding.top + padding.bottom
         }
         return CGSize(width: w, height: h)
@@ -391,14 +393,14 @@ class BoxView: UIView {
         translatesAutoresizingMaskIntoConstraints = false
         switch sizing.width {
         case .fix(let w): sizingConstraints.append(widthAnchor.equal(w))
-        case .fill:
+        case .fill, .flex:
             sizingConstraints.append(leadingAnchor.equal(superview.leadingAnchor))
             sizingConstraints.append(trailingAnchor.equal(superview.trailingAnchor))
         case .hug: break
         }
         switch sizing.height {
         case .fix(let h): sizingConstraints.append(heightAnchor.equal(h))
-        case .fill:
+        case .fill, .flex:
             sizingConstraints.append(topAnchor.equal(superview.topAnchor))
             sizingConstraints.append(bottomAnchor.equal(superview.bottomAnchor))
         case .hug: break
@@ -448,10 +450,16 @@ class BoxView: UIView {
         let proposedW: CGFloat = (isScrolling && scrollAxis != .vertical) ? .greatestFiniteMagnitude : inset.width
         let proposedH: CGFloat = (isScrolling && scrollAxis != .horizontal) ? .greatestFiniteMagnitude : inset.height
         var size = child.sizeThatFits(CGSize(width: proposedW, height: proposedH))
-        // Fill children expand to fill the inset on their fill axis
+        // Fill/flex children expand to fill the inset on that axis
         if let boxChild = child as? BoxView {
-            if case .fill = boxChild.sizing.width { size.width = inset.width }
-            if case .fill = boxChild.sizing.height { size.height = inset.height }
+            switch boxChild.sizing.width {
+            case .fill, .flex: size.width = inset.width
+            default: break
+            }
+            switch boxChild.sizing.height {
+            case .fill, .flex: size.height = inset.height
+            default: break
+            }
         }
 
         return size
