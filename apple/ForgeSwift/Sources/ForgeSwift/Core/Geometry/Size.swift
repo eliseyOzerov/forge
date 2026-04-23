@@ -51,3 +51,6 @@ public struct Size {
 }
 
 extension Size: Equatable, Hashable, Sendable {}
+
+public func + (lhs: Size, rhs: Padding) -> Size { lhs.adding(rhs) }
+public func - (lhs: Size, rhs: Padding) -> Size { lhs.subtracting(rhs) }

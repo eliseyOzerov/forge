@@ -159,3 +159,6 @@ public struct Rect {
 }
 
 extension Rect: Equatable, Hashable, Sendable {}
+
+public func + (lhs: Rect, rhs: Padding) -> Rect { lhs.outset(by: rhs) }
+public func - (lhs: Rect, rhs: Padding) -> Rect { lhs.inset(by: rhs) }
