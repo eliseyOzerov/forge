@@ -1,3 +1,24 @@
+// MARK: - Box
+
+@Copy
+public struct Box: ContainerView {
+    public var style: BoxStyle = BoxStyle()
+    public var children: [any View] = []
+
+    public init(_ style: BoxStyle = BoxStyle(), @ChildrenBuilder content: () -> [any View]) {
+        self.style = style
+        self.children = content()
+    }
+
+    public func makeRenderer() -> ContainerRenderer {
+        #if canImport(UIKit)
+        BoxRenderer(view: self)
+        #else
+        fatalError("Box not yet implemented for this platform")
+        #endif
+    }
+}
+
 /// The fundamental layout primitive. A container that paints a Surface,
 /// clips to a Shape, and overlays its children (each aligned independently).
 ///
@@ -27,27 +48,6 @@ public struct BoxStyle: Equatable {
     public var surface: Surface? = nil
     public var shape: AnyShape? = nil
     @Snap public var clip: Bool = true
-}
-
-// MARK: - Box
-
-@Copy
-public struct Box: ContainerView {
-    public var style: BoxStyle = BoxStyle()
-    public var children: [any View] = []
-
-    public init(_ style: BoxStyle = BoxStyle(), @ChildrenBuilder content: () -> [any View]) {
-        self.style = style
-        self.children = content()
-    }
-
-    public func makeRenderer() -> ContainerRenderer {
-        #if canImport(UIKit)
-        BoxRenderer(view: self)
-        #else
-        fatalError("Box not yet implemented for this platform")
-        #endif
-    }
 }
 
 // MARK: - Box Extensions
@@ -194,78 +194,31 @@ public extension ThemeSlot where T == BoxTheme {
 import UIKit
 
 final class BoxRenderer: ContainerRenderer {
-    private weak var boxView: BoxView?
+    private weak var rendered: BoxView?
     private var view: Box
 
     init(view: Box) {
         self.view = view
     }
-    
+
     func mount() -> PlatformView {
         let bv = BoxView()
-        self.boxView = bv
+        self.rendered = bv
         bv.apply(view.style)
         return bv
     }
 
     func update(from newView: any View) {
-        guard let box = newView as? Box, let boxView else { return }
-        let old = view.style
-        let new = box.style
+        guard let box = newView as? Box, let rendered else { return }
+        let oldStyle = view.style
         view = box
 
-        guard old != new else { return }
+        guard oldStyle != box.style else { return }
 
-        var needsSelfLayout = false
-        var needsParentLayout = false
-
-        // Layout
-        if old.frame != new.frame {
-            boxView.sizing = new.frame
-            needsSelfLayout = true
-            needsParentLayout = true
-        }
-        if old.padding != new.padding {
-            boxView.padding = new.padding
-            needsSelfLayout = true
-        }
-        if old.alignment != new.alignment {
-            boxView.alignment = new.alignment
-            needsSelfLayout = true
-        }
-        if old.overflow != new.overflow {
-            boxView.overflow = new.overflow
-            needsSelfLayout = true
-        }
-
-        // Rendering
-        if old.surface != new.surface {
-            boxView.surface = new.surface
-            needsSelfLayout = true
-        }
-        if old.shape != new.shape {
-            boxView.shape = new.shape
-            needsSelfLayout = true
-        }
-        if old.clip != new.clip {
-            boxView.clip = new.clip
-            needsSelfLayout = true
-        }
-
-        if needsSelfLayout { boxView.setNeedsLayout() }
-        if needsParentLayout { boxView.superview?.setNeedsLayout() }
-    }
-
-    func insert(_ platformView: PlatformView, at index: Int, into container: PlatformView) {
-        container.insertSubview(platformView, at: index)
-    }
-
-    func remove(_ platformView: PlatformView, from container: PlatformView) {
-        platformView.removeFromSuperview()
-    }
-
-    func index(of platformView: PlatformView, in container: PlatformView) -> Int? {
-        container.subviews.firstIndex(of: platformView)
+        let needsParentLayout = oldStyle.frame != box.style.frame
+        rendered.apply(box.style)
+        rendered.setNeedsLayout()
+        if needsParentLayout { rendered.superview?.setNeedsLayout() }
     }
 }
 

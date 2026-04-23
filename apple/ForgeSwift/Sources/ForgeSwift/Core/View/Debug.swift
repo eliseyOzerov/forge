@@ -71,23 +71,6 @@ final class DebugOverlayRenderer: ContainerRenderer {
         ov.debugLabel = view.label
         return ov
     }
-
-    func insert(_ platformView: PlatformView, at index: Int, into container: PlatformView) {
-        container.insertSubview(platformView, at: index)
-    }
-
-    func remove(_ platformView: PlatformView, from container: PlatformView) {
-        platformView.removeFromSuperview()
-    }
-
-    func move(_ platformView: PlatformView, to index: Int, in container: PlatformView) {
-        platformView.removeFromSuperview()
-        container.insertSubview(platformView, at: index)
-    }
-
-    func index(of platformView: PlatformView, in container: PlatformView) -> Int? {
-        container.subviews.firstIndex(of: platformView)
-    }
 }
 
 /// Backing UIView for DebugOverlay. Draws a colored border,

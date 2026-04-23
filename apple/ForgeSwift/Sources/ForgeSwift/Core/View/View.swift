@@ -412,6 +412,10 @@ public extension ContainerView {
 }
 
 public extension ContainerRenderer {
+    func remove(_ platformView: PlatformView, from container: PlatformView) {
+        platformView.removeFromSuperview()
+    }
+
     /// Default move: remove then reinsert. Renderers whose underlying
     /// container supports a direct move op can override for efficiency.
     func move(_ platformView: PlatformView, to index: Int, in container: PlatformView) {
@@ -419,6 +423,18 @@ public extension ContainerRenderer {
         insert(platformView, at: index, into: container)
     }
 }
+
+#if canImport(UIKit)
+public extension ContainerRenderer {
+    func insert(_ platformView: PlatformView, at index: Int, into container: PlatformView) {
+        container.insertSubview(platformView, at: index)
+    }
+
+    func index(of platformView: PlatformView, in container: PlatformView) -> Int? {
+        container.subviews.firstIndex(of: platformView)
+    }
+}
+#endif
 
 // MARK: - ListBuilder
 
