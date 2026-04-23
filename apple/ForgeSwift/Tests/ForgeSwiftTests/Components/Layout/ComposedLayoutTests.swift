@@ -39,6 +39,19 @@ final class ComposedLayoutTests: XCTestCase {
         return box
     }
 
+    /// Create a FlexibleHostView wrapping a BoxView for flex distribution testing.
+    private func makeFlexible(
+        weight: Int = 1,
+        sizing: Frame = .hug,
+        children: [UIView] = []
+    ) -> FlexibleHostView {
+        let box = makeBox(sizing: sizing, children: children)
+        let host = FlexibleHostView()
+        host.weight = weight
+        host.addSubview(box)
+        return host
+    }
+
     /// Create a FlexView (Column or Row) with given config and children.
     private func makeFlex(
         axis: NSLayoutConstraint.Axis = .vertical,
@@ -188,9 +201,9 @@ final class ComposedLayoutTests: XCTestCase {
     // MARK: - Complex Compositions
 
     func testRowOfEqualWidthFlexBoxes() {
-        let b1 = makeBox(sizing: Frame(.flex(), .hug()), children: [child(10, 30)])
-        let b2 = makeBox(sizing: Frame(.flex(), .hug()), children: [child(10, 30)])
-        let b3 = makeBox(sizing: Frame(.flex(), .hug()), children: [child(10, 30)])
+        let b1 = makeFlexible(children: [child(10, 30)])
+        let b2 = makeFlexible(children: [child(10, 30)])
+        let b3 = makeFlexible(children: [child(10, 30)])
         let row = makeFlex(axis: .horizontal, alignment: .topLeft, children: [b1, b2, b3])
 
         layout(row, size: CGSize(width: 300, height: 100))
@@ -206,7 +219,7 @@ final class ComposedLayoutTests: XCTestCase {
 
     func testColumnWithHeaderAndFlexBody() {
         let header = makeBox(sizing: Frame(.fill(), .fix(50)), children: [child(100, 50)])
-        let body = makeBox(sizing: Frame(.fill(), .flex()), children: [child(100, 100)])
+        let body = makeFlexible(sizing: Frame(.fill(), .fit()), children: [child(100, 100)])
         let column = makeFlex(axis: .vertical, alignment: .topLeft, children: [header, body])
 
         layout(column, size: CGSize(width: 300, height: 400))
@@ -253,14 +266,16 @@ final class ComposedLayoutTests: XCTestCase {
     func testFillBoxInsideFillBoxInsideFlex() {
         let innerContent = child(30, 30)
         let innerBox = makeBox(sizing: .fill, children: [innerContent])
-        let outerBox = makeBox(sizing: Frame(.flex(), .hug()), children: [innerBox])
-        let row = makeFlex(axis: .horizontal, alignment: .topLeft, children: [outerBox])
+        let flexHost = makeFlexible(sizing: .fill, children: [innerBox])
+        let row = makeFlex(axis: .horizontal, alignment: .topLeft, children: [flexHost])
 
         layout(row, size: CGSize(width: 300, height: 200))
 
-        // outerBox is fill-width in row → 300
-        XCTAssertEqual(outerBox.frame.width, 300, accuracy: acc)
-        // innerBox is fill inside outerBox → also 300
+        // flexHost gets 300 from flex, its inner box fills it
+        XCTAssertEqual(flexHost.frame.width, 300, accuracy: acc)
+        // Trigger layout through the chain
+        flexHost.layoutSubviews()
+        let outerBox = flexHost.subviews.first!
         outerBox.layoutSubviews()
         XCTAssertEqual(innerBox.frame.width, 300, accuracy: acc)
     }
@@ -268,7 +283,7 @@ final class ComposedLayoutTests: XCTestCase {
     func testColumnWithMixedSizingChildren() {
         // Header (fixed), body (flex), footer (fixed)
         let header = makeBox(sizing: Frame(.fill(), .fix(40)))
-        let body = makeBox(sizing: Frame(.fill(), .flex()))
+        let body = makeFlexible(sizing: Frame(.fill(), .fit()))
         let footer = makeBox(sizing: Frame(.fill(), .fix(60)))
         let column = makeFlex(axis: .vertical, alignment: .topLeft, children: [header, body, footer])
 

@@ -186,7 +186,7 @@ final class BoxLayoutTests: XCTestCase {
 
     func testSizeThatFitsHugWithMin() {
         let box = BoxView()
-        box.sizing = Frame(.hug(min: 100), .hug(min: 80))
+        box.sizing = Frame(.fit(min: 100), .fit(min: 80))
         box.addSubview(child(40, 30))
         let size = box.sizeThatFits(CGSize(width: 300, height: 300))
         XCTAssertEqual(size.width, 100, accuracy: acc)
@@ -195,7 +195,7 @@ final class BoxLayoutTests: XCTestCase {
 
     func testSizeThatFitsHugWithMinNoEffect() {
         let box = BoxView()
-        box.sizing = Frame(.hug(min: 50), .hug(min: 50))
+        box.sizing = Frame(.fit(min: 50), .fit(min: 50))
         box.addSubview(child(80, 60))
         let size = box.sizeThatFits(CGSize(width: 300, height: 300))
         // Content already exceeds min.
@@ -205,7 +205,7 @@ final class BoxLayoutTests: XCTestCase {
 
     func testSizeThatFitsHugWithMax() {
         let box = BoxView()
-        box.sizing = Frame(.hug(max: 60), .hug(max: 40))
+        box.sizing = Frame(.fit(max: 60), .fit(max: 40))
         box.addSubview(child(100, 80))
         let size = box.sizeThatFits(CGSize(width: 300, height: 300))
         XCTAssertEqual(size.width, 60, accuracy: acc)
@@ -214,7 +214,7 @@ final class BoxLayoutTests: XCTestCase {
 
     func testSizeThatFitsHugWithMinAndMax() {
         let box = BoxView()
-        box.sizing = Frame(.hug(min: 50, max: 90), .hug(min: 50, max: 90))
+        box.sizing = Frame(.fit(min: 50, max: 90), .fit(min: 50, max: 90))
         box.addSubview(child(30, 30))
         let size = box.sizeThatFits(CGSize(width: 300, height: 300))
         // Content 30 clamped to min 50.
@@ -222,20 +222,20 @@ final class BoxLayoutTests: XCTestCase {
         XCTAssertEqual(size.height, 50, accuracy: acc)
     }
 
-    // MARK: - sizeThatFits: Flex
+    // MARK: - sizeThatFits: Fit (intrinsic)
 
-    func testSizeThatFitsFlexReturnsIntrinsic() {
+    func testSizeThatFitsFitReturnsIntrinsic() {
         let box = BoxView()
-        box.sizing = Frame(.flex(), .flex())
+        box.sizing = Frame(.fit(), .fit())
         box.addSubview(child(80, 60))
         let size = box.sizeThatFits(CGSize(width: 300, height: 300))
         XCTAssertEqual(size.width, 80, accuracy: acc)
         XCTAssertEqual(size.height, 60, accuracy: acc)
     }
 
-    func testSizeThatFitsFlexWithPadding() {
+    func testSizeThatFitsFitWithPadding() {
         let box = BoxView()
-        box.sizing = Frame(.flex(), .flex())
+        box.sizing = Frame(.fit(), .fit())
         box.padding = .all(10)
         box.addSubview(child(80, 60))
         let size = box.sizeThatFits(CGSize(width: 300, height: 300))
@@ -243,18 +243,18 @@ final class BoxLayoutTests: XCTestCase {
         XCTAssertEqual(size.height, 80, accuracy: acc)
     }
 
-    func testSizeThatFitsFlexZeroProposalReturnsIntrinsic() {
+    func testSizeThatFitsFitZeroProposalReturnsIntrinsic() {
         let box = BoxView()
-        box.sizing = Frame(.flex(), .flex())
+        box.sizing = Frame(.fit(), .fit())
         box.addSubview(child(80, 60))
         let size = box.sizeThatFits(CGSize(width: 0, height: 0))
         XCTAssertEqual(size.width, 80, accuracy: acc)
         XCTAssertEqual(size.height, 60, accuracy: acc)
     }
 
-    func testSizeThatFitsFlexWithMin() {
+    func testSizeThatFitsFitWithMin() {
         let box = BoxView()
-        box.sizing = Frame(.flex(1, min: 100), .flex(1, min: 100))
+        box.sizing = Frame(.fit(min: 100), .fit(min: 100))
         box.addSubview(child(40, 30))
         let size = box.sizeThatFits(CGSize(width: 300, height: 300))
         XCTAssertEqual(size.width, 100, accuracy: acc)
@@ -265,7 +265,7 @@ final class BoxLayoutTests: XCTestCase {
 
     func testSizeThatFitsMixedWidthFixHeightHug() {
         let box = BoxView()
-        box.sizing = Frame(.fix(100), .hug())
+        box.sizing = Frame(.fix(100), .fit())
         box.addSubview(child(80, 60))
         let size = box.sizeThatFits(CGSize(width: 300, height: 300))
         XCTAssertEqual(size.width, 100, accuracy: acc)
@@ -406,7 +406,7 @@ final class BoxLayoutTests: XCTestCase {
 
     func testFillChildWidthOnly() {
         let fillChild = BoxView()
-        fillChild.sizing = Frame(.fill(), .hug())
+        fillChild.sizing = Frame(.fill(), .fit())
         fillChild.addSubview(child(30, 50))
         let box = layoutBox(
             sizing: .fixed(200, 200),

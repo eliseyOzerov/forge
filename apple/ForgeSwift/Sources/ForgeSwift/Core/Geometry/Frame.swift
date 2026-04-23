@@ -3,10 +3,10 @@ import Foundation
 /// Sizing constraints for a view.
 @Init @Copy
 public struct Frame: Equatable, Sendable, Lerpable {
-    public var width: Extent = .hug()
-    public var height: Extent = .hug()
+    public var width: Extent = .fit()
+    public var height: Extent = .fit()
 
-    public init(_ width: Extent = .hug(), _ height: Extent = .hug()) {
+    public init(_ width: Extent = .fit(), _ height: Extent = .fit()) {
         self.init(width: width, height: height)
     }
 
@@ -27,10 +27,10 @@ public struct Frame: Equatable, Sendable, Lerpable {
     }
 
     public static let fill = Frame(.fill(), .fill())
-    public static let hug = Frame(.hug(), .hug())
+    public static let hug = Frame(.fit(), .fit())
 
-    public static let fillWidth = Frame(.fill(), .hug())
-    public static let fillHeight = Frame(.hug(), .fill())
+    public static let fillWidth = Frame(.fill(), .fit())
+    public static let fillHeight = Frame(.fit(), .fill())
 
     public func lerp(to other: Frame, t: Double) -> Frame {
         Frame(width: width.lerp(to: other.width, t: t),
@@ -41,16 +41,12 @@ public struct Frame: Equatable, Sendable, Lerpable {
 /// How a dimension should be sized.
 public enum Extent: Equatable, Sendable {
     /// Shrink to child's intrinsic size, optionally clamped.
-    case hug(min: Double? = nil, max: Double? = nil)
+    case fit(min: Double? = nil, max: Double? = nil)
     /// Fraction of available space. 1.0 = 100%, 0.5 = 50%.
     /// When proposed size is zero, falls back to intrinsic size.
     case fill(_ fraction: Double = 1, min: Double? = nil, max: Double? = nil)
     /// Exact size in points.
     case fix(Double)
-    /// Weight-based distribution in sequential layouts (Flex).
-    /// Ignored by independent layouts (Box). Weight determines ratio
-    /// of remaining space: flex(1) vs flex(2) = 1:2 split.
-    case flex(_ weight: Int = 1, min: Double? = nil, max: Double? = nil)
 }
 
 public extension Extent {
@@ -58,9 +54,8 @@ public extension Extent {
     var min: Double? {
         switch self {
         case .fix: nil
-        case .hug(let min, _): min
+        case .fit(let min, _): min
         case .fill(_, let min, _): min
-        case .flex(_, let min, _): min
         }
     }
 
@@ -68,9 +63,8 @@ public extension Extent {
     var max: Double? {
         switch self {
         case .fix: nil
-        case .hug(_, let max): max
+        case .fit(_, let max): max
         case .fill(_, _, let max): max
-        case .flex(_, _, let max): max
         }
     }
 }
@@ -80,15 +74,11 @@ extension Extent: Lerpable {
         switch (self, other) {
         case (.fix(let a), .fix(let b)):
             return .fix(a.lerp(to: b, t: t))
-        case (.hug(let aMin, let aMax), .hug(let bMin, let bMax)):
-            return .hug(min: lerpOptional(aMin, bMin, t: t),
+        case (.fit(let aMin, let aMax), .fit(let bMin, let bMax)):
+            return .fit(min: lerpOptional(aMin, bMin, t: t),
                         max: lerpOptional(aMax, bMax, t: t))
         case (.fill(let aFrac, let aMin, let aMax), .fill(let bFrac, let bMin, let bMax)):
             return .fill(aFrac.lerp(to: bFrac, t: t),
-                         min: lerpOptional(aMin, bMin, t: t),
-                         max: lerpOptional(aMax, bMax, t: t))
-        case (.flex(let aW, let aMin, let aMax), .flex(let bW, let bMin, let bMax)):
-            return .flex(Int(Double(aW).lerp(to: Double(bW), t: t)),
                          min: lerpOptional(aMin, bMin, t: t),
                          max: lerpOptional(aMax, bMax, t: t))
         default:

@@ -24,22 +24,24 @@ final class FlexLayoutTests: XCTestCase {
         FixedSizeView(size: CGSize(width: w, height: h))
     }
 
-    /// Create a BoxView with flex sizing on the given axis for weighted distribution testing.
+    /// Create a FlexibleHostView wrapping a BoxView for weighted distribution testing.
     private func fillBox(
         weight: Int = 1,
+        min: Double? = nil,
+        max: Double? = nil,
         axis: NSLayoutConstraint.Axis = .horizontal,
         intrinsicCross: CGFloat = 30
-    ) -> BoxView {
+    ) -> FlexibleHostView {
         let box = BoxView()
-        if axis == .horizontal {
-            box.sizing = Frame(.flex(weight), .hug())
-        } else {
-            box.sizing = Frame(.hug(), .flex(weight))
-        }
         // Add a child so cross-axis measurement returns something
         let c = FixedSizeView(size: CGSize(width: intrinsicCross, height: intrinsicCross))
         box.addSubview(c)
-        return box
+        let host = FlexibleHostView()
+        host.weight = weight
+        host.flexMin = min
+        host.flexMax = max
+        host.addSubview(box)
+        return host
     }
 
     /// Create a FlexView (Column or Row), add children, set frame, trigger layout.
@@ -356,7 +358,7 @@ final class FlexLayoutTests: XCTestCase {
 
     func testFillChildHalfFractionAlone() {
         let fb = BoxView()
-        fb.sizing = Frame(.fill(0.5), .hug())
+        fb.sizing = Frame(.fill(0.5), .fit())
         fb.addSubview(FixedSizeView(size: CGSize(width: 30, height: 30)))
         let flex = layoutFlex(
             axis: .horizontal,
@@ -616,9 +618,7 @@ final class FlexLayoutTests: XCTestCase {
         // Flex with min=120 in a 200px row with a 100px fixed child.
         // Free space = 100, share = 100, but min = 120 → clamped to 120.
         let fixed = child(100, 30)
-        let fb = BoxView()
-        fb.sizing = Frame(.flex(1, min: 120), .hug())
-        fb.addSubview(FixedSizeView(size: CGSize(width: 30, height: 30)))
+        let fb = fillBox(min: 120)
         let flex = layoutFlex(
             axis: .horizontal, alignment: .topLeft,
             containerSize: CGSize(width: 200, height: 100),
@@ -630,9 +630,7 @@ final class FlexLayoutTests: XCTestCase {
     func testFlexMaxClamped() {
         // Flex with max=80 in a 200px row (no other children).
         // Free space = 200, but max = 80 → clamped to 80.
-        let fb = BoxView()
-        fb.sizing = Frame(.flex(1, max: 80), .hug())
-        fb.addSubview(FixedSizeView(size: CGSize(width: 30, height: 30)))
+        let fb = fillBox(max: 80)
         let flex = layoutFlex(
             axis: .horizontal, alignment: .topLeft,
             containerSize: CGSize(width: 200, height: 100),
@@ -643,12 +641,8 @@ final class FlexLayoutTests: XCTestCase {
 
     func testFlexMinMaxBothApplied() {
         // Two flex children in 300px. Each gets 150, min=100 max=120 → clamped to 120.
-        let fb1 = BoxView()
-        fb1.sizing = Frame(.flex(1, min: 100, max: 120), .hug())
-        fb1.addSubview(FixedSizeView(size: CGSize(width: 30, height: 30)))
-        let fb2 = BoxView()
-        fb2.sizing = Frame(.flex(1, min: 100, max: 120), .hug())
-        fb2.addSubview(FixedSizeView(size: CGSize(width: 30, height: 30)))
+        let fb1 = fillBox(min: 100, max: 120)
+        let fb2 = fillBox(min: 100, max: 120)
         let flex = layoutFlex(
             axis: .horizontal, alignment: .topLeft,
             containerSize: CGSize(width: 300, height: 100),

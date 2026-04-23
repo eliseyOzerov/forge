@@ -318,7 +318,7 @@ class BoxView: UIView {
             let raw: Double = switch extent {
             case .fix(let v): v
             case .fill(let f, _, _): Double(proposed) * f
-            case .flex, .hug: Double(content)
+            case .fit: Double(content)
             }
             return CGFloat(raw.clamped(min: extent.min, max: extent.max))
         }
@@ -350,17 +350,17 @@ class BoxView: UIView {
         translatesAutoresizingMaskIntoConstraints = false
         switch sizing.width {
         case .fix(let w): sizingConstraints.append(widthAnchor.equal(w))
-        case .fill, .flex:
+        case .fill:
             sizingConstraints.append(leadingAnchor.equal(superview.leadingAnchor))
             sizingConstraints.append(trailingAnchor.equal(superview.trailingAnchor))
-        case .hug: break
+        case .fit: break
         }
         switch sizing.height {
         case .fix(let h): sizingConstraints.append(heightAnchor.equal(h))
-        case .fill, .flex:
+        case .fill:
             sizingConstraints.append(topAnchor.equal(superview.topAnchor))
             sizingConstraints.append(bottomAnchor.equal(superview.bottomAnchor))
-        case .hug: break
+        case .fit: break
         }
     }
 
@@ -399,14 +399,14 @@ class BoxView: UIView {
     /// Measure a child, respecting fill extents.
     private func resolveChildSize(_ child: UIView, in inset: CGRect) -> CGSize {
         var size = child.sizeThatFits(CGSize(width: inset.width, height: inset.height))
-        // Fill/flex children expand to fill the inset on that axis
+        // Fill children expand to fill the inset on that axis
         if let boxChild = child as? BoxView {
             switch boxChild.sizing.width {
-            case .fill, .flex: size.width = inset.width
+            case .fill: size.width = inset.width
             default: break
             }
             switch boxChild.sizing.height {
-            case .fill, .flex: size.height = inset.height
+            case .fill: size.height = inset.height
             default: break
             }
         }

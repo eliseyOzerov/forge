@@ -275,17 +275,34 @@ final class FlexView: UIView {
 
     // MARK: - Step 3: Resolve fill sizes
 
-    private func expandableExtent(of view: UIView) -> Extent? {
+    /// Describes how a child participates in flex distribution.
+    private enum FlexChildKind {
+        case fixed
+        case fill(fraction: Double, min: Double?, max: Double?)
+        case flexible(weight: Int, min: Double?, max: Double?)
+    }
+
+    private func childKind(of view: UIView) -> FlexChildKind {
+        // Check for Flexible wrapper first
+        if let host = view as? FlexibleHostView {
+            return .flexible(weight: host.weight, min: host.flexMin, max: host.flexMax)
+        }
+        // Unwrap PassthroughView to find FlexibleHostView
+        if let proxy = view as? PassthroughView,
+           let host = proxy.subviews.first as? FlexibleHostView {
+            return .flexible(weight: host.weight, min: host.flexMin, max: host.flexMax)
+        }
+        // Check for fill extent on BoxView
         let sizing: Frame?
         if let box = view as? BoxView { sizing = box.sizing }
         else if let proxy = view as? PassthroughView { sizing = proxy.innerSizing }
-        else { return nil }
-        guard let s = sizing else { return nil }
+        else { return .fixed }
+        guard let s = sizing else { return .fixed }
         let extent = isH ? s.width : s.height
-        switch extent {
-        case .fill, .flex: return extent
-        default: return nil
+        if case .fill(let f, let min, let max) = extent {
+            return .fill(fraction: f, min: min, max: max)
         }
+        return .fixed
     }
 
     private func resolveFills(_ line: inout FlexLine, mainExtent: CGFloat, crossExtent: CGFloat) {
@@ -293,14 +310,10 @@ final class FlexView: UIView {
         var totalFlexWeight: Double = 0
         var totalFillFraction: Double = 0
         for slot in line.slots {
-            guard let ext = expandableExtent(of: slot.view) else {
-                totalFixed += main(of: slot.intrinsicSize)
-                continue
-            }
-            switch ext {
-            case .flex(let weight, _, _): totalFlexWeight += Double(weight)
+            switch childKind(of: slot.view) {
+            case .fixed: totalFixed += main(of: slot.intrinsicSize)
+            case .flexible(let weight, _, _): totalFlexWeight += Double(weight)
             case .fill(let fraction, _, _): totalFillFraction += fraction
-            default: break
             }
         }
 
@@ -312,15 +325,14 @@ final class FlexView: UIView {
         let freeSpace = max(0, mainExtent - totalFixed - fillConsumed - spacingTotal)
 
         for i in 0..<line.slots.count {
-            guard let ext = expandableExtent(of: line.slots[i].view) else { continue }
             let share: CGFloat
-            switch ext {
+            switch childKind(of: line.slots[i].view) {
+            case .fixed: continue
             case .fill(let fraction, let minVal, let maxVal):
                 share = (mainExtent * fraction).clamped(min: minVal, max: maxVal)
-            case .flex(let weight, let minVal, let maxVal):
+            case .flexible(let weight, let minVal, let maxVal):
                 let normalizedFlex = max(1.0, totalFlexWeight)
                 share = (freeSpace * Double(weight) / normalizedFlex).clamped(min: minVal, max: maxVal)
-            default: continue
             }
             let crossSize = isH
                 ? line.slots[i].view.sizeThatFits(CGSize(width: share, height: crossExtent)).height
@@ -411,10 +423,11 @@ final class FlexView: UIView {
         var hasFillChild = false
 
         for slot in slots {
-            if expandableExtent(of: slot.view) != nil {
-                hasFillChild = true
-            } else {
+            switch childKind(of: slot.view) {
+            case .fixed:
                 mainTotal += main(of: slot.intrinsicSize)
+            case .fill, .flexible:
+                hasFillChild = true
             }
             crossMax = max(crossMax, cross(of: slot.intrinsicSize))
         }
