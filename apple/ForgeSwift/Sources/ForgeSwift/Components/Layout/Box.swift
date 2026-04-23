@@ -398,18 +398,8 @@ class BoxView: UIView {
 
         for child in contentChildren {
             let childSize = measureChild(child, proposed: inset.size)
-            let origin = alignedOrigin(childSize: childSize, in: inset)
-            child.frame = CGRect(origin: origin, size: childSize.cgSize)
+            child.frame = childSize.aligned(alignment, in: inset).cgRect
         }
-    }
-
-    /// Compute origin for a child of given size within the inset.
-    private func alignedOrigin(childSize: Size, in inset: Rect) -> CGPoint {
-        let fx = (alignment.x + 1) / 2
-        let fy = (alignment.y + 1) / 2
-        let x = inset.x + max(0, inset.width - childSize.width) * fx
-        let y = inset.y + max(0, inset.height - childSize.height) * fy
-        return CGPoint(x: x, y: y)
     }
 
     /// Apply shape mask for clipping. Caches to avoid re-creating

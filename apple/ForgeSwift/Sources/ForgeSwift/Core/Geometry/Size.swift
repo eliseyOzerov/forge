@@ -39,6 +39,18 @@ public struct Size {
         Size(width * sx, height * (sy ?? sx))
     }
 
+    /// Place this size within a container rect using the given alignment, returning the origin.
+    public func aligned(_ alignment: Alignment, in rect: Rect) -> Rect {
+        let fx = (alignment.x + 1) / 2
+        let fy = (alignment.y + 1) / 2
+        return Rect(
+            x: rect.x + max(0, rect.width - width) * fx,
+            y: rect.y + max(0, rect.height - height) * fy,
+            width: width,
+            height: height
+        )
+    }
+
     public func toVec2() -> Vec2 { Vec2(width, height) }
 
     public func adding(_ padding: Padding) -> Size {
