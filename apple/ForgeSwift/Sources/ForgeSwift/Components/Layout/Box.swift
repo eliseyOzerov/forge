@@ -297,35 +297,57 @@ class BoxView: UIView {
 
     // MARK: - Sizing
 
+    var cachedSize: Size? = nil
+
     /// How big this view wants to be given a proposal.
     ///
     /// - **fix** — exact value, ignores proposal and children.
-    /// - **fill** — fraction of proposed. `fill(0.5)` = half.
-    /// - **flex / hug** — content size + padding (intrinsic size).
-    ///
-    /// Min/max on fill, flex, and hug clamp the result.
+    /// - **fill** — fraction of proposed, clamped.
+    /// - **fit** — content size + padding (intrinsic size), clamped.
     override func sizeThatFits(_ size: CGSize) -> CGSize {
-        let innerSize = Size(size) - padding
-        var maxSize = Size.zero
-        for child in contentChildren {
-            let s = child.sizeThatFits(size)
-            maxSize.width = max(maxSize.width, s.width)
-            maxSize.height = max(maxSize.height, s.height)
-        }
-        maxSize += padding
+        if let cached = cachedSize { return cached.cgSize }
+        let proposed = Size(size)
+        let inner = innerBounds(proposed)
+        let content = measureChildren(inner)
+        cachedSize = outerBounds(proposed: proposed, content: content)
+        return cachedSize!.cgSize
+    }
 
-        func resolve(_ extent: Extent, _ proposed: CGFloat, _ content: CGFloat) -> CGFloat {
-            let raw: Double = switch extent {
-            case .fix(let v): v
-            case .fill(let f, _, _): Double(proposed) * f
-            case .fit: Double(content)
+    /// Measure children within the given inner bounds, returning the largest child size.
+    func measureChildren(_ innerSize: Size) -> Size {
+        contentChildren.reduce(into: Size.zero) { result, child in
+            let s = child.sizeThatFits(innerSize.cgSize)
+            result = Size(max(result.width, s.width), max(result.height, s.height))
+        }
+    }
+
+    /// The inner bounds available to children after resolving the frame and subtracting padding.
+    func innerBounds(_ proposed: Size) -> Size {
+        func resolve(_ extent: Extent, _ proposed: Double, _ padding: Double) -> Double {
+            switch extent {
+            case .fix(let value): value - padding
+            case .fill(let fraction, let min, let max): (proposed * fraction).clamped(min: min, max: max) - padding
+            case .fit(let min, let max): (proposed - padding).clamped(min: min, max: max)
             }
-            return CGFloat(raw.clamped(min: extent.min, max: extent.max))
         }
+        return Size(
+            resolve(sizing.width, proposed.width, padding.horizontal),
+            resolve(sizing.height, proposed.height, padding.vertical)
+        )
+    }
 
-        return CGSize(
-            width: resolve(sizing.width, size.width, CGFloat(maxSize.width)),
-            height: resolve(sizing.height, size.height, CGFloat(maxSize.height))
+    /// The outer size of the box. fix/fill are self-determined; fit wraps content + padding.
+    func outerBounds(proposed: Size, content: Size) -> Size {
+        func resolve(_ extent: Extent, _ proposed: Double, _ content: Double, _ padding: Double) -> Double {
+            switch extent {
+            case .fix(let value): value
+            case .fill(let fraction, let min, let max): (proposed * fraction).clamped(min: min, max: max)
+            case .fit(let min, let max): (content + padding).clamped(min: min, max: max)
+            }
+        }
+        return Size(
+            resolve(sizing.width, proposed.width, content.width, padding.horizontal),
+            resolve(sizing.height, proposed.height, content.height, padding.vertical)
         )
     }
 
