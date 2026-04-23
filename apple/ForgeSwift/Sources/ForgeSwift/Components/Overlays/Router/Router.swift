@@ -350,7 +350,7 @@ public final class RouterBuilder: ViewBuilder<RouterModel> {
 
         let handle: any RouterHandle = model
         return Provided(handle, model) {
-            SafeAreaInset(edge: .top, overlay: { navbar }) {
+            SafeInset(.top, overlay: { navbar }) {
                 Box(frame: .fill, children: routeViews)
             }
         }

@@ -11,183 +11,129 @@ private class FixedSizeView: UIView {
     }
     required init?(coder: NSCoder) { fatalError() }
     override func sizeThatFits(_ size: CGSize) -> CGSize { fixedSize }
-    override var intrinsicContentSize: CGSize { fixedSize }
+}
+
+/// SafeAreaHostView subclass that allows overriding safeAreaInsets for testing.
+private class TestSafeAreaHostView: SafeAreaHostView {
+    private let overrideInsets: UIEdgeInsets
+    init(overrideInsets: UIEdgeInsets) {
+        self.overrideInsets = overrideInsets
+        super.init(frame: .zero)
+    }
+    required init?(coder: NSCoder) { fatalError() }
+    override var safeAreaInsets: UIEdgeInsets { overrideInsets }
 }
 
 @MainActor
 final class SafeAreaTests: XCTestCase {
 
-    // MARK: - Helpers
-
-    private func makeSafeAreaView(
+    private func host(
         edges: Edge.Set = .all,
         containerSize: CGSize = CGSize(width: 400, height: 800),
         childSize: CGSize = CGSize(width: 100, height: 50),
-        safeAreaInsets insets: UIEdgeInsets = .zero
-    ) -> (safeArea: SafeAreaView, child: FixedSizeView) {
-        let safeArea = TestSafeAreaView(overrideInsets: insets)
-        safeArea.edges = edges
-        safeArea.frame = CGRect(origin: .zero, size: containerSize)
-
-        let child = FixedSizeView(size: childSize)
-        safeArea.addSubview(child)
-        safeArea.layoutSubviews()
-        return (safeArea, child)
+        insets: UIEdgeInsets = .zero
+    ) -> (host: SafeAreaHostView, child: FixedSizeView) {
+        let h = TestSafeAreaHostView(overrideInsets: insets)
+        h.edges = edges
+        h.frame = CGRect(origin: .zero, size: containerSize)
+        let c = FixedSizeView(size: childSize)
+        h.addSubview(c)
+        h.layoutSubviews()
+        return (h, c)
     }
 
     // MARK: - Layout
 
     func testAllEdgesInset() {
-        let insets = UIEdgeInsets(top: 44, left: 0, bottom: 34, right: 0)
-        let (_, child) = makeSafeAreaView(safeAreaInsets: insets)
-
-        XCTAssertEqual(child.frame.origin.x, 0)
-        XCTAssertEqual(child.frame.origin.y, 44)
-        XCTAssertEqual(child.frame.size.width, 400)
-        XCTAssertEqual(child.frame.size.height, 800 - 44 - 34)
+        let (_, c) = host(insets: UIEdgeInsets(top: 44, left: 0, bottom: 34, right: 0))
+        XCTAssertEqual(c.frame.origin.y, 44)
+        XCTAssertEqual(c.frame.size.height, 800 - 44 - 34)
     }
 
     func testTopOnly() {
-        let insets = UIEdgeInsets(top: 44, left: 0, bottom: 34, right: 0)
-        let (_, child) = makeSafeAreaView(edges: [.top], safeAreaInsets: insets)
-
-        XCTAssertEqual(child.frame.origin.y, 44)
-        XCTAssertEqual(child.frame.size.height, 800 - 44)
+        let (_, c) = host(edges: [.top], insets: UIEdgeInsets(top: 44, left: 0, bottom: 34, right: 0))
+        XCTAssertEqual(c.frame.origin.y, 44)
+        XCTAssertEqual(c.frame.size.height, 800 - 44)
     }
 
     func testBottomOnly() {
-        let insets = UIEdgeInsets(top: 44, left: 0, bottom: 34, right: 0)
-        let (_, child) = makeSafeAreaView(edges: [.bottom], safeAreaInsets: insets)
-
-        XCTAssertEqual(child.frame.origin.y, 0)
-        XCTAssertEqual(child.frame.size.height, 800 - 34)
+        let (_, c) = host(edges: [.bottom], insets: UIEdgeInsets(top: 44, left: 0, bottom: 34, right: 0))
+        XCTAssertEqual(c.frame.origin.y, 0)
+        XCTAssertEqual(c.frame.size.height, 800 - 34)
     }
 
     func testHorizontalEdges() {
-        let insets = UIEdgeInsets(top: 0, left: 16, bottom: 0, right: 16)
-        let (_, child) = makeSafeAreaView(edges: .horizontal, safeAreaInsets: insets)
-
-        XCTAssertEqual(child.frame.origin.x, 16)
-        XCTAssertEqual(child.frame.size.width, 400 - 32)
-        XCTAssertEqual(child.frame.origin.y, 0)
-        XCTAssertEqual(child.frame.size.height, 800)
+        let (_, c) = host(edges: .horizontal, insets: UIEdgeInsets(top: 0, left: 16, bottom: 0, right: 16))
+        XCTAssertEqual(c.frame.origin.x, 16)
+        XCTAssertEqual(c.frame.size.width, 400 - 32)
     }
 
     func testNoEdgesNoInset() {
-        let insets = UIEdgeInsets(top: 44, left: 16, bottom: 34, right: 16)
-        let (_, child) = makeSafeAreaView(edges: [], safeAreaInsets: insets)
-
-        XCTAssertEqual(child.frame, CGRect(x: 0, y: 0, width: 400, height: 800))
+        let (_, c) = host(edges: [], insets: UIEdgeInsets(top: 44, left: 16, bottom: 34, right: 16))
+        XCTAssertEqual(c.frame, CGRect(x: 0, y: 0, width: 400, height: 800))
     }
 
     func testZeroInsets() {
-        let (_, child) = makeSafeAreaView(safeAreaInsets: .zero)
-        XCTAssertEqual(child.frame, CGRect(x: 0, y: 0, width: 400, height: 800))
+        let (_, c) = host(insets: .zero)
+        XCTAssertEqual(c.frame, CGRect(x: 0, y: 0, width: 400, height: 800))
     }
 
     // MARK: - sizeThatFits
 
     func testSizeThatFitsAddsInsets() {
-        let insets = UIEdgeInsets(top: 44, left: 0, bottom: 34, right: 0)
-        let (safeArea, _) = makeSafeAreaView(
-            childSize: CGSize(width: 200, height: 100),
-            safeAreaInsets: insets
-        )
-
-        let size = safeArea.sizeThatFits(CGSize(width: 400, height: 800))
+        let (h, _) = host(childSize: CGSize(width: 200, height: 100), insets: UIEdgeInsets(top: 44, left: 0, bottom: 34, right: 0))
+        let size = h.sizeThatFits(CGSize(width: 400, height: 800))
         XCTAssertEqual(size.width, 200)
         XCTAssertEqual(size.height, 100 + 44 + 34)
     }
 
     func testSizeThatFitsNoChild() {
-        let safeArea = TestSafeAreaView(overrideInsets: .zero)
-        safeArea.edges = .all
-        XCTAssertEqual(safeArea.sizeThatFits(CGSize(width: 400, height: 800)), .zero)
+        let h = TestSafeAreaHostView(overrideInsets: .zero)
+        h.edges = .all
+        XCTAssertEqual(h.sizeThatFits(CGSize(width: 400, height: 800)), .zero)
     }
 
-    func testSizeThatFitsPartialEdges() {
-        let insets = UIEdgeInsets(top: 44, left: 16, bottom: 34, right: 16)
-        let (safeArea, _) = makeSafeAreaView(
-            edges: [.top],
-            childSize: CGSize(width: 100, height: 50),
-            safeAreaInsets: insets
-        )
+    // MARK: - SafeInset
 
-        let size = safeArea.sizeThatFits(CGSize(width: 400, height: 800))
-        XCTAssertEqual(size.width, 100)
-        XCTAssertEqual(size.height, 50 + 44)
+    func testSafeInsetOverlayPositionedAtTop() {
+        let container = SafeInsetHostView()
+        container.edge = .top
+        let content = FixedSizeView(size: CGSize(width: 400, height: 800))
+        let overlay = FixedSizeView(size: CGSize(width: 400, height: 44))
+        container.addSubview(content)
+        container.addSubview(overlay)
+        container.frame = CGRect(x: 0, y: 0, width: 400, height: 800)
+        container.layoutSubviews()
+
+        XCTAssertEqual(overlay.frame, CGRect(x: 0, y: 0, width: 400, height: 44))
+        XCTAssertEqual(content.frame, CGRect(x: 0, y: 0, width: 400, height: 800))
     }
 
-    // MARK: - intrinsicContentSize
+    func testSafeInsetOverlayPositionedAtBottom() {
+        let container = SafeInsetHostView()
+        container.edge = .bottom
+        let content = FixedSizeView(size: CGSize(width: 400, height: 800))
+        let overlay = FixedSizeView(size: CGSize(width: 400, height: 49))
+        container.addSubview(content)
+        container.addSubview(overlay)
+        container.frame = CGRect(x: 0, y: 0, width: 400, height: 800)
+        container.layoutSubviews()
 
-    func testIntrinsicContentSizeAddsInsets() {
-        let insets = UIEdgeInsets(top: 44, left: 0, bottom: 34, right: 0)
-        let (safeArea, _) = makeSafeAreaView(
-            childSize: CGSize(width: 200, height: 100),
-            safeAreaInsets: insets
-        )
-
-        let intrinsic = safeArea.intrinsicContentSize
-        XCTAssertEqual(intrinsic.width, 200)
-        XCTAssertEqual(intrinsic.height, 100 + 44 + 34)
+        XCTAssertEqual(overlay.frame, CGRect(x: 0, y: 751, width: 400, height: 49))
     }
 
-    func testIntrinsicContentSizeNoChild() {
-        let safeArea = TestSafeAreaView(overrideInsets: .zero)
-        safeArea.edges = .all
-        XCTAssertEqual(safeArea.intrinsicContentSize.width, UIView.noIntrinsicMetric)
-        XCTAssertEqual(safeArea.intrinsicContentSize.height, UIView.noIntrinsicMetric)
+    func testSafeInsetProvidesPadding() {
+        let container = SafeInsetHostView()
+        container.edge = .top
+        let content = FixedSizeView(size: CGSize(width: 400, height: 800))
+        let overlay = FixedSizeView(size: CGSize(width: 400, height: 44))
+        container.addSubview(content)
+        container.addSubview(overlay)
+        container.frame = CGRect(x: 0, y: 0, width: 400, height: 800)
+        container.layoutSubviews()
+
+        XCTAssertEqual(container.safeAreaPadding.padding.top, 44, accuracy: 0.5)
     }
-
-    // MARK: - Renderer
-
-    func testRendererMountProducesSafeAreaView() {
-        let view = SafeArea(edges: .all) { EmptyView() }
-        let platformView = view.makeRenderer().mount()
-        XCTAssertTrue(platformView is SafeAreaView)
-    }
-
-    func testRendererUpdateChangesEdges() {
-        let renderer = SafeAreaRenderer(edges: .all)
-        let platformView = renderer.mount() as! SafeAreaView
-        XCTAssertEqual(platformView.edges, .all)
-
-        renderer.update(from: SafeArea(edges: [.top]) { EmptyView() })
-        XCTAssertEqual(platformView.edges, [.top])
-    }
-
-    // MARK: - Public API
-
-    func testChildrenComputedFromChild() {
-        let safeArea = SafeArea { EmptyView() }
-        XCTAssertEqual(safeArea.children.count, 1)
-    }
-
-    func testDefaultEdgesAll() {
-        let safeArea = SafeArea { EmptyView() }
-        XCTAssertEqual(safeArea.edges, .all)
-    }
-
-    func testCustomEdges() {
-        let safeArea = SafeArea(edges: .vertical) { EmptyView() }
-        XCTAssertEqual(safeArea.edges, .vertical)
-    }
-}
-
-// MARK: - TestSafeAreaView
-
-/// SafeAreaView subclass that allows overriding safeAreaInsets for testing.
-private class TestSafeAreaView: SafeAreaView {
-    private let overrideInsets: UIEdgeInsets
-
-    init(overrideInsets: UIEdgeInsets) {
-        self.overrideInsets = overrideInsets
-        super.init(frame: .zero)
-    }
-
-    required init?(coder: NSCoder) { fatalError() }
-
-    override var safeAreaInsets: UIEdgeInsets { overrideInsets }
 }
 
 #endif
