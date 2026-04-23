@@ -108,9 +108,6 @@ public extension View {
         Box(frame: frame) { self }
     }
 
-    func scrollable(_ config: ScrollConfig = ScrollConfig()) -> Box {
-        Box(overflow: .scroll(config)) { self }
-    }
 }
 
 // MARK: - BoxRole
@@ -287,11 +284,7 @@ class BoxView: UIView {
     }
     var padding: Padding = .zero
     var alignment: Alignment = .center
-    var overflow: Overflow = .clip {
-        didSet {
-            configureScroll()
-        }
-    }
+    var overflow: Overflow = .clip
 
     // MARK: - Rendering Properties
 
@@ -307,8 +300,6 @@ class BoxView: UIView {
     // MARK: - Internal State
 
     private let surfaceView = SurfaceView()
-    private var scrollView: UIScrollView?
-    private var scrollState: ScrollState?
     private var sizingConstraints: [NSLayoutConstraint] = []
     private var lastClipShape: AnyShape?
     private var lastClipBounds: CGRect = .zero
@@ -421,9 +412,7 @@ class BoxView: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
         layoutSurfaceView()
-        layoutScrollView()
         layoutChildren()
-        updateScrollContentSize()
         applyShapeClip()
     }
 
@@ -450,15 +439,9 @@ class BoxView: UIView {
         )
     }
 
-    /// Measure a child, respecting fill extents and scroll axis.
+    /// Measure a child, respecting fill extents.
     private func resolveChildSize(_ child: UIView, in inset: CGRect) -> CGSize {
-        let scrollAxis: Axis? = if case .scroll(let c) = overflow { c.axis } else { nil }
-        let isScrolling = scrollView != nil
-
-        // Propose: unlimited on scroll axis, inset size otherwise
-        let proposedW: CGFloat = (isScrolling && scrollAxis != .vertical) ? .greatestFiniteMagnitude : inset.width
-        let proposedH: CGFloat = (isScrolling && scrollAxis != .horizontal) ? .greatestFiniteMagnitude : inset.height
-        var size = child.sizeThatFits(CGSize(width: proposedW, height: proposedH))
+        var size = child.sizeThatFits(CGSize(width: inset.width, height: inset.height))
         // Fill/flex children expand to fill the inset on that axis
         if let boxChild = child as? BoxView {
             switch boxChild.sizing.width {
@@ -470,31 +453,15 @@ class BoxView: UIView {
             default: break
             }
         }
-
         return size
     }
 
-    /// Compute origin for a child of given size within the inset,
-    /// using alignment. When scrolling, only pin to origin on axes
-    /// where the child actually overflows the viewport.
+    /// Compute origin for a child of given size within the inset.
     private func alignedOrigin(childSize: CGSize, in inset: CGRect) -> CGPoint {
-        let scrollAxis: Axis? = if case .scroll(let c) = overflow { c.axis } else { nil }
-        let isScrolling = scrollView != nil
-
         let fx = (alignment.x + 1) / 2
         let fy = (alignment.y + 1) / 2
-
-        let overflowsH = childSize.width > inset.width
-        let overflowsV = childSize.height > inset.height
-
-        let x: CGFloat = (isScrolling && scrollAxis != .vertical && overflowsH)
-            ? inset.minX
-            : inset.minX + max(0, inset.width - childSize.width) * fx
-
-        let y: CGFloat = (isScrolling && scrollAxis != .horizontal && overflowsV)
-            ? inset.minY
-            : inset.minY + max(0, inset.height - childSize.height) * fy
-
+        let x = inset.minX + max(0, inset.width - childSize.width) * fx
+        let y = inset.minY + max(0, inset.height - childSize.height) * fy
         return CGPoint(x: x, y: y)
     }
 
@@ -539,106 +506,24 @@ class BoxView: UIView {
         }
     }
 
-    /// The actual content children (through scroll view if scrolling).
+    /// The content children (excludes the internal surface view).
     private var contentChildren: [UIView] {
-        if let sv = scrollView { return sv.subviews }
-        return super.subviews.filter { !isInternalView($0) }
+        super.subviews.filter { $0 !== surfaceView }
     }
 
-    /// Number of internal (non-content) direct subviews before content children.
-    private var internalViewCount: Int {
-        var count = 1 // surfaceView is always present
-        if scrollView != nil { count += 1 }
-        return count
-    }
+    // MARK: - Subview Routing
 
-    private func isInternalView(_ view: UIView) -> Bool {
-        view === surfaceView || view === scrollView
-    }
-
-    // MARK: - Subview routing
-
-    /// Route addSubview through scroll view when scrolling.
     override func addSubview(_ view: UIView) {
-        if let sv = scrollView { sv.addSubview(view) }
-        else { super.addSubview(view) }
+        super.addSubview(view)
     }
 
     override func insertSubview(_ view: UIView, at index: Int) {
-        if let sv = scrollView { sv.insertSubview(view, at: index) }
-        else { super.insertSubview(view, at: index + internalViewCount) }
+        // Offset by 1 for the internal surfaceView
+        super.insertSubview(view, at: index + 1)
     }
 
     override var subviews: [UIView] {
-        if let sv = scrollView { return sv.subviews }
-        return super.subviews.filter { !isInternalView($0) }
-    }
-}
-
-// MARK: - BoxView + Scroll
-
-extension BoxView: UIScrollViewDelegate {
-    /// Create/remove UIScrollView based on overflow setting.
-    /// Migrates existing content children into/out of the scroll view.
-    func configureScroll() {
-        if case .scroll(let config) = overflow {
-            if scrollView == nil {
-                let sv = UIScrollView()
-                sv.delegate = self
-                // Migrate existing content children into the scroll view
-                let existing = super.subviews.filter { !isInternalView($0) }
-                super.addSubview(sv)
-                for child in existing {
-                    child.removeFromSuperview()
-                    sv.addSubview(child)
-                }
-                scrollView = sv
-            }
-            let sv = scrollView!
-            sv.contentInsetAdjustmentBehavior = config.safeArea ? .automatic : .never
-            sv.showsHorizontalScrollIndicator = config.showsIndicators && config.axis != .vertical
-            sv.showsVerticalScrollIndicator = config.showsIndicators && config.axis != .horizontal
-            sv.bounces = config.bounces
-            sv.isPagingEnabled = config.paging
-            scrollState = config.state
-            config.state?.scrollCommand = { [weak self] offset, animated in
-                self?.scrollView?.setContentOffset(CGPoint(x: offset.x, y: offset.y), animated: animated)
-            }
-        } else if let sv = scrollView {
-            // Migrate children back out of the scroll view
-            let children = sv.subviews
-            sv.removeFromSuperview()
-            scrollView = nil
-            scrollState = nil
-            for child in children {
-                super.addSubview(child)
-            }
-        }
-    }
-
-    /// Size scroll view to fill bounds.
-    func layoutScrollView() {
-        scrollView?.frame = bounds
-    }
-
-    /// Update scroll view's contentSize from children frames.
-    func updateScrollContentSize() {
-        guard let sv = scrollView else { return }
-        var contentW: CGFloat = 0, contentH: CGFloat = 0
-        for child in sv.subviews {
-            contentW = max(contentW, child.frame.maxX + padding.trailing)
-            contentH = max(contentH, child.frame.maxY + padding.bottom)
-        }
-        sv.contentSize = CGSize(width: contentW, height: contentH)
-        scrollState?.contentSize = Size(contentW, contentH)
-        scrollState?.viewportSize = Size(bounds.width, bounds.height)
-    }
-
-    /// Forward scroll offset to ScrollState.
-    func scrollViewDidScroll(_ scrollView: UIScrollView) {
-        let offset = Vec2(scrollView.contentOffset.x, scrollView.contentOffset.y)
-        scrollState?.offset = offset
-        scrollState?.onScroll?(offset)
+        super.subviews.filter { $0 !== surfaceView }
     }
 }
 

@@ -543,44 +543,6 @@ final class BoxLayoutTests: XCTestCase {
         XCTAssertFalse(top.isEmpty, "fill height should pin top to parent")
     }
 
-    // MARK: - Scroll Child Migration
-
-    func testChildrenMigratedIntoScrollView() {
-        let box = BoxView()
-        let c1 = child(50, 50)
-        let c2 = child(30, 30)
-        box.addSubview(c1)
-        box.addSubview(c2)
-        XCTAssertEqual(box.subviews.count, 2)
-
-        // Enable scroll — children should move into the scroll view
-        box.overflow = .scroll()
-        XCTAssertEqual(box.subviews.count, 2, "Content children should still be reported")
-        XCTAssertTrue(c1.superview is UIScrollView, "Children should be inside UIScrollView")
-        XCTAssertTrue(c2.superview is UIScrollView, "Children should be inside UIScrollView")
-    }
-
-    func testChildrenMigratedOutOfScrollView() {
-        let box = BoxView()
-        box.overflow = .scroll()
-        let c1 = child(50, 50)
-        box.addSubview(c1)
-        XCTAssertTrue(c1.superview is UIScrollView)
-
-        // Disable scroll — child should come back to BoxView
-        box.overflow = .clip
-        XCTAssertTrue(c1.superview === box, "Child should be direct subview of BoxView after scroll removed")
-        XCTAssertEqual(box.subviews.count, 1)
-    }
-
-    func testNewChildrenRouteToScrollView() {
-        let box = BoxView()
-        box.overflow = .scroll()
-        let c = child(50, 50)
-        box.addSubview(c)
-        XCTAssertTrue(c.superview is UIScrollView, "New children should be routed into scroll view")
-    }
-
     // MARK: - Subview Ordering
 
     func testSubviewsExcludesInternalViews() {
@@ -600,16 +562,6 @@ final class BoxLayoutTests: XCTestCase {
         // c2 should be before c1 in content order
         XCTAssertTrue(box.subviews.first === c2, "insertSubview at 0 should put child first in content order")
         XCTAssertTrue(box.subviews.last === c1)
-    }
-
-    func testSubviewsWithScrollViewExcludesInternalViews() {
-        let box = BoxView()
-        box.overflow = .scroll()
-        let c = child(50, 50)
-        box.addSubview(c)
-        let reported = box.subviews
-        XCTAssertEqual(reported.count, 1)
-        XCTAssertTrue(reported.first === c)
     }
 
     // MARK: - Clipping Modes
@@ -650,22 +602,6 @@ final class BoxLayoutTests: XCTestCase {
         XCTAssertFalse(box.layer.mask === firstMask, "Mask should be rebuilt when bounds change")
     }
 
-    // MARK: - Scroll Layout
-
-    func testScrollContentSizeUpdated() {
-        let c = child(300, 400)
-        let box = layoutBox(
-            sizing: .fixed(200, 200),
-            overflow: .scroll(),
-            children: [c]
-        )
-        // The scroll view should exist and have a content size based on child frames
-        let scrollView = Mirror(reflecting: box).children
-            .first { $0.label == "scrollView" }?.value as? UIScrollView
-        XCTAssertNotNil(scrollView, "Scroll view should exist")
-        XCTAssertGreaterThan(scrollView!.contentSize.height, 200,
-                            "Content size should exceed viewport for oversized child")
-    }
 }
 
 #endif

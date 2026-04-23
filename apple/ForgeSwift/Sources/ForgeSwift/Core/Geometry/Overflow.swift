@@ -2,7 +2,6 @@
 public enum Overflow: Equatable {
     case clip
     case visible
-    case scroll(ScrollConfig = ScrollConfig())
 }
 
 /// Configuration for scroll overflow behavior.
