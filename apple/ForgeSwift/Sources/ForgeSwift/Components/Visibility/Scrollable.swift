@@ -42,7 +42,7 @@ public struct ScrollableStyle: Sendable, Equatable {
     public var scrollbar: Bool = false
     public var safeArea: Edge.Set = .all
     public var padding: Padding = .zero
-    @Snap public var keyboardDismiss: KeyboardDismiss = .onDrag
+    public var keyboardDismiss: KeyboardDismiss = .onDrag
 }
 
 /// Keyboard dismissal behavior during scrolling.
@@ -50,6 +50,15 @@ public enum KeyboardDismiss: Sendable, Equatable {
     case none
     case onDrag
     case interactive
+}
+
+// MARK: - ScrollableDelegate
+
+/// Platform bridge for ScrollableModel. The host view conforms to this
+/// so the model can issue scroll commands without knowing UIKit details.
+@MainActor protocol ScrollableDelegate: AnyObject {
+    func scrollTo(_ offset: Vec2, animated: Bool)
+    var viewportSize: Size { get }
 }
 
 // MARK: - ScrollableModel
@@ -63,9 +72,11 @@ public final class ScrollableModel: ViewModel<Scrollable> {
     /// Content size of the scrollable area.
     public internal(set) var content: Size = .zero
 
+    weak var delegate: ScrollableDelegate?
+
     /// Scroll to a specific offset.
     public func scrollTo(_ offset: Vec2, animated: Bool = true) {
-        scrollCommand?(offset, animated)
+        delegate?.scrollTo(offset, animated: animated)
     }
 
     /// Scroll to the top (vertical) or leading edge (horizontal).
@@ -75,13 +86,10 @@ public final class ScrollableModel: ViewModel<Scrollable> {
 
     /// Scroll to the bottom (vertical) or trailing edge (horizontal).
     public func scrollToBottom(animated: Bool = true) {
-        let maxY = max(0, content.height - viewportSize.height)
+        let viewport = delegate?.viewportSize ?? .zero
+        let maxY = max(0, content.height - viewport.height)
         scrollTo(Vec2(offset.value.x, maxY), animated: animated)
     }
-
-    // Internal wiring — set by the host view
-    var scrollCommand: ((Vec2, Bool) -> Void)?
-    var viewportSize: Size = .zero
 }
 
 // MARK: - ScrollableBuilder
@@ -128,8 +136,8 @@ final class ScrollableRenderer: ProxyRenderer {
     func mount() -> PlatformView {
         let host = ScrollableHostView()
         self.hostView = host
-        host.model = model
         host.configure(style)
+        model.delegate = host
         return host
     }
 
@@ -137,7 +145,7 @@ final class ScrollableRenderer: ProxyRenderer {
         guard let host = newView as? ScrollableHost, let hostView else { return }
         let newStyle = host.style
         model = host.model
-        hostView.model = model
+        model.delegate = hostView
         if style != newStyle {
             style = newStyle
             hostView.configure(newStyle)
@@ -195,11 +203,6 @@ final class ScrollableHostView: UIView {
         case .interactive: scrollView.keyboardDismissMode = .interactive
         }
 
-        // Wire scroll command
-        model?.scrollCommand = { [weak self] offset, animated in
-            self?.scrollView.setContentOffset(CGPoint(x: offset.x, y: offset.y), animated: animated)
-        }
-
         setNeedsLayout()
     }
 
@@ -250,8 +253,17 @@ final class ScrollableHostView: UIView {
         scrollView.contentSize = childSize
 
         model?.content = Size(childSize)
-        model?.viewportSize = Size(bounds.size)
     }
+}
+
+// MARK: - ScrollableDelegate
+
+extension ScrollableHostView: ScrollableDelegate {
+    func scrollTo(_ offset: Vec2, animated: Bool) {
+        scrollView.setContentOffset(CGPoint(x: offset.x, y: offset.y), animated: animated)
+    }
+
+    var viewportSize: Size { Size(bounds.size) }
 }
 
 // MARK: - UIScrollViewDelegate
