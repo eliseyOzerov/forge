@@ -231,7 +231,6 @@ class BoxView: UIView {
         didSet {
             guard sizing != oldValue else { return }
             invalidateSize()
-            updateSizingConstraints()
         }
     }
     var padding: Padding = .zero {
@@ -257,7 +256,6 @@ class BoxView: UIView {
     // MARK: - Internal State
 
     private let surfaceView = SurfaceView()
-    private var sizingConstraints: [NSLayoutConstraint] = []
     private var lastClipShape: AnyShape?
     private var lastClipBounds: CGRect = .zero
     private var lastClipEnabled: Bool = true
@@ -385,41 +383,6 @@ class BoxView: UIView {
         )
     }
 
-    // MARK: - Frame Constraints
-
-    /// When added to a parent, apply Auto Layout constraints for
-    /// this box's own sizing: fix → width/height, fill → pin to parent.
-    override func didMoveToSuperview() {
-        super.didMoveToSuperview()
-        updateSizingConstraints()
-    }
-
-    /// Tear down old sizing constraints and install new ones matching
-    /// the current `sizing` mode. Safe to call at any time.
-    private func updateSizingConstraints() {
-        NSLayoutConstraint.deactivate(sizingConstraints)
-        sizingConstraints.removeAll()
-        guard let superview else { return }
-        // Inside a PassthroughView (ComposedNode wrapper), attach() pins
-        // to fill — don't add conflicting constraints.
-        guard !(superview is PassthroughView) else { return }
-        translatesAutoresizingMaskIntoConstraints = false
-        switch sizing.width {
-        case .fix(let w): sizingConstraints.append(widthAnchor.equal(w))
-        case .fill:
-            sizingConstraints.append(leadingAnchor.equal(superview.leadingAnchor))
-            sizingConstraints.append(trailingAnchor.equal(superview.trailingAnchor))
-        case .fit: break
-        }
-        switch sizing.height {
-        case .fix(let h): sizingConstraints.append(heightAnchor.equal(h))
-        case .fill:
-            sizingConstraints.append(topAnchor.equal(superview.topAnchor))
-            sizingConstraints.append(bottomAnchor.equal(superview.bottomAnchor))
-        case .fit: break
-        }
-    }
-
     // MARK: - Layout
 
     override func layoutSubviews() {
@@ -429,52 +392,23 @@ class BoxView: UIView {
         applyShapeClip()
     }
 
-        /// Position each child within the padded inset rect, aligned
-    /// by alignment. Fill children get the full inset dimension
-    /// on their fill axis.
+    /// Position each child within the padded inset rect, aligned by alignment.
     private func layoutChildren() {
-        let inset = paddedInset
-        let children = contentChildren
+        let inset = Rect(bounds) - padding
 
-        for child in children {
-            let childSize = resolveChildSize(child, in: inset)
+        for child in contentChildren {
+            let childSize = measureChild(child, proposed: inset.size)
             let origin = alignedOrigin(childSize: childSize, in: inset)
-            child.frame = CGRect(origin: origin, size: childSize)
+            child.frame = CGRect(origin: origin, size: childSize.cgSize)
         }
-    }
-
-    /// The content area after padding.
-    private var paddedInset: CGRect {
-        CGRect(
-            x: padding.leading, y: padding.top,
-            width: bounds.width - padding.horizontal,
-            height: bounds.height - padding.vertical
-        )
-    }
-
-    /// Measure a child, respecting fill extents.
-    private func resolveChildSize(_ child: UIView, in inset: CGRect) -> CGSize {
-        var size = child.sizeThatFits(CGSize(width: inset.width, height: inset.height))
-        // Fill children expand to fill the inset on that axis
-        if let boxChild = child as? BoxView {
-            switch boxChild.sizing.width {
-            case .fill: size.width = inset.width
-            default: break
-            }
-            switch boxChild.sizing.height {
-            case .fill: size.height = inset.height
-            default: break
-            }
-        }
-        return size
     }
 
     /// Compute origin for a child of given size within the inset.
-    private func alignedOrigin(childSize: CGSize, in inset: CGRect) -> CGPoint {
+    private func alignedOrigin(childSize: Size, in inset: Rect) -> CGPoint {
         let fx = (alignment.x + 1) / 2
         let fy = (alignment.y + 1) / 2
-        let x = inset.minX + max(0, inset.width - childSize.width) * fx
-        let y = inset.minY + max(0, inset.height - childSize.height) * fy
+        let x = inset.x + max(0, inset.width - childSize.width) * fx
+        let y = inset.y + max(0, inset.height - childSize.height) * fy
         return CGPoint(x: x, y: y)
     }
 

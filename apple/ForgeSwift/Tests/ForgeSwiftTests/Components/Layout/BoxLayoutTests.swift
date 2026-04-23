@@ -491,57 +491,6 @@ final class BoxLayoutTests: XCTestCase {
         XCTAssertEqual(box.intrinsicContentSize.height, UIView.noIntrinsicMetric)
     }
 
-    // MARK: - Constraint Lifecycle
-
-    func testConstraintsInstalledOnAddToSuperview() {
-        let parent = UIView(frame: CGRect(x: 0, y: 0, width: 300, height: 300))
-        let box = BoxView()
-        box.sizing = .fixed(100, 80)
-        parent.addSubview(box)
-        let widthConstraints = box.constraints.filter { $0.firstAttribute == .width }
-        let heightConstraints = box.constraints.filter { $0.firstAttribute == .height }
-        XCTAssertFalse(widthConstraints.isEmpty, "fix width should install a width constraint")
-        XCTAssertFalse(heightConstraints.isEmpty, "fix height should install a height constraint")
-    }
-
-    func testConstraintsReplacedOnSizingChange() {
-        let parent = UIView(frame: CGRect(x: 0, y: 0, width: 300, height: 300))
-        let box = BoxView()
-        box.sizing = .fixed(100, 80)
-        parent.addSubview(box)
-
-        // Change sizing — old constraints should be removed
-        box.sizing = .fixed(200, 150)
-        let widthConstraints = box.constraints.filter { $0.firstAttribute == .width }
-        XCTAssertEqual(widthConstraints.count, 1, "Should have exactly one width constraint after change")
-        XCTAssertEqual(widthConstraints.first!.constant, 200, accuracy: acc)
-    }
-
-    func testConstraintsRemovedWhenSwitchingToHug() {
-        let parent = UIView(frame: CGRect(x: 0, y: 0, width: 300, height: 300))
-        let box = BoxView()
-        box.sizing = .fixed(100, 80)
-        parent.addSubview(box)
-
-        box.sizing = .hug
-        let widthConstraints = box.constraints.filter { $0.firstAttribute == .width }
-        let heightConstraints = box.constraints.filter { $0.firstAttribute == .height }
-        XCTAssertTrue(widthConstraints.isEmpty, "hug should not have width constraints")
-        XCTAssertTrue(heightConstraints.isEmpty, "hug should not have height constraints")
-    }
-
-    func testFillConstraintsPinToParent() {
-        let parent = UIView(frame: CGRect(x: 0, y: 0, width: 300, height: 300))
-        let box = BoxView()
-        box.sizing = .fill
-        parent.addSubview(box)
-        // Fill installs leading/trailing/top/bottom on the parent
-        let parentConstraints = parent.constraints
-        let leading = parentConstraints.filter { $0.firstAttribute == .leading || $0.secondAttribute == .leading }
-        let top = parentConstraints.filter { $0.firstAttribute == .top || $0.secondAttribute == .top }
-        XCTAssertFalse(leading.isEmpty, "fill width should pin leading to parent")
-        XCTAssertFalse(top.isEmpty, "fill height should pin top to parent")
-    }
 
     // MARK: - Subview Ordering
 
