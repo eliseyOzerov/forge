@@ -1,8 +1,8 @@
 /// Interaction state of a UI component. OptionSet so states can combine
 /// (e.g. focused + pressed).
 public struct State: OptionSet, Sendable, Hashable {
-    public let rawValue: UInt8
-    public init(rawValue: UInt8) { self.rawValue = rawValue }
+    public let rawValue: UInt16
+    public init(rawValue: UInt16) { self.rawValue = rawValue }
 
     public static let idle          = State(rawValue: 1 << 0)
     public static let pressed       = State(rawValue: 1 << 1)
@@ -14,7 +14,11 @@ public struct State: OptionSet, Sendable, Hashable {
     /// Container-scroll state — set on chrome (nav/tab bars, headers,
     /// footers) when scrollable content has been scrolled underneath.
     /// Drives state-reactive decoration like Liquid-Glass intensification.
-    public static let scrolledUnder = State(rawValue: 1 << 7)
+    public static let scrolling     = State(rawValue: 1 << 7)
+    /// Container-scroll state — set on chrome (nav/tab bars, headers,
+    /// footers) when scrollable content has been scrolled underneath.
+    /// Drives state-reactive decoration like Liquid-Glass intensification.
+    public static let scrolledUnder = State(rawValue: 1 << 8)
 }
 
 // MARK: - HapticStyle

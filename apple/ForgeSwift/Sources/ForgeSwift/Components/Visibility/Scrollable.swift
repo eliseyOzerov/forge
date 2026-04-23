@@ -1,76 +1,158 @@
-/// Scrollable wrapper that enables content to scroll along one or both axes.
+// MARK: - Scrollable
+
+/// Scrollable wrapper that enables content to scroll along one axis.
+///
+/// Use `.ref()` to access the `ScrollableModel` for programmatic scroll
+/// control and observable state.
 ///
 /// ```swift
-/// Scroll(.vertical) {
-///     Column { ... }
-/// }
-/// ```
+/// @Ref<Scrollable> var scroll
 ///
-/// See `ScrollConfig` for axis, indicators, bounce, and paging options.
-/// See `ScrollState` for programmatic scroll control.
-public struct Scrollable: ProxyView {
+/// Scrollable(.vertical) { Column { ... } }
+///     .ref(scroll)
+///
+/// scroll.model?.scrollToTop()
+/// ```
+public struct Scrollable: ModelView {
     public let child: any View
-    public var config: ScrollConfig
+    public var style: ScrollableStyle
 
-    public init(_ config: ScrollConfig = ScrollConfig(), @ChildBuilder content: () -> any View) {
+    public init(_ style: ScrollableStyle = ScrollableStyle(), @ChildBuilder content: () -> any View) {
         self.child = content()
-        self.config = config
+        self.style = style
     }
 
-    public init(_ axis: Axis? = nil, @ChildBuilder content: () -> any View) {
+    public init(_ axis: Axis = .vertical, @ChildBuilder content: () -> any View) {
         self.child = content()
-        self.config = ScrollConfig(axis: axis)
+        self.style = ScrollableStyle(axis: axis)
     }
 
-    public func makeRenderer() -> ProxyRenderer {
+    public func model(context: ViewContext) -> ScrollableModel { ScrollableModel(context: context) }
+    public func builder(model: ScrollableModel) -> ScrollableBuilder { ScrollableBuilder(model: model) }
+}
+
+// MARK: - ScrollableStyle
+
+/// Visual and behavioral configuration for a Scrollable container.
+@Init @Copy
+public struct ScrollableStyle: Sendable, Equatable {
+    public var axis: Axis = .vertical
+    public var bounces: Bool = true
+    public var enabled: Bool = true
+    public var scrollbar: Bool = false
+    public var safeArea: Edge.Set = .all
+    public var padding: Padding = .zero
+    @Snap public var keyboardDismiss: KeyboardDismiss = .onDrag
+}
+
+/// Keyboard dismissal behavior during scrolling.
+public enum KeyboardDismiss: Sendable, Equatable {
+    case none
+    case onDrag
+    case interactive
+}
+
+// MARK: - ScrollableModel
+
+/// Model for a Scrollable view. Provides observable state and programmatic control.
+public final class ScrollableModel: ViewModel<Scrollable> {
+    /// Current scroll offset.
+    public let offset = Observable(Vec2.zero)
+    /// Current interaction state (includes `.scrolling` when actively scrolling).
+    public let state = Observable(State.idle)
+    /// Content size of the scrollable area.
+    public internal(set) var content: Size = .zero
+
+    /// Scroll to a specific offset.
+    public func scrollTo(_ offset: Vec2, animated: Bool = true) {
+        scrollCommand?(offset, animated)
+    }
+
+    /// Scroll to the top (vertical) or leading edge (horizontal).
+    public func scrollToTop(animated: Bool = true) {
+        scrollTo(Vec2(offset.value.x, 0), animated: animated)
+    }
+
+    /// Scroll to the bottom (vertical) or trailing edge (horizontal).
+    public func scrollToBottom(animated: Bool = true) {
+        let maxY = max(0, content.height - viewportSize.height)
+        scrollTo(Vec2(offset.value.x, maxY), animated: animated)
+    }
+
+    // Internal wiring — set by the host view
+    var scrollCommand: ((Vec2, Bool) -> Void)?
+    var viewportSize: Size = .zero
+}
+
+// MARK: - ScrollableBuilder
+
+public final class ScrollableBuilder: ViewBuilder<ScrollableModel> {
+    public override func build(context: ViewContext) -> any View {
+        ScrollableHost(model: model, style: model.view.style, child: model.view.child)
+    }
+}
+
+// MARK: - ScrollableHost
+
+/// Internal proxy view that creates the UIScrollView and wires it to the model.
+struct ScrollableHost: ProxyView {
+    let model: ScrollableModel
+    let style: ScrollableStyle
+    let child: any View
+
+    func makeRenderer() -> ProxyRenderer {
         #if canImport(UIKit)
-        ScrollRenderer(view: self)
+        ScrollableRenderer(model: model, style: style)
         #else
-        fatalError("Scroll not yet implemented for this platform")
+        fatalError("Scrollable not yet implemented for this platform")
         #endif
     }
 }
 
-// MARK: - UIKit Renderer
+// MARK: - UIKit
 
 #if canImport(UIKit)
 import UIKit
 
-final class ScrollRenderer: ProxyRenderer {
+final class ScrollableRenderer: ProxyRenderer {
     weak var node: ProxyNode?
-    private weak var hostView: ScrollHostView?
-    private var view: Scrollable
+    private weak var hostView: ScrollableHostView?
+    private var model: ScrollableModel
+    private var style: ScrollableStyle
 
-    init(view: Scrollable) {
-        self.view = view
+    init(model: ScrollableModel, style: ScrollableStyle) {
+        self.model = model
+        self.style = style
     }
 
     func mount() -> PlatformView {
-        let host = ScrollHostView()
+        let host = ScrollableHostView()
         self.hostView = host
-        host.configure(view.config)
+        host.model = model
+        host.configure(style)
         return host
     }
 
     func update(from newView: any View) {
-        guard let scroll = newView as? Scrollable, let host = hostView else { return }
-        let old = view
-        view = scroll
-        if old.config != scroll.config {
-            host.configure(scroll.config)
+        guard let host = newView as? ScrollableHost, let hostView else { return }
+        let newStyle = host.style
+        model = host.model
+        hostView.model = model
+        if style != newStyle {
+            style = newStyle
+            hostView.configure(newStyle)
         }
     }
 }
 
-// MARK: - ScrollHostView
+// MARK: - ScrollableHostView
 
 /// Hosts a UIScrollView and routes child views into it.
-/// Measures the child with unlimited size on the scroll axis
-/// and sets contentSize from the child's resulting frame.
-final class ScrollHostView: UIView {
+final class ScrollableHostView: UIView {
     private let scrollView = UIScrollView()
-    private var scrollAxis: Axis?
-    private var scrollState: ScrollState?
+    private var axis: Axis = .vertical
+    private var bounces: Bool = true
+    weak var model: ScrollableModel?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -83,17 +165,41 @@ final class ScrollHostView: UIView {
 
     required init?(coder: NSCoder) { fatalError() }
 
-    func configure(_ config: ScrollConfig) {
-        scrollAxis = config.axis
-        scrollView.contentInsetAdjustmentBehavior = config.safeArea ? .automatic : .never
-        scrollView.showsHorizontalScrollIndicator = config.showsIndicators && config.axis != .vertical
-        scrollView.showsVerticalScrollIndicator = config.showsIndicators && config.axis != .horizontal
-        scrollView.bounces = config.bounces
-        scrollView.isPagingEnabled = config.paging
-        scrollState = config.state
-        config.state?.scrollCommand = { [weak self] offset, animated in
+    func configure(_ style: ScrollableStyle) {
+        axis = style.axis
+        bounces = style.bounces
+        scrollView.isScrollEnabled = style.enabled
+        scrollView.bounces = style.bounces
+        scrollView.showsHorizontalScrollIndicator = style.scrollbar && style.axis == .horizontal
+        scrollView.showsVerticalScrollIndicator = style.scrollbar && style.axis == .vertical
+
+        // Safe area
+        if style.safeArea.isEmpty {
+            scrollView.contentInsetAdjustmentBehavior = .never
+        } else {
+            scrollView.contentInsetAdjustmentBehavior = .automatic
+        }
+
+        // Padding → content inset
+        scrollView.contentInset = UIEdgeInsets(
+            top: style.padding.top,
+            left: style.padding.leading,
+            bottom: style.padding.bottom,
+            right: style.padding.trailing
+        )
+
+        // Keyboard dismiss
+        switch style.keyboardDismiss {
+        case .none: scrollView.keyboardDismissMode = .none
+        case .onDrag: scrollView.keyboardDismissMode = .onDrag
+        case .interactive: scrollView.keyboardDismissMode = .interactive
+        }
+
+        // Wire scroll command
+        model?.scrollCommand = { [weak self] offset, animated in
             self?.scrollView.setContentOffset(CGPoint(x: offset.x, y: offset.y), animated: animated)
         }
+
         setNeedsLayout()
     }
 
@@ -118,18 +224,13 @@ final class ScrollHostView: UIView {
     override func sizeThatFits(_ size: CGSize) -> CGSize {
         guard let child = scrollView.subviews.first else { return .zero }
         let childSize = child.sizeThatFits(size)
-        let bounces = scrollView.bounces
-        switch scrollAxis {
+        switch axis {
         case .vertical:
             let h = bounces ? size.height : min(childSize.height, size.height)
             return CGSize(width: childSize.width, height: h)
         case .horizontal:
             let w = bounces ? size.width : min(childSize.width, size.width)
             return CGSize(width: w, height: childSize.height)
-        case nil:
-            let w = bounces ? size.width : min(childSize.width, size.width)
-            let h = bounces ? size.height : min(childSize.height, size.height)
-            return CGSize(width: w, height: h)
         }
     }
 
@@ -141,25 +242,39 @@ final class ScrollHostView: UIView {
 
         guard let child = scrollView.subviews.first else { return }
 
-        let proposedW: CGFloat = (scrollAxis != .vertical) ? .greatestFiniteMagnitude : bounds.width
-        let proposedH: CGFloat = (scrollAxis != .horizontal) ? .greatestFiniteMagnitude : bounds.height
+        let proposedW: CGFloat = axis == .horizontal ? .greatestFiniteMagnitude : bounds.width
+        let proposedH: CGFloat = axis == .vertical ? .greatestFiniteMagnitude : bounds.height
         let childSize = child.sizeThatFits(CGSize(width: proposedW, height: proposedH))
 
         child.frame = CGRect(origin: .zero, size: childSize)
-
         scrollView.contentSize = childSize
-        scrollState?.contentSize = Size(childSize.width, childSize.height)
-        scrollState?.viewportSize = Size(bounds.width, bounds.height)
+
+        model?.content = Size(childSize)
+        model?.viewportSize = Size(bounds.size)
     }
 }
 
-// MARK: - ScrollHostView + Delegate
+// MARK: - UIScrollViewDelegate
 
-extension ScrollHostView: UIScrollViewDelegate {
+extension ScrollableHostView: UIScrollViewDelegate {
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
-        let offset = Vec2(scrollView.contentOffset.x, scrollView.contentOffset.y)
-        scrollState?.offset = offset
-        scrollState?.onScroll?(offset)
+        model?.offset.value = Vec2(scrollView.contentOffset)
+    }
+
+    func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+        model?.state.value.insert(.scrolling)
+    }
+
+    func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+        if !decelerate { model?.state.value.remove(.scrolling) }
+    }
+
+    func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+        model?.state.value.remove(.scrolling)
+    }
+
+    func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
+        model?.state.value.remove(.scrolling)
     }
 }
 
