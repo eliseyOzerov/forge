@@ -461,7 +461,7 @@ public extension TextField where T == String {
         lines: ClosedRange<Int> = 3...10,
         onChanged: ValueHandler<String>? = nil,
         style: StateProperty<TextFieldStyle> = .constant(TextFieldStyle(
-            field: .frame(.fillWidth.height(.hug(min: 80))).surface(.color(Color(0.95, 0.95, 0.95))).shape(.roundedRect(radius: 8)).padding(.all(12))
+            field: .frame(.fillWidth.height(.fit(min: 80))).surface(.color(Color(0.95, 0.95, 0.95))).shape(.roundedRect(radius: 8)).padding(.all(12))
         ))
     ) -> TextField {
         TextField(text: text, logic: TextFieldLogic(

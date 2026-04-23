@@ -16,672 +16,625 @@ private class FixedSizeView: UIView {
 @MainActor
 final class FlexLayoutTests: XCTestCase {
 
-    private let acc: CGFloat = 0.5
+    private let acc = 0.01
 
     // MARK: - Helpers
 
-    private func child(_ w: CGFloat, _ h: CGFloat) -> FixedSizeView {
+    /// Create a FixedSizeView child.
+    private func child(_ w: Double, _ h: Double) -> FixedSizeView {
         FixedSizeView(size: CGSize(width: w, height: h))
     }
 
-    /// Create a FlexibleHostView wrapping a BoxView for weighted distribution testing.
-    private func fillBox(
-        weight: Int = 1,
-        min: Double? = nil,
-        max: Double? = nil,
-        axis: Axis = .horizontal,
-        intrinsicCross: CGFloat = 30
-    ) -> FlexibleHostView {
-        let box = BoxView()
-        // Add a child so cross-axis measurement returns something
-        let c = FixedSizeView(size: CGSize(width: intrinsicCross, height: intrinsicCross))
-        box.addSubview(c)
-        let host = FlexibleHostView()
-        host.weight = weight
-        host.flexMin = min
-        host.flexMax = max
-        host.addSubview(box)
-        return host
+    /// Create a FlexSlot with a dummy view and given measured size.
+    private func slot(_ w: Double, _ h: Double, flex: Double? = nil, stretch: Bool = false) -> FlexSlot {
+        let view = child(w, h)
+        return FlexSlot(index: 0, view: view, measured: Size(w, h), flex: flex, stretch: stretch)
     }
 
-    /// Create a FlexView, add children, set frame, trigger layout.
-    private func layoutFlex(
-        axis: Axis = .vertical,
+    /// Create a FlexLine from slot sizes.
+    private func line(_ slots: [FlexSlot], mainAxis: Axis = .horizontal) -> FlexLine {
+        var line = FlexLine()
+        let isH = mainAxis == .horizontal
+        for s in slots {
+            line.slots.append(s)
+            // Bounds accumulation mirrors splitLines logic (no spacing — caller sets bounds if needed)
+            let mainSize = line.bounds.on(mainAxis) + s.measured.on(mainAxis)
+            let crossSize = max(line.bounds.on(mainAxis.cross), s.measured.on(mainAxis.cross))
+            line.bounds = isH ? Size(mainSize, crossSize) : Size(crossSize, mainSize)
+        }
+        return line
+    }
+
+    /// Create a FlexLine with explicit bounds (useful when you need spacing included).
+    private func line(_ slots: [FlexSlot], bounds: Size) -> FlexLine {
+        FlexLine(slots: slots, bounds: bounds)
+    }
+
+    /// Create a configured FlexView for testing.
+    private func flexView(
+        axis: Axis = .horizontal,
         spacing: Double = 0,
         lineSpacing: Double = 0,
         alignment: Alignment = .center,
-        spread: Spread = .packed,
-        wrap: Bool = false,
-        containerSize: CGSize = CGSize(width: 200, height: 400),
-        children: [UIView]
+        spread: Spread? = nil,
+        wrap: Bool = false
     ) -> FlexView {
-        let flex = FlexView()
-        flex.style = FlexStyle(axis: axis, spacing: spacing, lineSpacing: lineSpacing, alignment: alignment, spread: spread, wrap: wrap)
-        for child in children { flex.addSubview(child) }
-        flex.frame = CGRect(origin: .zero, size: containerSize)
-        flex.layoutSubviews()
-        return flex
+        let view = FlexView()
+        var style = FlexStyle()
+        style.axis = axis
+        style.spacing = spacing
+        style.lineSpacing = lineSpacing
+        style.alignment = alignment
+        style.spread = spread
+        style.wrap = wrap
+        view.style = style
+        return view
     }
 
-    private func sizeFlex(
-        axis: Axis = .vertical,
-        spacing: Double = 0,
-        spread: Spread = .packed,
-        wrap: Bool = false,
-        proposed: CGSize = CGSize(width: 200, height: 400),
-        children: [UIView]
-    ) -> CGSize {
-        let flex = FlexView()
-        flex.style = FlexStyle(axis: axis, spacing: spacing, spread: spread, wrap: wrap)
-        for child in children { flex.addSubview(child) }
-        return flex.sizeThatFits(proposed)
-    }
+    // MARK: - 1. applyFrames
 
-    // MARK: - sizeThatFits: Column
+    func testApplyFramesSetsChildFrames() {
+        let c1 = child(40, 20)
+        let c2 = child(60, 30)
+        var s1 = FlexSlot(index: 0, view: c1, measured: Size(40, 20))
+        var s2 = FlexSlot(index: 1, view: c2, measured: Size(60, 30))
+        s1.origin = Point(10, 5)
+        s1.resolved = Size(40, 20)
+        s2.origin = Point(60, 0)
+        s2.resolved = Size(60, 30)
+        var lines = [FlexLine(slots: [s1, s2], bounds: Size(120, 30))]
 
-    func testColumnSizeThatFitsZeroChildren() {
-        let size = sizeFlex(axis: .vertical, children: [])
-        XCTAssertEqual(size.width, 0, accuracy: acc)
-        XCTAssertEqual(size.height, 0, accuracy: acc)
-    }
+        let flex = flexView()
+        flex.addSubview(c1)
+        flex.addSubview(c2)
+        flex.applyFrames(&lines)
 
-    func testColumnSizeThatFitsSingleChild() {
-        let size = sizeFlex(axis: .vertical, children: [child(80, 50)])
-        XCTAssertEqual(size.width, 80, accuracy: acc)
-        XCTAssertEqual(size.height, 50, accuracy: acc)
-    }
-
-    func testColumnSizeThatFitsTwoChildren() {
-        let size = sizeFlex(axis: .vertical, spacing: 10, children: [child(80, 50), child(60, 40)])
-        // width = max(80, 60) = 80, height = 50 + 40 + 10 = 100
-        XCTAssertEqual(size.width, 80, accuracy: acc)
-        XCTAssertEqual(size.height, 100, accuracy: acc)
-    }
-
-    func testColumnSizeThatFitsThreeChildrenWithSpacing() {
-        let size = sizeFlex(axis: .vertical, spacing: 5, children: [child(60, 30), child(60, 30), child(60, 30)])
-        // height = 30*3 + 5*2 = 100
-        XCTAssertEqual(size.height, 100, accuracy: acc)
-    }
-
-    func testColumnSizeThatFitsWithFillChild() {
-        let fb = fillBox(axis: .vertical)
-        let size = sizeFlex(axis: .vertical, proposed: CGSize(width: 200, height: 400), children: [child(60, 30), fb])
-        // Has a fill child → takes proposed height
-        XCTAssertEqual(size.height, 400, accuracy: acc)
-    }
-
-    func testColumnSizeThatFitsSpreadTakesProposed() {
-        let size = sizeFlex(axis: .vertical, spread: .between, proposed: CGSize(width: 200, height: 400), children: [child(60, 30), child(60, 30)])
-        XCTAssertEqual(size.height, 400, accuracy: acc)
-    }
-
-    // MARK: - sizeThatFits: Row
-
-    func testRowSizeThatFitsSingleChild() {
-        let size = sizeFlex(axis: .horizontal, children: [child(80, 50)])
-        XCTAssertEqual(size.width, 80, accuracy: acc)
-        XCTAssertEqual(size.height, 50, accuracy: acc)
-    }
-
-    func testRowSizeThatFitsTwoChildren() {
-        let size = sizeFlex(axis: .horizontal, spacing: 10, children: [child(80, 50), child(60, 40)])
-        // width = 80 + 60 + 10 = 150, height = max(50, 40) = 50
-        XCTAssertEqual(size.width, 150, accuracy: acc)
-        XCTAssertEqual(size.height, 50, accuracy: acc)
-    }
-
-    func testRowSizeThatFitsWithFillChild() {
-        let fb = fillBox(axis: .horizontal)
-        let size = sizeFlex(axis: .horizontal, proposed: CGSize(width: 300, height: 200), children: [child(60, 30), fb])
-        XCTAssertEqual(size.width, 300, accuracy: acc)
-    }
-
-    // MARK: - Child Positioning: Column, packed, center
-
-    func testColumnPackedCenterTwoChildren() {
-        let c1 = child(100, 50)
-        let c2 = child(60, 50)
-        let flex = layoutFlex(
-            axis: .vertical, spacing: 10, alignment: .center,
-            containerSize: CGSize(width: 200, height: 400),
-            children: [c1, c2]
-        )
-        // Group height = 50 + 50 + 10 = 110. Centered in 400 → starts at (400-110)/2 = 145
-        // Cross: line.crossSize=100, container=200, center → offset = (200-100)*0.5 = 50
-        // c1: crossOffset = (100-100)*0.5 + 50 = 50, c2: (100-60)*0.5 + 50 = 70
-        XCTAssertEqual(c1.frame.origin.y, 145, accuracy: acc)
-        XCTAssertEqual(c1.frame.origin.x, 50, accuracy: acc)
-        XCTAssertEqual(c2.frame.origin.y, 205, accuracy: acc)
-        XCTAssertEqual(c2.frame.origin.x, 70, accuracy: acc)
-    }
-
-    func testColumnPackedTopLeft() {
-        let c1 = child(80, 40)
-        let c2 = child(60, 40)
-        let flex = layoutFlex(
-            axis: .vertical, spacing: 0, alignment: .topLeft,
-            containerSize: CGSize(width: 200, height: 400),
-            children: [c1, c2]
-        )
-        // TopLeft: main align = top (factor 0), cross align = left (factor 0)
-        XCTAssertEqual(c1.frame.origin.x, 0, accuracy: acc)
-        XCTAssertEqual(c1.frame.origin.y, 0, accuracy: acc)
-        XCTAssertEqual(c2.frame.origin.x, 0, accuracy: acc)
-        XCTAssertEqual(c2.frame.origin.y, 40, accuracy: acc)
-    }
-
-    func testColumnPackedBottomRight() {
-        let c1 = child(80, 40)
-        let c2 = child(60, 40)
-        let flex = layoutFlex(
-            axis: .vertical, spacing: 0, alignment: .bottomRight,
-            containerSize: CGSize(width: 200, height: 400),
-            children: [c1, c2]
-        )
-        // Group height = 80. Bottom-aligned: starts at 400 - 80 = 320
-        // Cross: line.crossSize=80, container=200, right → offset = (200-80)*1 = 120
-        // c1: crossOffset = (80-80)*1 + 120 = 120, c2: (80-60)*1 + 120 = 140
-        XCTAssertEqual(c1.frame.origin.y, 320, accuracy: acc)
-        XCTAssertEqual(c1.frame.origin.x, 120, accuracy: acc)
-        XCTAssertEqual(c2.frame.origin.y, 360, accuracy: acc)
-        XCTAssertEqual(c2.frame.origin.x, 140, accuracy: acc)
-    }
-
-    // MARK: - Child Positioning: Row, packed
-
-    func testRowPackedCenterTwoChildren() {
-        let c1 = child(60, 80)
-        let c2 = child(60, 40)
-        let flex = layoutFlex(
-            axis: .horizontal, spacing: 10, alignment: .center,
-            containerSize: CGSize(width: 300, height: 200),
-            children: [c1, c2]
-        )
-        // Group width = 60 + 60 + 10 = 130. Centered in 300 → starts at (300-130)/2 = 85
-        // Cross: line.crossSize=80, container=200, center → offset = (200-80)*0.5 = 60
-        // c1: crossOffset = (80-80)*0.5 + 60 = 60
-        // c2: crossOffset = (80-40)*0.5 + 60 = 80
-        XCTAssertEqual(c1.frame.origin.x, 85, accuracy: acc)
-        XCTAssertEqual(c1.frame.origin.y, 60, accuracy: acc)
-        XCTAssertEqual(c2.frame.origin.x, 155, accuracy: acc)
-        XCTAssertEqual(c2.frame.origin.y, 80, accuracy: acc)
-    }
-
-    // MARK: - Spread Modes
-
-    // Row, 200px wide, three 20px children. Used = 60, Free = 140.
-
-    func testSpreadBetween() {
-        let c1 = child(20, 20)
-        let c2 = child(20, 20)
-        let c3 = child(20, 20)
-        let flex = layoutFlex(
-            axis: .horizontal, spread: .between,
-            containerSize: CGSize(width: 200, height: 50),
-            children: [c1, c2, c3]
-        )
-        // between: (0, 140/2 = 70)
-        XCTAssertEqual(c1.frame.origin.x, 0, accuracy: acc)
-        XCTAssertEqual(c2.frame.origin.x, 90, accuracy: acc)  // 0 + 20 + 70
-        XCTAssertEqual(c3.frame.origin.x, 180, accuracy: acc) // 90 + 20 + 70
-    }
-
-    func testSpreadAround() {
-        let c1 = child(20, 20)
-        let c2 = child(20, 20)
-        let c3 = child(20, 20)
-        let flex = layoutFlex(
-            axis: .horizontal, spread: .around,
-            containerSize: CGSize(width: 200, height: 50),
-            children: [c1, c2, c3]
-        )
-        // around: space = 140/3 ≈ 46.67, before = 23.33, between = 46.67
-        let space = 140.0 / 3.0
-        XCTAssertEqual(c1.frame.origin.x, space / 2, accuracy: acc)
-        XCTAssertEqual(c2.frame.origin.x, space / 2 + 20 + space, accuracy: acc)
-        XCTAssertEqual(c3.frame.origin.x, space / 2 + 20 + space + 20 + space, accuracy: acc)
-    }
-
-    func testSpreadEven() {
-        let c1 = child(20, 20)
-        let c2 = child(20, 20)
-        let c3 = child(20, 20)
-        let flex = layoutFlex(
-            axis: .horizontal, spread: .even,
-            containerSize: CGSize(width: 200, height: 50),
-            children: [c1, c2, c3]
-        )
-        // even: space = 140/4 = 35
-        XCTAssertEqual(c1.frame.origin.x, 35, accuracy: acc)
-        XCTAssertEqual(c2.frame.origin.x, 35 + 20 + 35, accuracy: acc) // 90
-        XCTAssertEqual(c3.frame.origin.x, 35 + 20 + 35 + 20 + 35, accuracy: acc) // 145
-    }
-
-    func testSpreadPacked() {
-        let c1 = child(20, 20)
-        let c2 = child(20, 20)
-        let c3 = child(20, 20)
-        let flex = layoutFlex(
-            axis: .horizontal, spacing: 5, alignment: .topLeft, spread: .packed,
-            containerSize: CGSize(width: 200, height: 50),
-            children: [c1, c2, c3]
-        )
-        // packed, topLeft: starts at x=0
-        XCTAssertEqual(c1.frame.origin.x, 0, accuracy: acc)
-        XCTAssertEqual(c2.frame.origin.x, 25, accuracy: acc)
-        XCTAssertEqual(c3.frame.origin.x, 50, accuracy: acc)
-    }
-
-    // MARK: - Spread with Single Child
-
-    func testSpreadBetweenSingleChild() {
-        let c1 = child(20, 20)
-        let flex = layoutFlex(
-            axis: .horizontal, spread: .between,
-            containerSize: CGSize(width: 200, height: 50),
-            children: [c1]
-        )
-        // between with 1 child: (0, 0) → child at 0
-        XCTAssertEqual(c1.frame.origin.x, 0, accuracy: acc)
-    }
-
-    func testSpreadAroundSingleChild() {
-        let c1 = child(20, 20)
-        let flex = layoutFlex(
-            axis: .horizontal, spread: .around,
-            containerSize: CGSize(width: 200, height: 50),
-            children: [c1]
-        )
-        // around: space = 180/1 = 180, before = 90 → centered
-        XCTAssertEqual(c1.frame.origin.x, 90, accuracy: acc)
-    }
-
-    func testSpreadEvenSingleChild() {
-        let c1 = child(20, 20)
-        let flex = layoutFlex(
-            axis: .horizontal, spread: .even,
-            containerSize: CGSize(width: 200, height: 50),
-            children: [c1]
-        )
-        // even: space = 180/2 = 90 → child at 90
-        XCTAssertEqual(c1.frame.origin.x, 90, accuracy: acc)
-    }
-
-    // MARK: - Fill Children in Flex
-
-    func testSingleFillChildInRow() {
-        let fb = fillBox(axis: .horizontal, intrinsicCross: 30)
-        let flex = layoutFlex(
-            axis: .horizontal,
-            containerSize: CGSize(width: 200, height: 100),
-            children: [fb]
-        )
-        // Single fill child with flex=1, normalizedFlex=max(1,1)=1 → gets all free space
-        // No fixed children → freeSpace = 200, share = 200 * 1/1 = 200
-        XCTAssertEqual(fb.frame.width, 200, accuracy: acc)
-    }
-
-    func testTwoEqualFillChildrenInRow() {
-        let fb1 = fillBox(axis: .horizontal, intrinsicCross: 30)
-        let fb2 = fillBox(axis: .horizontal, intrinsicCross: 30)
-        let flex = layoutFlex(
-            axis: .horizontal,
-            containerSize: CGSize(width: 200, height: 100),
-            children: [fb1, fb2]
-        )
-        // Each flex=1, totalFlex=2, each gets 200*1/2 = 100
-        XCTAssertEqual(fb1.frame.width, 100, accuracy: acc)
-        XCTAssertEqual(fb2.frame.width, 100, accuracy: acc)
-    }
-
-    func testFillChildrenUnequalFlex() {
-        let fb1 = fillBox(weight: 2, axis: .horizontal, intrinsicCross: 30)
-        let fb2 = fillBox(weight: 1, axis: .horizontal, intrinsicCross: 30)
-        let flex = layoutFlex(
-            axis: .horizontal,
-            containerSize: CGSize(width: 300, height: 100),
-            children: [fb1, fb2]
-        )
-        // totalFlex=3, fb1 gets 300*2/3 = 200, fb2 gets 300*1/3 = 100
-        XCTAssertEqual(fb1.frame.width, 200, accuracy: acc)
-        XCTAssertEqual(fb2.frame.width, 100, accuracy: acc)
-    }
-
-    func testFillChildHalfFractionAlone() {
-        let fb = BoxView()
-        fb.sizing = Frame(.fill(0.5), .fit())
-        fb.addSubview(FixedSizeView(size: CGSize(width: 30, height: 30)))
-        let flex = layoutFlex(
-            axis: .horizontal,
-            containerSize: CGSize(width: 200, height: 100),
-            children: [fb]
-        )
-        // fill(0.5) → 200 * 0.5 = 100
-        XCTAssertEqual(fb.frame.width, 100, accuracy: acc)
-    }
-
-    func testMixedFixedAndFillChildren() {
-        let fixed = child(60, 30)
-        let fb = fillBox(axis: .horizontal, intrinsicCross: 30)
-        let flex = layoutFlex(
-            axis: .horizontal,
-            containerSize: CGSize(width: 200, height: 100),
-            children: [fixed, fb]
-        )
-        // Fixed takes 60, fill gets remaining: 200 - 60 = 140
-        XCTAssertEqual(fixed.frame.width, 60, accuracy: acc)
-        XCTAssertEqual(fb.frame.width, 140, accuracy: acc)
-    }
-
-    func testFillChildPositionedAfterFixed() {
-        let fixed = child(60, 30)
-        let fb = fillBox(axis: .horizontal, intrinsicCross: 30)
-        let flex = layoutFlex(
-            axis: .horizontal, alignment: .topLeft,
-            containerSize: CGSize(width: 200, height: 100),
-            children: [fixed, fb]
-        )
-        XCTAssertEqual(fixed.frame.origin.x, 0, accuracy: acc)
-        XCTAssertEqual(fb.frame.origin.x, 60, accuracy: acc)
-    }
-
-    // MARK: - Fill Children in Column
-
-    func testSingleFillChildInColumn() {
-        let fb = fillBox(axis: .vertical, intrinsicCross: 30)
-        let flex = layoutFlex(
-            axis: .vertical,
-            containerSize: CGSize(width: 200, height: 400),
-            children: [fb]
-        )
-        XCTAssertEqual(fb.frame.height, 400, accuracy: acc)
-    }
-
-    func testMixedFixedAndFillInColumn() {
-        let header = child(200, 50)
-        let body = fillBox(axis: .vertical, intrinsicCross: 100)
-        let flex = layoutFlex(
-            axis: .vertical,
-            containerSize: CGSize(width: 200, height: 400),
-            children: [header, body]
-        )
-        XCTAssertEqual(header.frame.height, 50, accuracy: acc)
-        XCTAssertEqual(body.frame.height, 350, accuracy: acc)
-    }
-
-    // MARK: - Wrapping
-
-    func testWrapThreeChildrenInRow() {
-        // 200px row, three 80px children. First two fit (160 < 200), third wraps.
-        let c1 = child(80, 30)
-        let c2 = child(80, 30)
-        let c3 = child(80, 30)
-        let flex = layoutFlex(
-            axis: .horizontal, alignment: .topLeft, wrap: true,
-            containerSize: CGSize(width: 200, height: 200),
-            children: [c1, c2, c3]
-        )
-        // Line 1: c1, c2; Line 2: c3
-        XCTAssertEqual(c1.frame.origin.y, 0, accuracy: acc)
+        XCTAssertEqual(c1.frame.origin.x, 10, accuracy: acc)
+        XCTAssertEqual(c1.frame.origin.y, 5, accuracy: acc)
+        XCTAssertEqual(c1.frame.size.width, 40, accuracy: acc)
+        XCTAssertEqual(c1.frame.size.height, 20, accuracy: acc)
+        XCTAssertEqual(c2.frame.origin.x, 60, accuracy: acc)
         XCTAssertEqual(c2.frame.origin.y, 0, accuracy: acc)
-        XCTAssertEqual(c3.frame.origin.y, 30, accuracy: acc) // Below first line
-        XCTAssertEqual(c3.frame.origin.x, 0, accuracy: acc)  // Start of new line
+        XCTAssertEqual(c2.frame.size.width, 60, accuracy: acc)
+        XCTAssertEqual(c2.frame.size.height, 30, accuracy: acc)
     }
 
-    func testWrapLineCrossSizeIsTallestChild() {
-        let c1 = child(80, 30)
-        let c2 = child(80, 60) // Taller
-        let c3 = child(80, 20)
-        let flex = layoutFlex(
-            axis: .horizontal, alignment: .topLeft, wrap: true,
-            containerSize: CGSize(width: 200, height: 200),
-            children: [c1, c2, c3]
-        )
-        // Line 1: c1(30), c2(60) → cross size = 60. Line 2: c3 starts at y=60
-        XCTAssertEqual(c3.frame.origin.y, 60, accuracy: acc)
+    // MARK: - 2. resolveMainSpacing
+
+    // Remaining=70, 3 children, no flex
+
+    func testResolveMainSpacingNilSpread() {
+        let flex = flexView(spacing: 10, alignment: .center)
+        let (start, gap) = flex.resolveMainSpacing(remaining: 70, count: 3, hasFlex: false)
+        // nil spread, center alignment: start = 70 * (0+1)/2 = 35
+        XCTAssertEqual(start, 35, accuracy: acc)
+        XCTAssertEqual(gap, 10, accuracy: acc)
     }
 
-    func testWrapLineSpacing() {
-        let c1 = child(80, 30)
+    func testResolveMainSpacingNilSpreadTopLeft() {
+        let flex = flexView(spacing: 10, alignment: .topLeft)
+        let (start, gap) = flex.resolveMainSpacing(remaining: 70, count: 3, hasFlex: false)
+        // topLeft: alignment.x = -1, start = 70 * (-1+1)/2 = 0
+        XCTAssertEqual(start, 0, accuracy: acc)
+        XCTAssertEqual(gap, 10, accuracy: acc)
+    }
+
+    func testResolveMainSpacingNilSpreadBottomRight() {
+        let flex = flexView(spacing: 10, alignment: .bottomRight)
+        let (start, gap) = flex.resolveMainSpacing(remaining: 70, count: 3, hasFlex: false)
+        // bottomRight: alignment.x = 1, start = 70 * (1+1)/2 = 70
+        XCTAssertEqual(start, 70, accuracy: acc)
+        XCTAssertEqual(gap, 10, accuracy: acc)
+    }
+
+    func testResolveMainSpacingPacked() {
+        let flex = flexView(spacing: 10, alignment: .center, spread: .packed)
+        let (start, gap) = flex.resolveMainSpacing(remaining: 70, count: 3, hasFlex: false)
+        XCTAssertEqual(start, 35, accuracy: acc)
+        XCTAssertEqual(gap, 10, accuracy: acc)
+    }
+
+    func testResolveMainSpacingBetween() {
+        let flex = flexView(spread: .between)
+        let (start, gap) = flex.resolveMainSpacing(remaining: 70, count: 3, hasFlex: false)
+        XCTAssertEqual(start, 0, accuracy: acc)
+        XCTAssertEqual(gap, 35, accuracy: acc) // 70 / 2
+    }
+
+    func testResolveMainSpacingBetweenOneChild() {
+        let flex = flexView(spread: .between)
+        let (start, gap) = flex.resolveMainSpacing(remaining: 70, count: 1, hasFlex: false)
+        XCTAssertEqual(start, 0, accuracy: acc)
+        XCTAssertEqual(gap, 0, accuracy: acc)
+    }
+
+    func testResolveMainSpacingAround() {
+        let flex = flexView(spread: .around)
+        let (start, gap) = flex.resolveMainSpacing(remaining: 90, count: 3, hasFlex: false)
+        // gap = 90/3 = 30, start = 30/2 = 15
+        XCTAssertEqual(start, 15, accuracy: acc)
+        XCTAssertEqual(gap, 30, accuracy: acc)
+    }
+
+    func testResolveMainSpacingEven() {
+        let flex = flexView(spread: .even)
+        let (start, gap) = flex.resolveMainSpacing(remaining: 80, count: 3, hasFlex: false)
+        // gap = 80/4 = 20, start = 20
+        XCTAssertEqual(start, 20, accuracy: acc)
+        XCTAssertEqual(gap, 20, accuracy: acc)
+    }
+
+    func testResolveMainSpacingWithFlex() {
+        let flex = flexView(spacing: 10, spread: .between)
+        let (start, gap) = flex.resolveMainSpacing(remaining: 70, count: 3, hasFlex: true)
+        // hasFlex overrides: start = 0, gap = spacing
+        XCTAssertEqual(start, 0, accuracy: acc)
+        XCTAssertEqual(gap, 10, accuracy: acc)
+    }
+
+    func testResolveMainSpacingZeroRemaining() {
+        let flex = flexView(spread: .between)
+        let (start, gap) = flex.resolveMainSpacing(remaining: 0, count: 3, hasFlex: false)
+        XCTAssertEqual(start, 0, accuracy: acc)
+        XCTAssertEqual(gap, 0, accuracy: acc)
+    }
+
+    // MARK: - 3. boundingBox
+
+    func testBoundingBoxNoSpreadHorizontal() {
+        let flex = flexView(axis: .horizontal, lineSpacing: 5)
+        let s1 = slot(40, 20)
+        let s2 = slot(60, 30)
+        // Line bounds: main=100, cross=30
+        flex.lines = [line([s1, s2], bounds: Size(100, 30))]
+        flex.measuredSizeCache = Size(200, 100) // won't matter for nil spread
+        let result = flex.boundingBox(in: Size(200, 100))
+        // No spread: mainSize = max of line main = 100, crossSize = 30, no lineSpacing (1 line)
+        XCTAssertEqual(result.width, 100, accuracy: acc)
+        XCTAssertEqual(result.height, 30, accuracy: acc)
+    }
+
+    func testBoundingBoxWithSpreadHorizontal() {
+        let flex = flexView(axis: .horizontal, spread: .between)
+        let s1 = slot(40, 20)
+        let s2 = slot(60, 30)
+        flex.lines = [line([s1, s2], bounds: Size(100, 30))]
+        let result = flex.boundingBox(in: Size(200, 100))
+        // With spread: mainSize = proposed = 200
+        XCTAssertEqual(result.width, 200, accuracy: acc)
+        XCTAssertEqual(result.height, 30, accuracy: acc)
+    }
+
+    func testBoundingBoxMultiLineHorizontal() {
+        let flex = flexView(axis: .horizontal, lineSpacing: 10)
+        let s1 = slot(40, 20)
+        let s2 = slot(60, 30)
+        let s3 = slot(50, 25)
+        flex.lines = [
+            line([s1, s2], bounds: Size(100, 30)),
+            line([s3], bounds: Size(50, 25))
+        ]
+        let result = flex.boundingBox(in: Size(200, 200))
+        // mainSize = max(100, 50) = 100, crossSize = 30 + 25 + 10 = 65
+        XCTAssertEqual(result.width, 100, accuracy: acc)
+        XCTAssertEqual(result.height, 65, accuracy: acc)
+    }
+
+    func testBoundingBoxVertical() {
+        let flex = flexView(axis: .vertical, lineSpacing: 5)
+        let s1 = slot(40, 20)
+        let s2 = slot(60, 30)
+        // For vertical: main=height, cross=width. Line bounds stored as Size(cross, main) = Size(60, 50)
+        flex.lines = [line([s1, s2], bounds: Size(60, 50))]
+        let result = flex.boundingBox(in: Size(200, 400))
+        // No spread: mainSize(height) = 50, crossSize(width) = 60
+        XCTAssertEqual(result.width, 60, accuracy: acc)
+        XCTAssertEqual(result.height, 50, accuracy: acc)
+    }
+
+    func testBoundingBoxEmptyLines() {
+        let flex = flexView()
+        flex.lines = []
+        let result = flex.boundingBox(in: Size(200, 100))
+        XCTAssertEqual(result.width, 0, accuracy: acc)
+        XCTAssertEqual(result.height, 0, accuracy: acc)
+    }
+
+    // MARK: - 4. splitLines
+
+    func testSplitLinesNoWrapSingleLine() {
+        let flex = flexView(axis: .horizontal, spacing: 10)
+        let slots = [slot(40, 20), slot(60, 30), slot(30, 10)]
+        // Total with spacing: 40 + 10 + 60 + 10 + 30 = 150, fits in 200
+        let result = flex.splitLines(slots: slots, size: Size(200, 100))
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result[0].slots.count, 3)
+        XCTAssertEqual(result[0].bounds.width, 150, accuracy: acc)
+        XCTAssertEqual(result[0].bounds.height, 30, accuracy: acc)
+    }
+
+    func testSplitLinesTwoLines() {
+        let flex = flexView(axis: .horizontal, spacing: 10)
+        let slots = [slot(80, 20), slot(80, 30), slot(80, 10)]
+        // 80 + 10 + 80 = 170 fits, 170 + 10 + 80 = 260 > 200 → wraps
+        let result = flex.splitLines(slots: slots, size: Size(200, 100))
+        XCTAssertEqual(result.count, 2)
+        XCTAssertEqual(result[0].slots.count, 2)
+        XCTAssertEqual(result[1].slots.count, 1)
+        XCTAssertEqual(result[0].bounds.width, 170, accuracy: acc)
+        XCTAssertEqual(result[0].bounds.height, 30, accuracy: acc)
+        XCTAssertEqual(result[1].bounds.width, 80, accuracy: acc)
+        XCTAssertEqual(result[1].bounds.height, 10, accuracy: acc)
+    }
+
+    func testSplitLinesOversizedChild() {
+        let flex = flexView(axis: .horizontal, spacing: 0)
+        let slots = [slot(50, 20), slot(250, 30), slot(50, 10)]
+        // 250 > 200, but first in its line so it stays. 50 doesn't fit after 250.
+        let result = flex.splitLines(slots: slots, size: Size(200, 100))
+        XCTAssertEqual(result.count, 3)
+        XCTAssertEqual(result[0].slots.count, 1)
+        XCTAssertEqual(result[1].slots.count, 1)
+        XCTAssertEqual(result[2].slots.count, 1)
+    }
+
+    func testSplitLinesEmpty() {
+        let flex = flexView()
+        let result = flex.splitLines(slots: [], size: Size(200, 100))
+        XCTAssertEqual(result.count, 0)
+    }
+
+    func testSplitLinesVertical() {
+        let flex = flexView(axis: .vertical, spacing: 5)
+        let slots = [slot(40, 60), slot(50, 60), slot(30, 60)]
+        // Vertical: main = height. 60 + 5 + 60 = 125, 125 + 5 + 60 = 190 > 150 → wraps
+        let result = flex.splitLines(slots: slots, size: Size(200, 150))
+        XCTAssertEqual(result.count, 2)
+        XCTAssertEqual(result[0].slots.count, 2)
+        XCTAssertEqual(result[1].slots.count, 1)
+    }
+
+    func testSplitLinesZeroSpacing() {
+        let flex = flexView(axis: .horizontal, spacing: 0)
+        let slots = [slot(100, 20), slot(100, 20)]
+        // 100 + 100 = 200 == 200, fits exactly
+        let result = flex.splitLines(slots: slots, size: Size(200, 100))
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result[0].slots.count, 2)
+    }
+
+    // MARK: - 5. arrangeSlots
+
+    // Helper: set up FlexView with measuredSizeCache and lines, then call arrangeSlots
+    private func arrange(
+        axis: Axis = .horizontal,
+        spacing: Double = 0,
+        lineSpacing: Double = 0,
+        alignment: Alignment = .center,
+        spread: Spread? = nil,
+        measuredSize: Size,
+        lines: [FlexLine]
+    ) -> [FlexLine] {
+        let flex = flexView(axis: axis, spacing: spacing, lineSpacing: lineSpacing, alignment: alignment, spread: spread)
+        flex.measuredSizeCache = measuredSize
+        var mutableLines = lines
+        flex.arrangeSlots(&mutableLines)
+        return mutableLines
+    }
+
+    // -- No spread, center aligned, horizontal --
+
+    func testArrangeNilSpreadCenter() {
+        // 3 children: 40 + 60 + 30 = 130. Container main = 200. Remaining = 70.
+        // Center: start = 35. Gap = 0 (no spacing). Cross: all same height, crossAlign doesn't matter.
+        let s = [slot(40, 20), slot(60, 20), slot(30, 20)]
+        let ln = line(s, bounds: Size(130, 20))
+        let result = arrange(measuredSize: Size(200, 100), lines: [ln])
+
+        XCTAssertEqual(result[0].slots[0].origin.x, 35, accuracy: acc)
+        XCTAssertEqual(result[0].slots[1].origin.x, 75, accuracy: acc)  // 35 + 40
+        XCTAssertEqual(result[0].slots[2].origin.x, 135, accuracy: acc) // 75 + 60
+    }
+
+    func testArrangeNilSpreadTopLeft() {
+        let s = [slot(40, 20), slot(60, 20)]
+        let ln = line(s, bounds: Size(100, 20))
+        let result = arrange(alignment: .topLeft, measuredSize: Size(200, 100), lines: [ln])
+
+        // topLeft: start = 0, crossOffset = 0
+        XCTAssertEqual(result[0].slots[0].origin.x, 0, accuracy: acc)
+        XCTAssertEqual(result[0].slots[0].origin.y, 0, accuracy: acc)
+        XCTAssertEqual(result[0].slots[1].origin.x, 40, accuracy: acc)
+    }
+
+    func testArrangeNilSpreadBottomRight() {
+        let s = [slot(40, 20), slot(60, 30)]
+        let ln = line(s, bounds: Size(100, 30))
+        let result = arrange(alignment: .bottomRight, measuredSize: Size(200, 100), lines: [ln])
+
+        // bottomRight: start = 100, crossAlign = 1
+        // Slot 0: origin.x = 100, crossOffset = 0 + (30-20)*1 = 10
+        XCTAssertEqual(result[0].slots[0].origin.x, 100, accuracy: acc)
+        XCTAssertEqual(result[0].slots[0].origin.y, 10, accuracy: acc)
+        // Slot 1: origin.x = 140, crossOffset = 0 + (30-30)*1 = 0
+        XCTAssertEqual(result[0].slots[1].origin.x, 140, accuracy: acc)
+        XCTAssertEqual(result[0].slots[1].origin.y, 0, accuracy: acc)
+    }
+
+    // -- Spread modes --
+
+    func testArrangeBetween() {
+        let s = [slot(40, 20), slot(60, 20), slot(30, 20)]
+        let ln = line(s, bounds: Size(130, 20))
+        let result = arrange(spread: .between, measuredSize: Size(200, 20), lines: [ln])
+
+        // Remaining = 70, gap = 70/2 = 35
+        XCTAssertEqual(result[0].slots[0].origin.x, 0, accuracy: acc)
+        XCTAssertEqual(result[0].slots[1].origin.x, 75, accuracy: acc)  // 0 + 40 + 35
+        XCTAssertEqual(result[0].slots[2].origin.x, 170, accuracy: acc) // 75 + 60 + 35
+    }
+
+    func testArrangeAround() {
+        let s = [slot(40, 20), slot(60, 20)]
+        let ln = line(s, bounds: Size(100, 20))
+        let result = arrange(spread: .around, measuredSize: Size(200, 20), lines: [ln])
+
+        // Remaining = 100, gap = 100/2 = 50, start = 25
+        XCTAssertEqual(result[0].slots[0].origin.x, 25, accuracy: acc)
+        XCTAssertEqual(result[0].slots[1].origin.x, 115, accuracy: acc) // 25 + 40 + 50
+    }
+
+    func testArrangeEven() {
+        let s = [slot(40, 20), slot(60, 20)]
+        let ln = line(s, bounds: Size(100, 20))
+        let result = arrange(spread: .even, measuredSize: Size(200, 20), lines: [ln])
+
+        // Remaining = 100, gap = 100/3 ≈ 33.33, start ≈ 33.33
+        let g = 100.0 / 3.0
+        XCTAssertEqual(result[0].slots[0].origin.x, g, accuracy: acc)
+        XCTAssertEqual(result[0].slots[1].origin.x, g + 40 + g, accuracy: acc)
+    }
+
+    // -- Spacing --
+
+    func testArrangeWithSpacing() {
+        let s = [slot(40, 20), slot(60, 20)]
+        let ln = line(s, bounds: Size(110, 20)) // 40 + 10 + 60
+        let result = arrange(spacing: 10, alignment: .topLeft, measuredSize: Size(200, 100), lines: [ln])
+
+        XCTAssertEqual(result[0].slots[0].origin.x, 0, accuracy: acc)
+        XCTAssertEqual(result[0].slots[1].origin.x, 50, accuracy: acc) // 0 + 40 + 10
+    }
+
+    // -- Flex children --
+
+    func testArrangeFlexChild() {
+        // One flex child (weight 1) + one fixed child
+        let s = [slot(40, 20, flex: 1), slot(60, 20)]
+        let ln = line(s, bounds: Size(100, 20))
+        let result = arrange(measuredSize: Size(200, 20), lines: [ln])
+
+        // Remaining = 100, totalFlex = 1. Flex child gets 40 + 100 = 140.
+        XCTAssertEqual(result[0].slots[0].resolved.width, 140, accuracy: acc)
+        XCTAssertEqual(result[0].slots[0].origin.x, 0, accuracy: acc)
+        XCTAssertEqual(result[0].slots[1].resolved.width, 60, accuracy: acc)
+        XCTAssertEqual(result[0].slots[1].origin.x, 140, accuracy: acc)
+    }
+
+    func testArrangeTwoFlexChildren() {
+        let s = [slot(0, 20, flex: 2), slot(0, 20, flex: 1)]
+        let ln = line(s, bounds: Size(0, 20))
+        let result = arrange(measuredSize: Size(300, 20), lines: [ln])
+
+        // Remaining = 300, flex1 gets 0 + 300*(2/3) = 200, flex2 gets 0 + 300*(1/3) = 100
+        XCTAssertEqual(result[0].slots[0].resolved.width, 200, accuracy: acc)
+        XCTAssertEqual(result[0].slots[1].resolved.width, 100, accuracy: acc)
+        XCTAssertEqual(result[0].slots[0].origin.x, 0, accuracy: acc)
+        XCTAssertEqual(result[0].slots[1].origin.x, 200, accuracy: acc)
+    }
+
+    // -- Cross-axis alignment --
+
+    func testArrangeCrossAlignCenter() {
+        // Two children with different heights, center aligned
+        let s = [slot(40, 20), slot(60, 40)]
+        let ln = line(s, bounds: Size(100, 40))
+        let result = arrange(alignment: .center, measuredSize: Size(200, 100), lines: [ln])
+
+        // Cross align = (0+1)/2 = 0.5. Slot 0: (40-20)*0.5 = 10. Slot 1: (40-40)*0.5 = 0.
+        XCTAssertEqual(result[0].slots[0].origin.y, 10, accuracy: acc)
+        XCTAssertEqual(result[0].slots[1].origin.y, 0, accuracy: acc)
+    }
+
+    func testArrangeCrossAlignBottom() {
+        let s = [slot(40, 20), slot(60, 40)]
+        let ln = line(s, bounds: Size(100, 40))
+        let result = arrange(alignment: .bottomLeft, measuredSize: Size(200, 100), lines: [ln])
+
+        // Cross align = (1+1)/2 = 1. Slot 0: (40-20)*1 = 20.
+        XCTAssertEqual(result[0].slots[0].origin.y, 20, accuracy: acc)
+        XCTAssertEqual(result[0].slots[1].origin.y, 0, accuracy: acc)
+    }
+
+    // -- Multi-line --
+
+    func testArrangeMultiLineStacking() {
+        let s1 = [slot(80, 30), slot(80, 20)]
+        let s2 = [slot(60, 25)]
+        let ln1 = line(s1, bounds: Size(160, 30))
+        let ln2 = line(s2, bounds: Size(60, 25))
+        let result = arrange(lineSpacing: 10, alignment: .topLeft, measuredSize: Size(200, 100), lines: [ln1, ln2])
+
+        // Line 1 starts at cross 0, line 2 starts at 30 + 10 = 40
+        XCTAssertEqual(result[0].slots[0].origin.y, 0, accuracy: acc)
+        XCTAssertEqual(result[1].slots[0].origin.y, 40, accuracy: acc)
+    }
+
+    func testArrangeMultiLineCrossAlign() {
+        let s1 = [slot(40, 20), slot(40, 40)]
+        let s2 = [slot(40, 15)]
+        let ln1 = line(s1, bounds: Size(80, 40))
+        let ln2 = line(s2, bounds: Size(40, 15))
+        let result = arrange(lineSpacing: 0, alignment: .center, measuredSize: Size(200, 100), lines: [ln1, ln2])
+
+        // Line 1: slot 0 cross = (40-20)*0.5 = 10, slot 1 cross = 0
+        XCTAssertEqual(result[0].slots[0].origin.y, 10, accuracy: acc)
+        XCTAssertEqual(result[0].slots[1].origin.y, 0, accuracy: acc)
+        // Line 2 starts at cross 40. Slot cross = (15-15)*0.5 = 0 → y = 40
+        XCTAssertEqual(result[1].slots[0].origin.y, 40, accuracy: acc)
+    }
+
+    // -- Vertical axis --
+
+    func testArrangeVerticalAxis() {
+        let s = [slot(40, 30), slot(50, 60)]
+        // Vertical: main=height, cross=width. Bounds: main=90, cross=50
+        let ln = line(s, bounds: Size(50, 90))
+        let result = arrange(axis: .vertical, alignment: .topLeft, measuredSize: Size(100, 200), lines: [ln])
+
+        // Vertical: origins are (crossOffset, mainOffset). Flipped to (x, y).
+        // Slot 0: main=0, cross=0 → origin = (0, 0)
+        XCTAssertEqual(result[0].slots[0].origin.x, 0, accuracy: acc)
+        XCTAssertEqual(result[0].slots[0].origin.y, 0, accuracy: acc)
+        // Slot 1: main=30, cross=0 → origin = (0, 30)
+        XCTAssertEqual(result[0].slots[1].origin.x, 0, accuracy: acc)
+        XCTAssertEqual(result[0].slots[1].origin.y, 30, accuracy: acc)
+        // Resolved sizes are flipped: slot 0 = (40, 30), slot 1 = (50, 60)
+        XCTAssertEqual(result[0].slots[0].resolved.width, 40, accuracy: acc)
+        XCTAssertEqual(result[0].slots[0].resolved.height, 30, accuracy: acc)
+    }
+
+    // MARK: - 6. measureChildren
+
+    func testMeasureChildrenSizes() {
+        let flex = flexView()
+        let c1 = child(40, 20)
+        let c2 = child(60, 30)
+        flex.addSubview(c1)
+        flex.addSubview(c2)
+        let slots = flex.measureChildren(size: Size(200, 100))
+
+        XCTAssertEqual(slots.count, 2)
+        XCTAssertEqual(slots[0].measured.width, 40, accuracy: acc)
+        XCTAssertEqual(slots[0].measured.height, 20, accuracy: acc)
+        XCTAssertEqual(slots[1].measured.width, 60, accuracy: acc)
+        XCTAssertEqual(slots[1].measured.height, 30, accuracy: acc)
+        XCTAssertNil(slots[0].flex)
+        XCTAssertNil(slots[1].flex)
+    }
+
+    func testMeasureChildrenWithFlexData() {
+        let flex = flexView()
+        let c1 = child(40, 20)
+        let host = ParentDataView<FlexData>()
+        host.data = FlexData(flex: 2, stretch: true)
+        host.addSubview(c1)
+        flex.addSubview(host)
+
+        let slots = flex.measureChildren(size: Size(200, 100))
+        XCTAssertEqual(slots.count, 1)
+        XCTAssertEqual(slots[0].flex!, 2, accuracy: acc)
+        XCTAssertTrue(slots[0].stretch)
+    }
+
+    // MARK: - 7. End-to-end layoutSubviews
+
+    func testEndToEndHorizontalPacked() {
+        let flex = flexView(axis: .horizontal, spacing: 10, alignment: .topLeft)
+        let c1 = child(40, 20)
+        let c2 = child(60, 30)
+        flex.addSubview(c1)
+        flex.addSubview(c2)
+        flex.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+        flex.layoutSubviews()
+
+        // No spread, topLeft: start = 0
+        XCTAssertEqual(c1.frame.origin.x, 0, accuracy: acc)
+        XCTAssertEqual(c1.frame.origin.y, 0, accuracy: acc)
+        XCTAssertEqual(c1.frame.size.width, 40, accuracy: acc)
+        XCTAssertEqual(c2.frame.origin.x, 50, accuracy: acc) // 40 + 10
+        XCTAssertEqual(c2.frame.origin.y, 0, accuracy: acc)
+        XCTAssertEqual(c2.frame.size.width, 60, accuracy: acc)
+    }
+
+    func testEndToEndVerticalBetween() {
+        let flex = flexView(axis: .vertical, alignment: .topLeft, spread: .between)
+        let c1 = child(40, 20)
+        let c2 = child(60, 30)
+        flex.addSubview(c1)
+        flex.addSubview(c2)
+        flex.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+        flex.layoutSubviews()
+
+        // Vertical between: main=height. Children 20+30=50, remaining=50, gap=50
+        XCTAssertEqual(c1.frame.origin.y, 0, accuracy: acc)
+        XCTAssertEqual(c2.frame.origin.y, 70, accuracy: acc) // 0 + 20 + 50
+    }
+
+    func testEndToEndWrap() {
+        let flex = flexView(axis: .horizontal, spacing: 0, lineSpacing: 5, alignment: .topLeft, wrap: true)
+        let c1 = child(80, 20)
         let c2 = child(80, 30)
-        let c3 = child(80, 30)
-        let flex = layoutFlex(
-            axis: .horizontal, lineSpacing: 10, alignment: .topLeft, wrap: true,
-            containerSize: CGSize(width: 200, height: 200),
-            children: [c1, c2, c3]
-        )
-        // Line 1 cross = 30. Line 2 starts at 30 + 10 = 40
-        XCTAssertEqual(c3.frame.origin.y, 40, accuracy: acc)
+        let c3 = child(80, 25)
+        flex.addSubview(c1)
+        flex.addSubview(c2)
+        flex.addSubview(c3)
+        flex.frame = CGRect(x: 0, y: 0, width: 200, height: 200)
+        flex.layoutSubviews()
+
+        // Line 1: c1 + c2 = 160 ≤ 200 → fits. Line 2: c3.
+        XCTAssertEqual(c1.frame.origin.x, 0, accuracy: acc)
+        XCTAssertEqual(c1.frame.origin.y, 0, accuracy: acc)
+        XCTAssertEqual(c2.frame.origin.x, 80, accuracy: acc)
+        XCTAssertEqual(c2.frame.origin.y, 0, accuracy: acc)
+        // Line 2: cross starts at max(20,30) + 5 = 35
+        XCTAssertEqual(c3.frame.origin.x, 0, accuracy: acc)
+        XCTAssertEqual(c3.frame.origin.y, 35, accuracy: acc)
     }
 
-    func testWrapSizeThatFits() {
-        let c1 = child(80, 30)
-        let c2 = child(80, 30)
-        let c3 = child(80, 30)
-        let flex = FlexView()
-        flex.style = FlexStyle(axis: .horizontal, lineSpacing: 10, wrap: true)
-        for c in [c1, c2, c3] { flex.addSubview(c) }
-        let size = flex.sizeThatFits(CGSize(width: 200, height: 400))
-        // Two lines: cross = 30 + 30 + 10 = 70, main = proposed = 200
+    func testEndToEndEmpty() {
+        let flex = flexView()
+        flex.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+        flex.layoutSubviews()
+        // No crash, no children
+    }
+
+    func testEndToEndSingleChild() {
+        let flex = flexView(axis: .horizontal, alignment: .center, spread: .between)
+        let c1 = child(40, 20)
+        flex.addSubview(c1)
+        flex.frame = CGRect(x: 0, y: 0, width: 200, height: 100)
+        flex.layoutSubviews()
+
+        // Between with 1 child: start=0, gap=0
+        XCTAssertEqual(c1.frame.origin.x, 0, accuracy: acc)
+        XCTAssertEqual(c1.frame.size.width, 40, accuracy: acc)
+    }
+
+    func testSizeThatFitsReturnsCorrectSize() {
+        let flex = flexView(axis: .horizontal, spacing: 10, alignment: .topLeft)
+        let c1 = child(40, 20)
+        let c2 = child(60, 30)
+        flex.addSubview(c1)
+        flex.addSubview(c2)
+        let size = flex.sizeThatFits(CGSize(width: 200, height: 100))
+
+        // No spread: main = 40 + 10 + 60 = 110, cross = max(20,30) = 30
+        XCTAssertEqual(size.width, 110, accuracy: acc)
+        XCTAssertEqual(size.height, 30, accuracy: acc)
+    }
+
+    func testSizeThatFitsWithSpread() {
+        let flex = flexView(axis: .horizontal, spread: .between)
+        let c1 = child(40, 20)
+        let c2 = child(60, 30)
+        flex.addSubview(c1)
+        flex.addSubview(c2)
+        let size = flex.sizeThatFits(CGSize(width: 200, height: 100))
+
+        // With spread: main = proposed = 200
         XCTAssertEqual(size.width, 200, accuracy: acc)
-        XCTAssertEqual(size.height, 70, accuracy: acc)
-    }
-
-    func testWrapSingleItemWiderThanExtent() {
-        let c1 = child(50, 30)
-        let c2 = child(250, 30) // Wider than 200px container
-        let c3 = child(50, 30)
-        let flex = layoutFlex(
-            axis: .horizontal, alignment: .topLeft, wrap: true,
-            containerSize: CGSize(width: 200, height: 200),
-            children: [c1, c2, c3]
-        )
-        // c1 fits on line 1. c2 doesn't fit with c1 → wraps to line 2.
-        // c3 doesn't fit with c2 (250 > 200) → wraps to line 3.
-        XCTAssertEqual(c1.frame.origin.y, 0, accuracy: acc)
-        XCTAssertEqual(c2.frame.origin.y, 30, accuracy: acc)
-        XCTAssertEqual(c3.frame.origin.y, 60, accuracy: acc)
-        // c2 still reports its full width (doesn't shrink)
-        XCTAssertEqual(c2.frame.width, 250, accuracy: acc)
-    }
-
-    // MARK: - Cross-axis alignment within a line
-
-    func testCrossAxisAlignmentCenter() {
-        // Row with children of different heights — shorter child centered in line
-        let tall = child(40, 80)
-        let short = child(40, 30)
-        let flex = layoutFlex(
-            axis: .horizontal, alignment: .center,
-            containerSize: CGSize(width: 200, height: 200),
-            children: [tall, short]
-        )
-        // Cross: line.crossSize=80, container=200, center → offset = (200-80)*0.5 = 60
-        // tall: (80-80)*0.5 + 60 = 60, short: (80-30)*0.5 + 60 = 85
-        XCTAssertEqual(tall.frame.origin.y, 60, accuracy: acc)
-        XCTAssertEqual(short.frame.origin.y, 85, accuracy: acc)
-    }
-
-    func testCrossAxisAlignmentTop() {
-        let tall = child(40, 80)
-        let short = child(40, 30)
-        let flex = layoutFlex(
-            axis: .horizontal, alignment: .topLeft,
-            containerSize: CGSize(width: 200, height: 200),
-            children: [tall, short]
-        )
-        // crossAlignFactor = 0 → offset = (200-80)*0 = 0, both at y=0
-        XCTAssertEqual(tall.frame.origin.y, 0, accuracy: acc)
-        XCTAssertEqual(short.frame.origin.y, 0, accuracy: acc)
-    }
-
-    func testCrossAxisAlignmentBottom() {
-        let tall = child(40, 80)
-        let short = child(40, 30)
-        let flex = layoutFlex(
-            axis: .horizontal, alignment: .bottomLeft,
-            containerSize: CGSize(width: 200, height: 200),
-            children: [tall, short]
-        )
-        // Cross: line.crossSize=80, container=200, bottom → offset = (200-80)*1 = 120
-        // tall: (80-80)*1 + 120 = 120, short: (80-30)*1 + 120 = 170
-        XCTAssertEqual(tall.frame.origin.y, 120, accuracy: acc)
-        XCTAssertEqual(short.frame.origin.y, 170, accuracy: acc)
-    }
-
-    // MARK: - Column spread modes
-
-    func testColumnSpreadBetween() {
-        let c1 = child(40, 30)
-        let c2 = child(40, 30)
-        let c3 = child(40, 30)
-        let flex = layoutFlex(
-            axis: .vertical, spread: .between,
-            containerSize: CGSize(width: 200, height: 300),
-            children: [c1, c2, c3]
-        )
-        // Used = 90, free = 210, between = 210/2 = 105
-        XCTAssertEqual(c1.frame.origin.y, 0, accuracy: acc)
-        XCTAssertEqual(c2.frame.origin.y, 135, accuracy: acc) // 0 + 30 + 105
-        XCTAssertEqual(c3.frame.origin.y, 270, accuracy: acc) // 135 + 30 + 105
-    }
-
-    func testColumnSpreadEven() {
-        let c1 = child(40, 30)
-        let c2 = child(40, 30)
-        let flex = layoutFlex(
-            axis: .vertical, spread: .even,
-            containerSize: CGSize(width: 200, height: 200),
-            children: [c1, c2]
-        )
-        // Used = 60, free = 140, space = 140/3 ≈ 46.67
-        let space = 140.0 / 3.0
-        XCTAssertEqual(c1.frame.origin.y, space, accuracy: acc)
-        XCTAssertEqual(c2.frame.origin.y, space + 30 + space, accuracy: acc)
-    }
-
-    // MARK: - Edge Cases
-
-    func testZeroChildrenLayout() {
-        let flex = layoutFlex(axis: .horizontal, children: [])
-        // Should not crash
-        XCTAssertEqual(flex.subviews.count, 0)
-    }
-
-    func testSingleChildNoSpread() {
-        let c1 = child(60, 40)
-        let flex = layoutFlex(
-            axis: .horizontal, alignment: .center,
-            containerSize: CGSize(width: 200, height: 100),
-            children: [c1]
-        )
-        // Packed center: x = (200-60)/2 = 70
-        XCTAssertEqual(c1.frame.origin.x, 70, accuracy: acc)
-    }
-
-    func testChildSizePreserved() {
-        let c1 = child(80, 40)
-        let c2 = child(60, 50)
-        let flex = layoutFlex(axis: .vertical, children: [c1, c2])
-        XCTAssertEqual(c1.frame.width, 80, accuracy: acc)
-        XCTAssertEqual(c1.frame.height, 40, accuracy: acc)
-        XCTAssertEqual(c2.frame.width, 60, accuracy: acc)
-        XCTAssertEqual(c2.frame.height, 50, accuracy: acc)
-    }
-
-    func testSpacingWithTwoChildren() {
-        let c1 = child(40, 40)
-        let c2 = child(40, 40)
-        let flex = layoutFlex(
-            axis: .vertical, spacing: 20, alignment: .topLeft,
-            containerSize: CGSize(width: 200, height: 400),
-            children: [c1, c2]
-        )
-        XCTAssertEqual(c1.frame.origin.y, 0, accuracy: acc)
-        XCTAssertEqual(c2.frame.origin.y, 60, accuracy: acc) // 40 + 20
-    }
-
-    // MARK: - Fill Min/Max Clamping
-
-    func testFlexMinClamped() {
-        // Flex with min=120 in a 200px row with a 100px fixed child.
-        // Free space = 100, share = 100, but min = 120 → clamped to 120.
-        let fixed = child(100, 30)
-        let fb = fillBox(min: 120)
-        let flex = layoutFlex(
-            axis: .horizontal, alignment: .topLeft,
-            containerSize: CGSize(width: 200, height: 100),
-            children: [fixed, fb]
-        )
-        XCTAssertEqual(fb.frame.width, 120, accuracy: acc)
-    }
-
-    func testFlexMaxClamped() {
-        // Flex with max=80 in a 200px row (no other children).
-        // Free space = 200, but max = 80 → clamped to 80.
-        let fb = fillBox(max: 80)
-        let flex = layoutFlex(
-            axis: .horizontal, alignment: .topLeft,
-            containerSize: CGSize(width: 200, height: 100),
-            children: [fb]
-        )
-        XCTAssertEqual(fb.frame.width, 80, accuracy: acc)
-    }
-
-    func testFlexMinMaxBothApplied() {
-        // Two flex children in 300px. Each gets 150, min=100 max=120 → clamped to 120.
-        let fb1 = fillBox(min: 100, max: 120)
-        let fb2 = fillBox(min: 100, max: 120)
-        let flex = layoutFlex(
-            axis: .horizontal, alignment: .topLeft,
-            containerSize: CGSize(width: 300, height: 100),
-            children: [fb1, fb2]
-        )
-        XCTAssertEqual(fb1.frame.width, 120, accuracy: acc)
-        XCTAssertEqual(fb2.frame.width, 120, accuracy: acc)
-    }
-
-    // MARK: - Single-line Cross Alignment Against Container
-
-    func testSingleLineCrossAlignCenter() {
-        // Single row in 200px tall container, tallest child = 40px.
-        // Center alignment → child centered in full 200px, not in 40px line.
-        let c1 = child(60, 40)
-        let flex = layoutFlex(
-            axis: .horizontal, alignment: .center,
-            containerSize: CGSize(width: 200, height: 200),
-            children: [c1]
-        )
-        // (200 - 40) * 0.5 = 80
-        XCTAssertEqual(c1.frame.origin.y, 80, accuracy: acc)
-    }
-
-    func testSingleLineCrossAlignBottom() {
-        let c1 = child(60, 40)
-        let flex = layoutFlex(
-            axis: .horizontal, alignment: .bottomLeft,
-            containerSize: CGSize(width: 200, height: 200),
-            children: [c1]
-        )
-        // (200 - 40) * 1.0 = 160
-        XCTAssertEqual(c1.frame.origin.y, 160, accuracy: acc)
-    }
-
-    // MARK: - Multi-line Stacks From Top
-
-    func testMultiLineStacksFromTop() {
-        // Wrapped row: lines should stack from y=0, not be centered.
-        let c1 = child(120, 30)
-        let c2 = child(120, 30)
-        let flex = layoutFlex(
-            axis: .horizontal, alignment: .center, wrap: true,
-            containerSize: CGSize(width: 200, height: 400),
-            children: [c1, c2]
-        )
-        // Line 1 at y=0, line 2 at y=30 (stacked from top)
-        XCTAssertEqual(c1.frame.origin.y, 0, accuracy: acc)
-        XCTAssertEqual(c2.frame.origin.y, 30, accuracy: acc)
+        XCTAssertEqual(size.height, 30, accuracy: acc)
     }
 }
 

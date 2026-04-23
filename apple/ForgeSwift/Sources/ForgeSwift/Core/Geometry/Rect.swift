@@ -164,3 +164,78 @@ public func + (lhs: Rect, rhs: Padding) -> Rect { lhs.outset(by: rhs) }
 public func - (lhs: Rect, rhs: Padding) -> Rect { lhs.inset(by: rhs) }
 public func += (lhs: inout Rect, rhs: Padding) { lhs = lhs + rhs }
 public func -= (lhs: inout Rect, rhs: Padding) { lhs = lhs - rhs }
+
+public enum Edge: Int8, CaseIterable, Sendable {
+    case top, bottom, leading, trailing
+
+    /// A set of edges, represented as a bitfield.
+    public struct Set: OptionSet, Hashable, Sendable {
+        public let rawValue: UInt8
+        public init(rawValue: UInt8) { self.rawValue = rawValue }
+
+        public static let top = Set(rawValue: 1 << 0)
+        public static let bottom = Set(rawValue: 1 << 1)
+        public static let leading = Set(rawValue: 1 << 2)
+        public static let trailing = Set(rawValue: 1 << 3)
+
+        public static let horizontal: Set = [.leading, .trailing]
+        public static let vertical: Set = [.top, .bottom]
+        public static let all: Set = [.top, .bottom, .leading, .trailing]
+
+        public var hasTop: Bool { contains(.top) }
+        public var hasBottom: Bool { contains(.bottom) }
+        public var hasLeading: Bool { contains(.leading) }
+        public var hasTrailing: Bool { contains(.trailing) }
+    }
+}
+
+/// Alignment within a container. Backed by Vec2 with values -1 (start) to 1 (end).
+@Init @Copy @Lerp
+public struct Alignment: Equatable, Hashable, Sendable {
+    public var value: Vec2
+
+    public init(_ x: Double, _ y: Double) {
+        self.value = Vec2(x, y)
+    }
+
+    public init(_ value: Vec2) {
+        self.value = value
+    }
+
+    public var x: Double { value.x }
+    public var y: Double { value.y }
+
+    // MARK: - Named Constants
+
+    public static let left = Alignment(-1, 0)
+    public static let right = Alignment(1, 0)
+    public static let top = Alignment(0, -1)
+    public static let bottom = Alignment(0, 1)
+
+    public static let center = Alignment(0, 0)
+    public static let topLeft = Alignment(-1, -1)
+    public static let topCenter = Alignment(0, -1)
+    public static let topRight = Alignment(1, -1)
+    public static let centerLeft = Alignment(-1, 0)
+    public static let centerRight = Alignment(1, 0)
+    public static let bottomLeft = Alignment(-1, 1)
+    public static let bottomCenter = Alignment(0, 1)
+    public static let bottomRight = Alignment(1, 1)
+
+    // MARK: - Queries
+
+    public var isCenter: Bool { x == 0 && y == 0 }
+    
+    public func on(_ axis: Axis) -> Double { axis.isHorizontal ? x : y }
+}
+
+/// Horizontal or vertical direction.
+public enum Axis: Sendable {
+    case horizontal
+    case vertical
+    
+    var isHorizontal: Bool { self == .horizontal }
+    var isVertical: Bool { self == .vertical }
+    
+    var cross: Axis { isHorizontal ? .vertical : .horizontal }
+}

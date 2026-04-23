@@ -39,15 +39,15 @@ final class ComposedLayoutTests: XCTestCase {
         return box
     }
 
-    /// Create a FlexibleHostView wrapping a BoxView for flex distribution testing.
+    /// Create a ParentDataView wrapping a BoxView for flex distribution testing.
     private func makeFlexible(
-        weight: Int = 1,
+        weight: Double = 1,
         sizing: Frame = .hug,
         children: [UIView] = []
-    ) -> FlexibleHostView {
+    ) -> ParentDataView<FlexData> {
         let box = makeBox(sizing: sizing, children: children)
-        let host = FlexibleHostView()
-        host.weight = weight
+        let host = ParentDataView<FlexData>()
+        host.data = FlexData(flex: weight)
         host.addSubview(box)
         return host
     }
@@ -57,11 +57,16 @@ final class ComposedLayoutTests: XCTestCase {
         axis: Axis = .vertical,
         spacing: Double = 0,
         alignment: Alignment = .center,
-        spread: Spread = .packed,
+        spread: Spread? = .packed,
         children: [UIView]
     ) -> FlexView {
         let flex = FlexView()
-        flex.style = FlexStyle(axis: axis, spacing: spacing, alignment: alignment, spread: spread)
+        var style = FlexStyle()
+        style.axis = axis
+        style.spacing = spacing
+        style.alignment = alignment
+        style.spread = spread
+        flex.style = style
         for child in children { flex.addSubview(child) }
         return flex
     }

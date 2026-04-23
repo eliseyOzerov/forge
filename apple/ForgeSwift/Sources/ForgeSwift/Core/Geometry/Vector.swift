@@ -214,6 +214,17 @@ public struct Vec2: Vector {
 /// Semantic alias — a Vec2 used as a position.
 public typealias Point = Vec2
 
+extension Point {
+    public static func on(_ axis: Axis, main: Double, cross: Double) -> Point {
+        Point(
+            axis.isHorizontal ? main : cross,
+            axis.isVertical ? main : cross
+        )
+    }
+    
+    public var flipped: Point { Point(y, x) }
+}
+
 // MARK: - Vec3
 
 /// 3D vector with cross product and xy projection.

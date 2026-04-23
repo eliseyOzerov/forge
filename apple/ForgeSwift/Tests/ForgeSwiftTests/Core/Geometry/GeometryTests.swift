@@ -358,8 +358,8 @@ final class GeometryTests: XCTestCase {
 
     func testFrameDefaults() {
         let f = Frame()
-        if case .hug = f.width {} else { XCTFail("default width should be hug") }
-        if case .hug = f.height {} else { XCTFail("default height should be hug") }
+        if case .fit = f.width {} else { XCTFail("default width should be hug") }
+        if case .fit = f.height {} else { XCTFail("default height should be hug") }
     }
 
     func testFrameFixed() {
@@ -383,12 +383,12 @@ final class GeometryTests: XCTestCase {
     func testFrameFillWidth() {
         let f = Frame.fillWidth
         if case .fill = f.width {} else { XCTFail() }
-        if case .hug = f.height {} else { XCTFail() }
+        if case .fit = f.height {} else { XCTFail() }
     }
 
     func testFrameFillHeight() {
         let f = Frame.fillHeight
-        if case .hug = f.width {} else { XCTFail() }
+        if case .fit = f.width {} else { XCTFail() }
         if case .fill = f.height {} else { XCTFail() }
     }
 
@@ -511,17 +511,17 @@ final class GeometryTests: XCTestCase {
     func testFrameStaticWidth() {
         let f = Frame.width(.fix(100))
         if case .fix(let w) = f.width { XCTAssertEqual(w, 100) } else { XCTFail() }
-        if case .hug = f.height {} else { XCTFail() }
+        if case .fit = f.height {} else { XCTFail() }
     }
 
     func testFrameStaticHeight() {
         let f = Frame.height(.fill())
-        if case .hug = f.width {} else { XCTFail() }
+        if case .fit = f.width {} else { XCTFail() }
         if case .fill = f.height {} else { XCTFail() }
     }
 
     func testExtentHugWithMin() {
-        if case .hug(let min, _) = Extent.hug(min: 50) {
+        if case .fit(let min, _) = Extent.fit(min: 50) {
             XCTAssertEqual(min, 50)
         } else {
             XCTFail()

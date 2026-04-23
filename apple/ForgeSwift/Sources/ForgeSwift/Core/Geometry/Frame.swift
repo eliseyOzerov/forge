@@ -32,26 +32,6 @@ public struct Frame: Equatable, Sendable, Lerpable {
     public static let fillWidth = Frame(.fill(), .fit())
     public static let fillHeight = Frame(.fit(), .fill())
 
-    /// Resolve the inner bounds available to children given a proposed size and padding.
-    ///
-    /// - **fix**: inner = fixed value − padding
-    /// - **fill**: inner = (fraction × proposed, clamped) − padding
-    /// - **fit**: inner = proposed − padding (pass through; children determine actual size)
-    public func innerBounds(proposed: Size, padding: Padding = .zero) -> Size {
-        func resolve(_ extent: Extent, _ proposed: Double, _ pad: Double) -> Double {
-            let resolved: Double = switch extent {
-            case .fix(let v): v
-            case .fill(let f, _, _): proposed * f
-            case .fit: proposed
-            }
-            return resolved.clamped(min: extent.min, max: extent.max) - pad
-        }
-        return Size(
-            resolve(width, proposed.width, padding.horizontal),
-            resolve(height, proposed.height, padding.vertical)
-        )
-    }
-
     public func lerp(to other: Frame, t: Double) -> Frame {
         Frame(width: width.lerp(to: other.width, t: t),
               height: height.lerp(to: other.height, t: t))

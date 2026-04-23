@@ -17,8 +17,20 @@ public struct Size {
         self.width = square
         self.height = square
     }
+    
+    public init(_ vec: Vec2) {
+        self.width = vec.x
+        self.height = vec.y
+    }
 
     public static let zero = Size(0, 0)
+    
+    public static func on(_ axis: Axis, main: Double, cross: Double) -> Size {
+        Size(
+            axis.isHorizontal ? main : cross,
+            axis.isVertical ? main : cross
+        )
+    }
 
     // MARK: - Conversion
 
@@ -34,6 +46,10 @@ public struct Size {
     public var isEmpty: Bool { width <= 0 || height <= 0 }
 
     // MARK: - Operations
+    
+    public var flipped: Size {
+        Size(height, width)
+    }
 
     public func scaled(_ sx: Double, _ sy: Double? = nil) -> Size {
         Size(width * sx, height * (sy ?? sx))
@@ -60,6 +76,8 @@ public struct Size {
     public func subtracting(_ padding: Padding) -> Size {
         Size(width - padding.horizontal, height - padding.vertical)
     }
+    
+    public func on(_ axis: Axis) -> Double { axis.isHorizontal ? width : height }
 }
 
 extension Size: Equatable, Hashable, Sendable {}
@@ -68,3 +86,9 @@ public func + (lhs: Size, rhs: Padding) -> Size { lhs.adding(rhs) }
 public func - (lhs: Size, rhs: Padding) -> Size { lhs.subtracting(rhs) }
 public func += (lhs: inout Size, rhs: Padding) { lhs = lhs + rhs }
 public func -= (lhs: inout Size, rhs: Padding) { lhs = lhs - rhs }
+
+public func + (lhs: Size, rhs: Size) -> Size { Size(lhs.width + rhs.width, lhs.height + rhs.height) }
+public func - (lhs: Size, rhs: Size) -> Size { Size(lhs.width - rhs.width, lhs.height - rhs.height) }
+public func += (lhs: inout Size, rhs: Size) { lhs = lhs + rhs }
+public func -= (lhs: inout Size, rhs: Size) { lhs = lhs - rhs }
+
