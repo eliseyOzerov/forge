@@ -236,7 +236,12 @@ class BoxView: UIView {
             invalidateSize()
         }
     }
-    var alignment: Alignment = .center
+    var alignment: Alignment = .center {
+        didSet {
+            guard alignment != oldValue else { return }
+            setNeedsLayout()
+        }
+    }
 
     // MARK: - Rendering Properties
 
@@ -246,8 +251,18 @@ class BoxView: UIView {
             layoutSurfaceView()
         }
     }
-    var shape: AnyShape?
-    var clip: Bool = true
+    var shape: AnyShape? {
+        didSet {
+            guard shape != oldValue else { return }
+            setNeedsLayout()
+        }
+    }
+    var clip: Bool = true {
+        didSet {
+            guard clip != oldValue else { return }
+            setNeedsLayout()
+        }
+    }
 
     // MARK: - Internal State
 
@@ -291,8 +306,7 @@ class BoxView: UIView {
 
     /// Invalidate cached sizes and notify the parent layout.
     func invalidateSize() {
-        sizeCache = nil
-        childSizeCache.removeAll()
+        setNeedsLayout()
         superview?.setNeedsLayout()
     }
 
