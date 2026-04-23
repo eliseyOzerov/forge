@@ -29,7 +29,7 @@ final class FlexLayoutTests: XCTestCase {
         weight: Int = 1,
         min: Double? = nil,
         max: Double? = nil,
-        axis: NSLayoutConstraint.Axis = .horizontal,
+        axis: Axis = .horizontal,
         intrinsicCross: CGFloat = 30
     ) -> FlexibleHostView {
         let box = BoxView()
@@ -44,9 +44,9 @@ final class FlexLayoutTests: XCTestCase {
         return host
     }
 
-    /// Create a FlexView (Column or Row), add children, set frame, trigger layout.
+    /// Create a FlexView, add children, set frame, trigger layout.
     private func layoutFlex(
-        axis: NSLayoutConstraint.Axis = .vertical,
+        axis: Axis = .vertical,
         spacing: Double = 0,
         lineSpacing: Double = 0,
         alignment: Alignment = .center,
@@ -56,12 +56,7 @@ final class FlexLayoutTests: XCTestCase {
         children: [UIView]
     ) -> FlexView {
         let flex = FlexView()
-        flex.flexAxis = axis
-        flex.flexSpacing = spacing
-        flex.flexLineSpacing = lineSpacing
-        flex.flexAlignment = alignment
-        flex.flexSpread = spread
-        flex.flexWrap = wrap
+        flex.style = FlexStyle(axis: axis, spacing: spacing, lineSpacing: lineSpacing, alignment: alignment, spread: spread, wrap: wrap)
         for child in children { flex.addSubview(child) }
         flex.frame = CGRect(origin: .zero, size: containerSize)
         flex.layoutSubviews()
@@ -69,7 +64,7 @@ final class FlexLayoutTests: XCTestCase {
     }
 
     private func sizeFlex(
-        axis: NSLayoutConstraint.Axis = .vertical,
+        axis: Axis = .vertical,
         spacing: Double = 0,
         spread: Spread = .packed,
         wrap: Bool = false,
@@ -77,10 +72,7 @@ final class FlexLayoutTests: XCTestCase {
         children: [UIView]
     ) -> CGSize {
         let flex = FlexView()
-        flex.flexAxis = axis
-        flex.flexSpacing = spacing
-        flex.flexSpread = spread
-        flex.flexWrap = wrap
+        flex.style = FlexStyle(axis: axis, spacing: spacing, spread: spread, wrap: wrap)
         for child in children { flex.addSubview(child) }
         return flex.sizeThatFits(proposed)
     }
@@ -468,9 +460,7 @@ final class FlexLayoutTests: XCTestCase {
         let c2 = child(80, 30)
         let c3 = child(80, 30)
         let flex = FlexView()
-        flex.flexAxis = .horizontal
-        flex.flexWrap = true
-        flex.flexLineSpacing = 10
+        flex.style = FlexStyle(axis: .horizontal, lineSpacing: 10, wrap: true)
         for c in [c1, c2, c3] { flex.addSubview(c) }
         let size = flex.sizeThatFits(CGSize(width: 200, height: 400))
         // Two lines: cross = 30 + 30 + 10 = 70, main = proposed = 200

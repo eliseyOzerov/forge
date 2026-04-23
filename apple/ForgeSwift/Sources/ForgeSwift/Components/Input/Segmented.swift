@@ -45,7 +45,7 @@ public struct SegmentedStyle<T> {
 
     public init(
         background: StateProperty<BoxStyle> = .constant(
-            .frame(.fillWidth.height(.hug()))
+            .frame(.fillWidth.height(.fit()))
             .surface(.color(Color(0.93, 0.93, 0.95)))
             .shape(.roundedRect(radius: 8))
             .padding(.all(2))
@@ -220,7 +220,7 @@ public final class SegmentedBuilder<T: Hashable>: ViewBuilder<SegmentedModel<T>>
 
         return Box(style.background(model.currentState)) {
             // Items row (deselected baseline)
-            Row(children: itemViews)
+            Flex(FlexStyle(axis: .horizontal), children: itemViews)
 
             // Selector, positioned via leading padding
             Box(.frame(.fill).padding(.leading(selectorX)).alignment(.topLeft)) {

@@ -1,4 +1,4 @@
-/// Weight-based flex child wrapper. Tells a `Row`/`Column` to distribute
+/// Weight-based flex child wrapper. Tells a `Flex` container to distribute
 /// remaining space to this child by weight. Has no effect outside flex layouts.
 ///
 /// Use via the `.flexible()` view extension rather than constructing directly.

@@ -52,19 +52,16 @@ final class ComposedLayoutTests: XCTestCase {
         return host
     }
 
-    /// Create a FlexView (Column or Row) with given config and children.
+    /// Create a FlexView with given config and children.
     private func makeFlex(
-        axis: NSLayoutConstraint.Axis = .vertical,
+        axis: Axis = .vertical,
         spacing: Double = 0,
         alignment: Alignment = .center,
         spread: Spread = .packed,
         children: [UIView]
     ) -> FlexView {
         let flex = FlexView()
-        flex.flexAxis = axis
-        flex.flexSpacing = spacing
-        flex.flexAlignment = alignment
-        flex.flexSpread = spread
+        flex.style = FlexStyle(axis: axis, spacing: spacing, alignment: alignment, spread: spread)
         for child in children { flex.addSubview(child) }
         return flex
     }
