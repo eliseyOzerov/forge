@@ -636,6 +636,37 @@ final class FlexLayoutTests: XCTestCase {
         XCTAssertEqual(size.width, 200, accuracy: acc)
         XCTAssertEqual(size.height, 30, accuracy: acc)
     }
+
+    func testSizeThatFitsChildrenOverflow() {
+        let flex = flexView(axis: .vertical, spacing: 10, alignment: .topLeft)
+        let c1 = child(40, 100)
+        let c2 = child(60, 150)
+        let c3 = child(50, 200)
+        flex.addSubview(c1)
+        flex.addSubview(c2)
+        flex.addSubview(c3)
+        let size = flex.sizeThatFits(CGSize(width: 200, height: 300))
+
+        // No spread: main = 100 + 10 + 150 + 10 + 200 = 470, cross = max(40,60,50) = 60
+        // Should report actual content size, not clamp to proposed 300
+        XCTAssertEqual(size.height, 470, accuracy: acc)
+        XCTAssertEqual(size.width, 60, accuracy: acc)
+    }
+
+    func testSizeThatFitsHorizontalOverflow() {
+        let flex = flexView(axis: .horizontal, spacing: 5)
+        let c1 = child(100, 30)
+        let c2 = child(120, 20)
+        let c3 = child(80, 25)
+        flex.addSubview(c1)
+        flex.addSubview(c2)
+        flex.addSubview(c3)
+        let size = flex.sizeThatFits(CGSize(width: 200, height: 100))
+
+        // No spread: main = 100 + 5 + 120 + 5 + 80 = 310, cross = 30
+        XCTAssertEqual(size.width, 310, accuracy: acc)
+        XCTAssertEqual(size.height, 30, accuracy: acc)
+    }
 }
 
 #endif

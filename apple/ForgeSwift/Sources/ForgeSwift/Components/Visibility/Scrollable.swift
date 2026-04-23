@@ -8,7 +8,7 @@
 ///
 /// See `ScrollConfig` for axis, indicators, bounce, and paging options.
 /// See `ScrollState` for programmatic scroll control.
-public struct Scroll: ProxyView {
+public struct Scrollable: ProxyView {
     public let child: any View
     public var config: ScrollConfig
 
@@ -31,15 +31,6 @@ public struct Scroll: ProxyView {
     }
 }
 
-// MARK: - View Extension
-
-public extension View {
-    /// Wrap this view in a scrollable container.
-    func scrollable(_ config: ScrollConfig = ScrollConfig()) -> Scroll {
-        Scroll(config) { self }
-    }
-}
-
 // MARK: - UIKit Renderer
 
 #if canImport(UIKit)
@@ -48,9 +39,9 @@ import UIKit
 final class ScrollRenderer: ProxyRenderer {
     weak var node: ProxyNode?
     private weak var hostView: ScrollHostView?
-    private var view: Scroll
+    private var view: Scrollable
 
-    init(view: Scroll) {
+    init(view: Scrollable) {
         self.view = view
     }
 
@@ -62,7 +53,7 @@ final class ScrollRenderer: ProxyRenderer {
     }
 
     func update(from newView: any View) {
-        guard let scroll = newView as? Scroll, let host = hostView else { return }
+        guard let scroll = newView as? Scrollable, let host = hostView else { return }
         let old = view
         view = scroll
         if old.config != scroll.config {
@@ -126,7 +117,20 @@ final class ScrollHostView: UIView {
 
     override func sizeThatFits(_ size: CGSize) -> CGSize {
         guard let child = scrollView.subviews.first else { return .zero }
-        return child.sizeThatFits(size)
+        let childSize = child.sizeThatFits(size)
+        let bounces = scrollView.bounces
+        switch scrollAxis {
+        case .vertical:
+            let h = bounces ? size.height : min(childSize.height, size.height)
+            return CGSize(width: childSize.width, height: h)
+        case .horizontal:
+            let w = bounces ? size.width : min(childSize.width, size.width)
+            return CGSize(width: w, height: childSize.height)
+        case nil:
+            let w = bounces ? size.width : min(childSize.width, size.width)
+            let h = bounces ? size.height : min(childSize.height, size.height)
+            return CGSize(width: w, height: h)
+        }
     }
 
     // MARK: - Layout
