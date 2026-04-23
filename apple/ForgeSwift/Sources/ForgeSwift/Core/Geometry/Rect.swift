@@ -93,6 +93,14 @@ public struct Rect {
         inset(by: -amount)
     }
 
+    public func inset(by padding: Padding) -> Rect {
+        inset(left: padding.leading, top: padding.top, right: padding.trailing, bottom: padding.bottom)
+    }
+
+    public func outset(by padding: Padding) -> Rect {
+        inset(left: -padding.leading, top: -padding.top, right: -padding.trailing, bottom: -padding.bottom)
+    }
+
     public func offset(by delta: Vec2) -> Rect {
         Rect(x: x + delta.x, y: y + delta.y, width: width, height: height)
     }

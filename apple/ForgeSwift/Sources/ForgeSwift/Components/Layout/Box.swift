@@ -1,3 +1,18 @@
+/// The fundamental layout primitive. A container that paints a Surface,
+/// clips to a Shape, and overlays its children (each aligned independently).
+///
+/// Single child = styled container. Multiple children = overlay (ZStack).
+///
+/// ```swift
+/// Box(.frame(.fixed(200, 200))
+///     .shape(.roundedRect(radius: 12))
+///     .surface(.color(.white).shadow(blur: 8))
+///     .padding(.all(16))
+/// ) {
+///     Text("Hello")
+/// }
+/// ```
+
 // MARK: - Box
 
 @Copy
@@ -18,21 +33,6 @@ public struct Box: ContainerView {
         #endif
     }
 }
-
-/// The fundamental layout primitive. A container that paints a Surface,
-/// clips to a Shape, and overlays its children (each aligned independently).
-///
-/// Single child = styled container. Multiple children = overlay (ZStack).
-///
-/// ```swift
-/// Box(.frame(.fixed(200, 200))
-///     .shape(.roundedRect(radius: 12))
-///     .surface(.color(.white).shadow(blur: 8))
-///     .padding(.all(16))
-/// ) {
-///     Text("Hello")
-/// }
-/// ```
 // MARK: - BoxStyle
 
 /// Visual styling for Box (layout, rendering, clipping).
@@ -212,13 +212,9 @@ final class BoxRenderer: ContainerRenderer {
         guard let box = newView as? Box, let rendered else { return }
         let oldStyle = view.style
         view = box
-
-        guard oldStyle != box.style else { return }
-
-        let needsParentLayout = oldStyle.frame != box.style.frame
-        rendered.apply(box.style)
-        rendered.setNeedsLayout()
-        if needsParentLayout { rendered.superview?.setNeedsLayout() }
+        if oldStyle != view.style {
+            rendered.apply(view.style)
+        }
     }
 }
 
@@ -399,8 +395,8 @@ class BoxView: UIView {
     private var paddedInset: CGRect {
         CGRect(
             x: padding.leading, y: padding.top,
-            width: bounds.width - padding.leading - padding.trailing,
-            height: bounds.height - padding.top - padding.bottom
+            width: bounds.width - padding.horizontal,
+            height: bounds.height - padding.vertical
         )
     }
 

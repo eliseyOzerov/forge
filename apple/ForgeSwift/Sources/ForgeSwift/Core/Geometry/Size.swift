@@ -39,8 +39,15 @@ public struct Size {
         Size(width * sx, height * (sy ?? sx))
     }
 
-
     public func toVec2() -> Vec2 { Vec2(width, height) }
+
+    public func adding(_ padding: Padding) -> Size {
+        Size(width + padding.horizontal, height + padding.vertical)
+    }
+
+    public func subtracting(_ padding: Padding) -> Size {
+        Size(width - padding.horizontal, height - padding.vertical)
+    }
 }
 
 extension Size: Equatable, Hashable, Sendable {}
