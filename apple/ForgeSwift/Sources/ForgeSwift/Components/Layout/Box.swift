@@ -357,9 +357,14 @@ class BoxView: UIView {
             width: max(0, size.width - padding.horizontal),
             height: max(0, size.height - padding.vertical)
         )
-        let content = childrenSize(proposing: innerSize)
-        let width = content.width + padding.horizontal
-        let height = content.height + padding.vertical
+        var maxW: CGFloat = 0, maxH: CGFloat = 0
+        for child in contentChildren {
+            let s = child.sizeThatFits(size)
+            maxW = max(maxW, s.width)
+            maxH = max(maxH, s.height)
+        }
+        let width = maxW + padding.horizontal
+        let height = maxH + padding.vertical
 
         func resolve(_ extent: Extent, _ proposed: CGFloat, _ content: CGFloat) -> CGFloat {
             let raw: Double = switch extent {
@@ -374,30 +379,6 @@ class BoxView: UIView {
             width: resolve(sizing.width, size.width, width),
             height: resolve(sizing.height, size.height, height)
         )
-    }
-
-    /// fix → exact value, otherwise noIntrinsicMetric.
-    override var intrinsicContentSize: CGSize {
-        let w: CGFloat = switch sizing.width {
-        case .fix(let v): v
-        default: UIView.noIntrinsicMetric
-        }
-        let h: CGFloat = switch sizing.height {
-        case .fix(let v): v
-        default: UIView.noIntrinsicMetric
-        }
-        return CGSize(width: w, height: h)
-    }
-
-    /// Max size of children (overlay — all share the same space).
-    private func childrenSize(proposing size: CGSize) -> CGSize {
-        var maxW: CGFloat = 0, maxH: CGFloat = 0
-        for child in contentChildren {
-            let s = child.sizeThatFits(size)
-            maxW = max(maxW, s.width)
-            maxH = max(maxH, s.height)
-        }
-        return CGSize(width: maxW, height: maxH)
     }
 
     // MARK: - Frame Constraints

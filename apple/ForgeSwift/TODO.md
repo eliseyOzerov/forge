@@ -12,21 +12,36 @@
 - Video
 
 ## Input
-- Checkbox
-- Chip
-- Dial
-- IconToggle
-- Knob
-- Radio
-- RangeSlider
-- Slider
-- Stepper
-- Switch
-- Tile
-- Toggle
-- ToggleGroup
+The vast majority of inputs fall in one of the three categories - text, number and options.
+
+- Plane
+    - Slider
+    - Knob
+    - Dial
+- Text
+    - TextField
+    - Stepper
+- Picker
+    - Date
+    - Color
+    - Tabs
+    - Toggle
+        - Switch
+        - Radio
+        - Checkbox
+        - Icon
+        - Chip
+        - Tile
 
 ## Layout
+
+Each layout is basically taking a parent's bounds and previously laid out children to determine where a next child should go.
+Some layouts don't need to know previously laid out children's rects, because the rules are mathematical.
+We should be able to write a generic layout delegate
+
+- Box
+- Flex
+- Wrap
 - Grid
 - Masonry
 - Table
