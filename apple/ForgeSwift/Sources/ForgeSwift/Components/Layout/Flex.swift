@@ -136,10 +136,16 @@ final class FlexView: UIView {
         let children = subviews
         guard !children.isEmpty else { return }
 
-        let mainExtent = main(of: bounds.size)
-        let crossExtent = cross(of: bounds.size)
-
         let slots = measureChildren(children, proposing: bounds.size)
+        let lines = layoutLines(slots: slots, bounds: bounds.size)
+        applyFrames(lines)
+    }
+
+    /// Resolve fills, position slots, and stack lines.
+    private func layoutLines(slots: [FlexSlot], bounds: CGSize) -> [FlexLine] {
+        let mainExtent = main(of: bounds)
+        let crossExtent = cross(of: bounds)
+
         var lines = splitIntoLines(slots: slots, mainExtent: mainExtent)
 
         for i in 0..<lines.count {
@@ -151,7 +157,11 @@ final class FlexView: UIView {
         }
 
         stackLines(&lines)
+        return lines
+    }
 
+    /// Write resolved origins and sizes to each child's frame.
+    private func applyFrames(_ lines: [FlexLine]) {
         for line in lines {
             for slot in line.slots {
                 slot.view.frame = CGRect(origin: slot.origin, size: slot.resolvedSize)
