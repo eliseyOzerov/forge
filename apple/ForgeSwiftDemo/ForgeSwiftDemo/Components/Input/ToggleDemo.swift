@@ -12,12 +12,12 @@ final class ToggleDemoModel: ViewModel<ToggleDemo> {
 
 final class ToggleDemoBuilder: ViewBuilder<ToggleDemoModel> {
     override func build(context: ViewContext) -> any View {
-        demoScreen(title: "Toggle") {
-            demoSection("Switch") {
-                demoRow("Enabled", child: Toggle(value: model.switchValue, style: .constant(ToggleStyle(painter: SwitchPainter()))))
+        DemoScreen( "Toggle") {
+            DemoSection("Switch") {
+                DemoRow("Enabled", child: Toggle(value: model.switchValue, style: .constant(ToggleStyle(painter: SwitchPainter()))))
             }
-            demoSection("Checkbox") {
-                demoRow("Checked", child: Toggle(value: model.checkValue))
+            DemoSection("Checkbox") {
+                DemoRow("Checked", child: Toggle(value: model.checkValue))
             }
         }
     }

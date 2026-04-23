@@ -64,9 +64,19 @@ public struct FlexStyle: Sendable {
     Flex(FlexStyle(axis: .vertical, spacing: spacing, lineSpacing: lineSpacing, alignment: alignment, spread: spread, wrap: wrap), content: content)
 }
 
+/// Creates a vertical flex container arranging children top-to-bottom.
+@MainActor public func Column(spacing: Double = 0, lineSpacing: Double = 0, alignment: Alignment = .center, spread: Spread? = nil, wrap: Bool = false, children: [any View]) -> Flex {
+    Flex(FlexStyle(axis: .vertical, spacing: spacing, lineSpacing: lineSpacing, alignment: alignment, spread: spread, wrap: wrap), children: children)
+}
+
 /// Creates a horizontal flex container arranging children left-to-right.
 @MainActor public func Row(spacing: Double = 0, lineSpacing: Double = 0, alignment: Alignment = .center, spread: Spread? = nil, wrap: Bool = false, @ChildrenBuilder content: () -> [any View]) -> Flex {
     Flex(FlexStyle(axis: .horizontal, spacing: spacing, lineSpacing: lineSpacing, alignment: alignment, spread: spread, wrap: wrap), content: content)
+}
+
+/// Creates a horizontal flex container arranging children left-to-right.
+@MainActor public func Row(spacing: Double = 0, lineSpacing: Double = 0, alignment: Alignment = .center, spread: Spread? = nil, wrap: Bool = false, children: [any View]) -> Flex {
+    Flex(FlexStyle(axis: .horizontal, spacing: spacing, lineSpacing: lineSpacing, alignment: alignment, spread: spread, wrap: wrap), children: children)
 }
 
 /// Flex child metadata. Tells a `Flex` container how to distribute

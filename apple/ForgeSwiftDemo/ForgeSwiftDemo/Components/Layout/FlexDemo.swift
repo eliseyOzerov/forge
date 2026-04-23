@@ -2,38 +2,38 @@ import ForgeSwift
 
 struct FlexDemo: BuiltView {
     func build(context: ViewContext) -> any View {
-        demoScreen(title: "Flex") {
-            demoSection("Row — packed") {
+        DemoScreen( "Flex") {
+            DemoSection("Row — packed") {
                 Row(spacing: 8, alignment: .center) {
                     chip("A"); chip("B"); chip("C")
                 }
             }
-            demoSection("Row — between") {
+            DemoSection("Row — between") {
                 Row(spread: .between) {
                     chip("1"); chip("2"); chip("3")
                 }
                 .framed(.fillWidth)
             }
-            demoSection("Row — around") {
+            DemoSection("Row — around") {
                 Row(spread: .around) {
                     chip("X"); chip("Y"); chip("Z")
                 }
                 .framed(.fillWidth)
             }
-            demoSection("Row — even") {
+            DemoSection("Row — even") {
                 Row(spread: .even) {
                     chip("!"); chip("@"); chip("#")
                 }
                 .framed(.fillWidth)
             }
-            demoSection("Column") {
+            DemoSection("Column") {
                 Column(spacing: 6, alignment: .topLeft) {
                     chip("Top")
                     chip("Middle")
                     chip("Bottom")
                 }
             }
-            demoSection("Flex children") {
+            DemoSection("Flex children") {
                 Row(spacing: 8) {
                     chip("fix")
                     Box(frame: .fixed(0, 36), alignment: .center, surface: .color(accent.withAlpha(0.3)), shape: .roundedRect(radius: 8)) {
@@ -44,7 +44,7 @@ struct FlexDemo: BuiltView {
                 }
                 .framed(.fillWidth)
             }
-            demoSection("Wrap") {
+            DemoSection("Wrap") {
                 Row(spacing: 6, wrap: true) {
                     for t in ["Swift", "Forge", "UI", "Layout", "Flex", "Wrap", "Demo"] {
                         tag(t)

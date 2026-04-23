@@ -11,8 +11,8 @@ final class SliderDemoModel: ViewModel<SliderDemo> {
 
 final class SliderDemoBuilder: ViewBuilder<SliderDemoModel> {
     override func build(context: ViewContext) -> any View {
-        demoScreen(title: "Slider") {
-            demoSection("Basic") {
+        DemoScreen( "Slider") {
+            DemoSection("Basic") {
                 Slider(value: model.value)
             }
         }

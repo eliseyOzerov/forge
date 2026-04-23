@@ -11,8 +11,8 @@ final class StepperDemoModel: ViewModel<StepperDemo> {
 
 final class StepperDemoBuilder: ViewBuilder<StepperDemoModel> {
     override func build(context: ViewContext) -> any View {
-        demoScreen(title: "Stepper") {
-            demoSection("Integer") {
+        DemoScreen( "Stepper") {
+            DemoSection("Integer") {
                 Stepper(value: model.count, range: 0...100, step: 1)
             }
         }

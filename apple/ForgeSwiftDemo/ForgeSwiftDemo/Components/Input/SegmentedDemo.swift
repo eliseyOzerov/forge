@@ -11,8 +11,8 @@ final class SegmentedDemoModel: ViewModel<SegmentedDemo> {
 
 final class SegmentedDemoBuilder: ViewBuilder<SegmentedDemoModel> {
     override func build(context: ViewContext) -> any View {
-        demoScreen(title: "Segmented") {
-            demoSection("Basic") {
+        DemoScreen( "Segmented") {
+            DemoSection("Basic") {
                 Segmented(value: model.selected, items: ["One", "Two", "Three"])
             }
         }

@@ -12,11 +12,11 @@ final class TextFieldDemoModel: ViewModel<TextFieldDemo> {
 
 final class TextFieldDemoBuilder: ViewBuilder<TextFieldDemoModel> {
     override func build(context: ViewContext) -> any View {
-        demoScreen(title: "TextField") {
-            demoSection("Basic") {
+        DemoScreen( "TextField") {
+            DemoSection("Basic") {
                 TextField(text: model.text, decoration: TextFieldDecoration(placeholder: "Type something..."))
             }
-            demoSection("With label") {
+            DemoSection("With label") {
                 TextField(text: model.email, decoration: TextFieldDecoration(placeholder: "you@example.com", label: "Email"))
             }
         }
