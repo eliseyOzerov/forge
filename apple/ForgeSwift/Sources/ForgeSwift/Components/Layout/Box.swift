@@ -229,11 +229,17 @@ class BoxView: UIView {
 
     var sizing: Frame = .hug {
         didSet {
-            guard sizing != oldValue else { return };
+            guard sizing != oldValue else { return }
+            invalidateSize()
             updateSizingConstraints()
         }
     }
-    var padding: Padding = .zero
+    var padding: Padding = .zero {
+        didSet {
+            guard padding != oldValue else { return }
+            invalidateSize()
+        }
+    }
     var alignment: Alignment = .center
     var overflow: Overflow = .clip
 
@@ -297,7 +303,14 @@ class BoxView: UIView {
 
     // MARK: - Sizing
 
-    var cachedSize: Size? = nil
+    private var sizeCache: (proposed: Size, result: Size)?
+    private var childSizeCache: [ObjectIdentifier: (proposed: Size, result: Size)] = [:]
+
+    /// Invalidate cached sizes. Call when sizing inputs change.
+    func invalidateSize() {
+        sizeCache = nil
+        childSizeCache.removeAll()
+    }
 
     /// How big this view wants to be given a proposal.
     ///
@@ -305,20 +318,34 @@ class BoxView: UIView {
     /// - **fill** — fraction of proposed, clamped.
     /// - **fit** — content size + padding (intrinsic size), clamped.
     override func sizeThatFits(_ size: CGSize) -> CGSize {
-        if let cached = cachedSize { return cached.cgSize }
         let proposed = Size(size)
+        if let cached = sizeCache, cached.proposed == proposed {
+            return cached.result.cgSize
+        }
         let inner = innerBounds(proposed)
         let content = measureChildren(inner)
-        cachedSize = outerBounds(proposed: proposed, content: content)
-        return cachedSize!.cgSize
+        let result = outerBounds(proposed: proposed, content: content)
+        sizeCache = (proposed, result)
+        return result.cgSize
     }
 
     /// Measure children within the given inner bounds, returning the largest child size.
     func measureChildren(_ innerSize: Size) -> Size {
         contentChildren.reduce(into: Size.zero) { result, child in
-            let s = child.sizeThatFits(innerSize.cgSize)
+            let s = measureChild(child, proposed: innerSize)
             result = Size(max(result.width, s.width), max(result.height, s.height))
         }
+    }
+
+    /// Measure a single child, returning a cached result if the proposal hasn't changed.
+    private func measureChild(_ child: UIView, proposed: Size) -> Size {
+        let key = ObjectIdentifier(child)
+        if let cached = childSizeCache[key], cached.proposed == proposed {
+            return cached.result
+        }
+        let result = Size(child.sizeThatFits(proposed.cgSize))
+        childSizeCache[key] = (proposed, result)
+        return result
     }
 
     /// The inner bounds available to children after resolving the frame and subtracting padding.
