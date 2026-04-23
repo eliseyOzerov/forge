@@ -1,9 +1,3 @@
-/// How a container handles content larger than its bounds.
-public enum Overflow: Equatable {
-    case clip
-    case visible
-}
-
 /// Configuration for scroll overflow behavior.
 @Init @Copy
 public struct ScrollConfig: Equatable {

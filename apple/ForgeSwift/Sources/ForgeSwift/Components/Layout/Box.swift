@@ -42,7 +42,6 @@ public struct BoxStyle: Equatable {
     public var frame: Frame = .hug
     public var padding: Padding = .zero
     public var alignment: Alignment = .center
-    @Snap public var overflow: Overflow = .clip
 
     // Rendering
     public var surface: Surface? = nil
@@ -62,14 +61,13 @@ public extension Box {
         frame: Frame = .hug,
         padding: Padding = .zero,
         alignment: Alignment = .center,
-        overflow: Overflow = .clip,
         surface: Surface? = nil,
         shape: AnyShape? = nil,
         clip: Bool = true,
         @ChildrenBuilder content: () -> [any View]
     ) {
         self.style = BoxStyle(frame: frame, padding: padding,
-                              alignment: alignment, overflow: overflow,
+                              alignment: alignment,
                               surface: surface, shape: shape, clip: clip)
         self.children = content()
     }
@@ -78,14 +76,13 @@ public extension Box {
         frame: Frame = .hug,
         padding: Padding = .zero,
         alignment: Alignment = .center,
-        overflow: Overflow = .clip,
         surface: Surface? = nil,
         shape: AnyShape? = nil,
         clip: Bool = true,
         children: [any View] = []
     ) {
         self.style = BoxStyle(frame: frame, padding: padding,
-                              alignment: alignment, overflow: overflow,
+                              alignment: alignment,
                               surface: surface, shape: shape, clip: clip)
         self.children = children
     }
@@ -240,7 +237,6 @@ class BoxView: UIView {
         }
     }
     var alignment: Alignment = .center
-    var overflow: Overflow = .clip
 
     // MARK: - Rendering Properties
 
@@ -274,31 +270,20 @@ class BoxView: UIView {
         sizing = style.frame
         padding = style.padding
         alignment = style.alignment
-        overflow = style.overflow
         surface = style.surface
         shape = style.shape
         clip = style.clip
     }
+    
+    // MARK: - Layout
 
-    // MARK: - Surface
-
-    private func layoutSurfaceView() {
-        guard surface != nil else {
-            surfaceView.frame = .zero
-            surfaceView.path = nil
-            return
-        }
-
-        let resolvedShape: AnyShape = shape ?? RectShape().erased
-        let viewRect = Rect(bounds)
-        let path = resolvedShape.path(in: viewRect)
-        let pathRect = path.boundingBox
-
-        surfaceView.frame = pathRect.cgRect
-        surfaceView.path = path
-        surfaceView.setNeedsDisplay()
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        layoutSurfaceView()
+        layoutChildren()
+        applyShapeClip()
     }
-
+    
     // MARK: - Sizing
 
     private var sizeCache: (proposed: Size, result: Size)?
@@ -382,14 +367,24 @@ class BoxView: UIView {
             resolve(sizing.height, proposed.height, content.height, padding.vertical)
         )
     }
+    
+    // MARK: - Surface
 
-    // MARK: - Layout
+    private func layoutSurfaceView() {
+        guard surface != nil else {
+            surfaceView.frame = .zero
+            surfaceView.path = nil
+            return
+        }
 
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        layoutSurfaceView()
-        layoutChildren()
-        applyShapeClip()
+        let resolvedShape: AnyShape = shape ?? RectShape().erased
+        let viewRect = Rect(bounds)
+        let path = resolvedShape.path(in: viewRect)
+        let pathRect = path.boundingBox
+
+        surfaceView.frame = pathRect.cgRect
+        surfaceView.path = path
+        surfaceView.setNeedsDisplay()
     }
 
     /// Position each child within the padded inset rect, aligned by alignment.
@@ -405,41 +400,30 @@ class BoxView: UIView {
     /// Apply shape mask for clipping. Caches to avoid re-creating
     /// the mask layer every layout pass when nothing changed.
     private func applyShapeClip() {
-        // Determine effective clipping based on overflow
-        let effectiveClip: Bool
-        switch overflow {
-        case .visible: effectiveClip = false
-        default: effectiveClip = clip
-        }
-
-        if effectiveClip {
+        if clip {
             if let shape {
-                // Only rebuild if shape, bounds, or clip state changed
-                if shape != lastClipShape || bounds != lastClipBounds || lastClipEnabled != effectiveClip {
+                if shape != lastClipShape || bounds != lastClipBounds || lastClipEnabled != clip {
                     let maskLayer = CAShapeLayer()
                     maskLayer.path = shape.path(in: Rect(bounds)).cgPath
                     layer.mask = maskLayer
                     clipsToBounds = false
                     lastClipShape = shape
                     lastClipBounds = bounds
-                    lastClipEnabled = effectiveClip
+                    lastClipEnabled = clip
                 }
             } else {
-                // No shape — use clipsToBounds for rectangular clipping
                 layer.mask = nil
                 clipsToBounds = true
                 lastClipShape = nil
                 lastClipBounds = bounds
-                lastClipEnabled = effectiveClip
+                lastClipEnabled = clip
             }
-        } else {
-            if lastClipEnabled != effectiveClip {
-                layer.mask = nil
-                clipsToBounds = false
-                lastClipShape = nil
-                lastClipBounds = .zero
-                lastClipEnabled = effectiveClip
-            }
+        } else if lastClipEnabled != clip {
+            layer.mask = nil
+            clipsToBounds = false
+            lastClipShape = nil
+            lastClipBounds = .zero
+            lastClipEnabled = clip
         }
     }
 

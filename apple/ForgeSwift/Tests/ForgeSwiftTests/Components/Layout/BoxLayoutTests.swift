@@ -28,7 +28,6 @@ final class BoxLayoutTests: XCTestCase {
         alignment: Alignment = .center,
         clip: Bool = true,
         shape: AnyShape? = nil,
-        overflow: Overflow = .clip,
         containerSize: CGSize = CGSize(width: 200, height: 200),
         children: [UIView] = []
     ) -> BoxView {
@@ -38,7 +37,6 @@ final class BoxLayoutTests: XCTestCase {
         box.alignment = alignment
         box.clip = clip
         box.shape = shape
-        box.overflow = overflow
         for child in children { box.addSubview(child) }
         box.frame = CGRect(origin: .zero, size: containerSize)
         box.layoutSubviews()
@@ -527,10 +525,10 @@ final class BoxLayoutTests: XCTestCase {
         XCTAssertFalse(box.clipsToBounds)
     }
 
-    func testOverflowVisibleDisablesClipping() {
-        let box = layoutBox(clip: true, shape: .circle(), overflow: .visible)
-        XCTAssertNil(box.layer.mask, "overflow .visible should suppress shape mask")
-        XCTAssertFalse(box.clipsToBounds, "overflow .visible should not clip")
+    func testClipFalseDisablesClipping() {
+        let box = layoutBox(clip: false, shape: .circle())
+        XCTAssertNil(box.layer.mask, "clip false should suppress shape mask")
+        XCTAssertFalse(box.clipsToBounds, "clip false should not clip")
     }
 
     func testShapeMaskCachedAcrossLayouts() {
