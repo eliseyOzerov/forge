@@ -306,8 +306,15 @@ class BoxView: UIView {
     private var sizeCache: (proposed: Size, result: Size)?
     private var childSizeCache: [ObjectIdentifier: (proposed: Size, result: Size)] = [:]
 
-    /// Invalidate cached sizes. Call when sizing inputs change.
+    /// Invalidate cached sizes and notify the parent layout.
     func invalidateSize() {
+        sizeCache = nil
+        childSizeCache.removeAll()
+        superview?.setNeedsLayout()
+    }
+
+    override func setNeedsLayout() {
+        super.setNeedsLayout()
         sizeCache = nil
         childSizeCache.removeAll()
     }
@@ -422,7 +429,7 @@ class BoxView: UIView {
         applyShapeClip()
     }
 
-    /// Position each child within the padded inset rect, aligned
+        /// Position each child within the padded inset rect, aligned
     /// by alignment. Fill children get the full inset dimension
     /// on their fill axis.
     private func layoutChildren() {
