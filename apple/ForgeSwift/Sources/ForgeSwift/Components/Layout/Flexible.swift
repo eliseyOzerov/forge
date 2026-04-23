@@ -28,7 +28,7 @@ public struct Flexible: ProxyView {
 
 public extension View {
     /// Wrap this view as a flex child with the given weight.
-    func flexible(_ weight: Int = 1, min: Double? = nil, max: Double? = nil) -> Flexible {
+    func flex(_ weight: Int = 1, min: Double? = nil, max: Double? = nil) -> Flexible {
         Flexible(weight: weight, min: min, max: max) { self }
     }
 }
