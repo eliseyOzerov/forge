@@ -162,3 +162,5 @@ extension Rect: Equatable, Hashable, Sendable {}
 
 public func + (lhs: Rect, rhs: Padding) -> Rect { lhs.outset(by: rhs) }
 public func - (lhs: Rect, rhs: Padding) -> Rect { lhs.inset(by: rhs) }
+public func += (lhs: inout Rect, rhs: Padding) { lhs = lhs + rhs }
+public func -= (lhs: inout Rect, rhs: Padding) { lhs = lhs - rhs }

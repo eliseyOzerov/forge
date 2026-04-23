@@ -305,18 +305,14 @@ class BoxView: UIView {
     ///
     /// Min/max on fill, flex, and hug clamp the result.
     override func sizeThatFits(_ size: CGSize) -> CGSize {
-        let innerSize = CGSize(
-            width: max(0, size.width - padding.horizontal),
-            height: max(0, size.height - padding.vertical)
-        )
-        var maxW: CGFloat = 0, maxH: CGFloat = 0
+        let innerSize = Size(size) - padding
+        var maxSize = Size.zero
         for child in contentChildren {
             let s = child.sizeThatFits(size)
-            maxW = max(maxW, s.width)
-            maxH = max(maxH, s.height)
+            maxSize.width = max(maxSize.width, s.width)
+            maxSize.height = max(maxSize.height, s.height)
         }
-        let width = maxW + padding.horizontal
-        let height = maxH + padding.vertical
+        maxSize += padding
 
         func resolve(_ extent: Extent, _ proposed: CGFloat, _ content: CGFloat) -> CGFloat {
             let raw: Double = switch extent {
@@ -328,8 +324,8 @@ class BoxView: UIView {
         }
 
         return CGSize(
-            width: resolve(sizing.width, size.width, width),
-            height: resolve(sizing.height, size.height, height)
+            width: resolve(sizing.width, size.width, CGFloat(maxSize.width)),
+            height: resolve(sizing.height, size.height, CGFloat(maxSize.height))
         )
     }
 

@@ -54,3 +54,5 @@ extension Size: Equatable, Hashable, Sendable {}
 
 public func + (lhs: Size, rhs: Padding) -> Size { lhs.adding(rhs) }
 public func - (lhs: Size, rhs: Padding) -> Size { lhs.subtracting(rhs) }
+public func += (lhs: inout Size, rhs: Padding) { lhs = lhs + rhs }
+public func -= (lhs: inout Size, rhs: Padding) { lhs = lhs - rhs }
