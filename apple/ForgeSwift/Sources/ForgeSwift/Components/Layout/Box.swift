@@ -31,21 +31,35 @@ public struct BoxStyle: Equatable {
 
 // MARK: - Box
 
-@Init
 public struct Box: ContainerView {
-    // Layout
-    public var frame: Frame = .hug
-    public var padding: Padding = .zero
-    public var alignment: Alignment = .center
-    public var overflow: Overflow = .clip
+    public var style: BoxStyle
+    public var children: [any View]
 
-    // Rendering
-    public var surface: Surface? = nil
-    public var shape: AnyShape? = nil
-    public var clip: Bool = true
+    public init(_ style: BoxStyle = BoxStyle(), children: [any View] = []) {
+        self.style = style
+        self.children = children
+    }
 
-    // Content
-    public var children: [any View] = []
+    public init(_ style: BoxStyle = BoxStyle(), @ChildrenBuilder content: () -> [any View]) {
+        self.style = style
+        self.children = content()
+    }
+
+    public init(
+        frame: Frame = .hug,
+        padding: Padding = .zero,
+        alignment: Alignment = .center,
+        overflow: Overflow = .clip,
+        surface: Surface? = nil,
+        shape: AnyShape? = nil,
+        clip: Bool = true,
+        children: [any View] = []
+    ) {
+        self.style = BoxStyle(frame: frame, padding: padding,
+                              alignment: alignment, overflow: overflow,
+                              surface: surface, shape: shape, clip: clip)
+        self.children = children
+    }
 
     public init(
         frame: Frame = .hug,
@@ -57,23 +71,10 @@ public struct Box: ContainerView {
         clip: Bool = true,
         @ChildrenBuilder content: () -> [any View]
     ) {
-        self.init(frame: frame, padding: padding, alignment: alignment,
-                  overflow: overflow, surface: surface, shape: shape,
-                  clip: clip, children: content())
-    }
-
-    public init(_ style: BoxStyle, children: [any View] = []) {
-        self.init(frame: style.frame, padding: style.padding,
-                  alignment: style.alignment, overflow: style.overflow,
-                  surface: style.surface, shape: style.shape,
-                  clip: style.clip, children: children)
-    }
-
-    public init(_ style: BoxStyle, @ChildrenBuilder content: () -> [any View]) {
-        self.init(frame: style.frame, padding: style.padding,
-                  alignment: style.alignment, overflow: style.overflow,
-                  surface: style.surface, shape: style.shape,
-                  clip: style.clip, children: content())
+        self.style = BoxStyle(frame: frame, padding: padding,
+                              alignment: alignment, overflow: overflow,
+                              surface: surface, shape: shape, clip: clip)
+        self.children = content()
     }
 
     public func makeRenderer() -> ContainerRenderer {
@@ -82,6 +83,17 @@ public struct Box: ContainerView {
         #else
         fatalError("Box not yet implemented for this platform")
         #endif
+    }
+}
+
+// MARK: - Style Extension
+
+public extension Box {
+    /// Configure style. The callback receives the current style for modification.
+    func style(_ build: (BoxStyle) -> BoxStyle) -> Box {
+        var copy = self
+        copy.style = build(style)
+        return copy
     }
 }
 
@@ -107,7 +119,6 @@ public extension View {
     func framed(_ frame: Frame) -> Box {
         Box(frame: frame) { self }
     }
-
 }
 
 // MARK: - BoxRole
@@ -194,59 +205,51 @@ final class BoxRenderer: ContainerRenderer {
     func mount() -> PlatformView {
         let bv = BoxView()
         self.boxView = bv
-
-        // Layout
-        bv.sizing = view.frame
-        bv.padding = view.padding
-        bv.alignment = view.alignment
-        bv.overflow = view.overflow
-
-        // Rendering
-        bv.surface = view.surface
-        bv.shape = view.shape
-        bv.clip = view.clip
-
+        bv.apply(view.style)
         return bv
     }
 
     func update(from newView: any View) {
         guard let box = newView as? Box, let boxView else { return }
-        let old = view
+        let old = view.style
+        let new = box.style
         view = box
+
+        guard old != new else { return }
 
         var needsSelfLayout = false
         var needsParentLayout = false
 
         // Layout
-        if old.frame != box.frame {
-            boxView.sizing = box.frame
+        if old.frame != new.frame {
+            boxView.sizing = new.frame
             needsSelfLayout = true
             needsParentLayout = true
         }
-        if old.padding != box.padding {
-            boxView.padding = box.padding
+        if old.padding != new.padding {
+            boxView.padding = new.padding
             needsSelfLayout = true
         }
-        if old.alignment != box.alignment {
-            boxView.alignment = box.alignment
+        if old.alignment != new.alignment {
+            boxView.alignment = new.alignment
             needsSelfLayout = true
         }
-        if old.overflow != box.overflow {
-            boxView.overflow = box.overflow
+        if old.overflow != new.overflow {
+            boxView.overflow = new.overflow
             needsSelfLayout = true
         }
 
         // Rendering
-        if old.surface != box.surface {
-            boxView.surface = box.surface
+        if old.surface != new.surface {
+            boxView.surface = new.surface
             needsSelfLayout = true
         }
-        if old.shape != box.shape {
-            boxView.shape = box.shape
+        if old.shape != new.shape {
+            boxView.shape = new.shape
             needsSelfLayout = true
         }
-        if old.clip != box.clip {
-            boxView.clip = box.clip
+        if old.clip != new.clip {
+            boxView.clip = new.clip
             needsSelfLayout = true
         }
 
@@ -314,6 +317,16 @@ class BoxView: UIView {
     }
 
     required init?(coder: NSCoder) { fatalError() }
+
+    func apply(_ style: BoxStyle) {
+        sizing = style.frame
+        padding = style.padding
+        alignment = style.alignment
+        overflow = style.overflow
+        surface = style.surface
+        shape = style.shape
+        clip = style.clip
+    }
 
     // MARK: - Surface
 
@@ -524,135 +537,6 @@ class BoxView: UIView {
 
     override var subviews: [UIView] {
         super.subviews.filter { $0 !== surfaceView }
-    }
-}
-
-// MARK: - DebugOverlay
-
-public extension View {
-    func debug(_ color: Color = .red, label: String? = nil) -> DebugOverlay {
-        DebugOverlay(child: self, color: Color(platform: color.platformColor), label: label)
-    }
-}
-
-/// Debug visualization overlay showing layout boundaries.
-public struct DebugOverlay: ContainerView {
-    public let child: any View
-    public let color: Color
-    public let label: String?
-    public let children: [any View]
-
-    init(child: any View, color: Color, label: String?) {
-        self.child = child
-        self.color = color
-        self.label = label
-        self.children = [child]
-    }
-
-    public func makeRenderer() -> ContainerRenderer {
-        DebugOverlayRenderer(view: self)
-    }
-}
-
-final class DebugOverlayRenderer: ContainerRenderer {
-    private weak var overlayView: DebugOverlayView?
-    private var view: DebugOverlay
-
-    init(view: DebugOverlay) {
-        self.view = view
-    }
-
-    func update(from newView: any View) {
-        guard let overlay = newView as? DebugOverlay, let overlayView else { return }
-        let old = view
-        view = overlay
-
-        if old.color != overlay.color {
-            overlayView.debugColor = overlay.color
-            overlayView.setNeedsDisplay()
-        }
-        if old.label != overlay.label {
-            overlayView.debugLabel = overlay.label
-            overlayView.setNeedsDisplay()
-        }
-    }
-
-    func mount() -> PlatformView {
-        let ov = DebugOverlayView()
-        self.overlayView = ov
-        ov.debugColor = view.color
-        ov.debugLabel = view.label
-        return ov
-    }
-
-    func insert(_ platformView: PlatformView, at index: Int, into container: PlatformView) {
-        container.insertSubview(platformView, at: index)
-    }
-
-    func remove(_ platformView: PlatformView, from container: PlatformView) {
-        platformView.removeFromSuperview()
-    }
-
-    func move(_ platformView: PlatformView, to index: Int, in container: PlatformView) {
-        platformView.removeFromSuperview()
-        container.insertSubview(platformView, at: index)
-    }
-
-    func index(of platformView: PlatformView, in container: PlatformView) -> Int? {
-        container.subviews.firstIndex(of: platformView)
-    }
-}
-
-final class DebugOverlayView: UIView {
-    var debugColor: Color = .red
-    var debugLabel: String?
-    private let infoLabel = UILabel()
-    private let borderLayer = CAShapeLayer()
-
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        isOpaque = false
-        clipsToBounds = false
-
-        borderLayer.fillColor = nil
-        borderLayer.lineWidth = 1
-        layer.addSublayer(borderLayer)
-
-        infoLabel.font = .systemFont(ofSize: 9, weight: .medium)
-        addSubview(infoLabel)
-    }
-
-    required init?(coder: NSCoder) { fatalError() }
-
-    override func sizeThatFits(_ size: CGSize) -> CGSize {
-        // First content child (not the info label)
-        contentChild?.sizeThatFits(size) ?? .zero
-    }
-
-    private var contentChild: UIView? {
-        subviews.first { $0 !== infoLabel }
-    }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        contentChild?.frame = bounds
-
-        let uiColor = debugColor.platformColor
-
-        // Border
-        borderLayer.path = UIBezierPath(rect: bounds.insetBy(dx: 0.5, dy: 0.5)).cgPath
-        borderLayer.strokeColor = uiColor.withAlphaComponent(0.5).cgColor
-
-        // Background
-        backgroundColor = uiColor.withAlphaComponent(0.05)
-
-        // Info label below bounds
-        let hash = String(format: "%04x", abs(hashValue) % 0xFFFF)
-        let name = debugLabel ?? hash
-        infoLabel.text = "\(name) (\(Int(frame.origin.x)),\(Int(frame.origin.y))) w:\(Int(bounds.width))/h:\(Int(bounds.height))"
-        infoLabel.textColor = uiColor
-        infoLabel.sizeToFit()
-        infoLabel.frame.origin = CGPoint(x: 2, y: bounds.height + 2)
     }
 }
 
