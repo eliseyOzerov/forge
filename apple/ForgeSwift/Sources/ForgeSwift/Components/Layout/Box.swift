@@ -31,37 +31,34 @@ public struct BoxStyle: Equatable {
 
 // MARK: - Box
 
+@Copy
 public struct Box: ContainerView {
-    public var style: BoxStyle
-    public var children: [any View]
-
-    public init(_ style: BoxStyle = BoxStyle(), children: [any View] = []) {
-        self.style = style
-        self.children = children
-    }
+    public var style: BoxStyle = BoxStyle()
+    public var children: [any View] = []
 
     public init(_ style: BoxStyle = BoxStyle(), @ChildrenBuilder content: () -> [any View]) {
         self.style = style
         self.children = content()
     }
 
-    public init(
-        frame: Frame = .hug,
-        padding: Padding = .zero,
-        alignment: Alignment = .center,
-        overflow: Overflow = .clip,
-        surface: Surface? = nil,
-        shape: AnyShape? = nil,
-        clip: Bool = true,
-        children: [any View] = []
-    ) {
-        self.style = BoxStyle(frame: frame, padding: padding,
-                              alignment: alignment, overflow: overflow,
-                              surface: surface, shape: shape, clip: clip)
+    public func makeRenderer() -> ContainerRenderer {
+        #if canImport(UIKit)
+        BoxRenderer(view: self)
+        #else
+        fatalError("Box not yet implemented for this platform")
+        #endif
+    }
+}
+
+// MARK: - Box Extensions
+
+public extension Box {
+    init(_ style: BoxStyle = BoxStyle(), children: [any View] = []) {
+        self.style = style
         self.children = children
     }
 
-    public init(
+    init(
         frame: Frame = .hug,
         padding: Padding = .zero,
         alignment: Alignment = .center,
@@ -77,23 +74,25 @@ public struct Box: ContainerView {
         self.children = content()
     }
 
-    public func makeRenderer() -> ContainerRenderer {
-        #if canImport(UIKit)
-        BoxRenderer(view: self)
-        #else
-        fatalError("Box not yet implemented for this platform")
-        #endif
+    init(
+        frame: Frame = .hug,
+        padding: Padding = .zero,
+        alignment: Alignment = .center,
+        overflow: Overflow = .clip,
+        surface: Surface? = nil,
+        shape: AnyShape? = nil,
+        clip: Bool = true,
+        children: [any View] = []
+    ) {
+        self.style = BoxStyle(frame: frame, padding: padding,
+                              alignment: alignment, overflow: overflow,
+                              surface: surface, shape: shape, clip: clip)
+        self.children = children
     }
-}
 
-// MARK: - Style Extension
-
-public extension Box {
     /// Configure style. The callback receives the current style for modification.
     func style(_ build: (BoxStyle) -> BoxStyle) -> Box {
-        var copy = self
-        copy.style = build(style)
-        return copy
+        copy { $0.style = build($0.style) }
     }
 }
 
