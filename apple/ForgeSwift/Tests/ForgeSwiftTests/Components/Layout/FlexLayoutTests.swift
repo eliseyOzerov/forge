@@ -537,7 +537,63 @@ final class FlexLayoutTests: XCTestCase {
         XCTAssertTrue(slots[0].stretch)
     }
 
-    // MARK: - 7. End-to-end layoutSubviews
+    // MARK: - 7. Stretch
+
+    func testArrangeStretchExpandsCross() {
+        // Horizontal row: child A is 40x20, child B is 30x50 (stretch).
+        // Line cross = 50 (from A? no, A is 20, B is 50). B stretches to line cross = 50.
+        // Actually B is already 50, so let's make A taller: 40x60, B 30x20 stretch.
+        // Line cross = 60 (from A). B should get cross = 60.
+        let flex = flexView(axis: .horizontal, alignment: .top)
+        let s0 = slot(40, 60)
+        let s1 = slot(30, 20, stretch: true)
+        var lines = [line([s0, s1], bounds: Size(70, 60))]
+
+        flex.style.alignment = .top
+        flex.measuredSizeCache = Size(70, 60)
+        flex.arrangeSlots(&lines)
+
+        // s1 should stretch to line cross (60)
+        XCTAssertEqual(lines[0].slots[1].resolved.height, 60, accuracy: acc)
+        XCTAssertEqual(lines[0].slots[1].origin.y, 0, accuracy: acc)
+    }
+
+    func testArrangeStretchIgnoresCrossAlign() {
+        // With center cross alignment, stretch child should still start at line origin
+        let flex = flexView(axis: .horizontal, alignment: .center)
+        let s0 = slot(40, 80)
+        let s1 = slot(30, 20, stretch: true)
+        var lines = [line([s0, s1], bounds: Size(70, 80))]
+
+        flex.measuredSizeCache = Size(70, 80)
+        flex.arrangeSlots(&lines)
+
+        // Stretch child fills full cross, no offset
+        XCTAssertEqual(lines[0].slots[1].resolved.height, 80, accuracy: acc)
+        XCTAssertEqual(lines[0].slots[1].origin.y, 0, accuracy: acc)
+        // Non-stretch child centered
+        XCTAssertEqual(lines[0].slots[0].origin.y, 0, accuracy: acc)
+    }
+
+    func testRemeasureStretchChildren() {
+        // Stretch children get re-measured with line cross as the proposed cross size
+        let flex = flexView(axis: .horizontal)
+        let c1 = child(40, 60)
+        let c2 = child(30, 20)
+        flex.addSubview(c1)
+        flex.addSubview(c2)
+
+        var s0 = FlexSlot(index: 0, view: c1, measured: Size(40, 60))
+        var s1 = FlexSlot(index: 1, view: c2, measured: Size(30, 20), stretch: true)
+        var lines = [FlexLine(slots: [s0, s1], bounds: flex.lineBounds([s0, s1]))]
+
+        flex.remeasureStretchChildren(in: &lines, size: Size(200, 100))
+
+        // c2 is a FixedSizeView so its measured size won't change, but the method should run without error
+        XCTAssertEqual(lines[0].slots[1].measured.width, 30, accuracy: acc)
+    }
+
+    // MARK: - 8. End-to-end layoutSubviews
 
     func testEndToEndHorizontalPacked() {
         let flex = flexView(axis: .horizontal, spacing: 10, alignment: .topLeft)

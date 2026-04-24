@@ -60,22 +60,22 @@ public struct FlexStyle: Sendable {
 // MARK: - Column & Row
 
 /// Creates a vertical flex container arranging children top-to-bottom.
-@MainActor public func Column(spacing: Double = 0, lineSpacing: Double = 0, alignment: Alignment = .center, spread: Spread? = nil, wrap: Bool = false, @ChildrenBuilder content: () -> [any View]) -> Flex {
+@MainActor public func Column(spacing: Double = 8, lineSpacing: Double = 0, alignment: Alignment = .topLeft, spread: Spread? = nil, wrap: Bool = false, @ChildrenBuilder content: () -> [any View]) -> Flex {
     Flex(FlexStyle(axis: .vertical, spacing: spacing, lineSpacing: lineSpacing, alignment: alignment, spread: spread, wrap: wrap), content: content)
 }
 
 /// Creates a vertical flex container arranging children top-to-bottom.
-@MainActor public func Column(spacing: Double = 0, lineSpacing: Double = 0, alignment: Alignment = .center, spread: Spread? = nil, wrap: Bool = false, children: [any View]) -> Flex {
+@MainActor public func Column(spacing: Double = 8, lineSpacing: Double = 0, alignment: Alignment = .topLeft, spread: Spread? = nil, wrap: Bool = false, children: [any View]) -> Flex {
     Flex(FlexStyle(axis: .vertical, spacing: spacing, lineSpacing: lineSpacing, alignment: alignment, spread: spread, wrap: wrap), children: children)
 }
 
 /// Creates a horizontal flex container arranging children left-to-right.
-@MainActor public func Row(spacing: Double = 0, lineSpacing: Double = 0, alignment: Alignment = .center, spread: Spread? = nil, wrap: Bool = false, @ChildrenBuilder content: () -> [any View]) -> Flex {
+@MainActor public func Row(spacing: Double = 8, lineSpacing: Double = 0, alignment: Alignment = .centerLeft, spread: Spread? = nil, wrap: Bool = false, @ChildrenBuilder content: () -> [any View]) -> Flex {
     Flex(FlexStyle(axis: .horizontal, spacing: spacing, lineSpacing: lineSpacing, alignment: alignment, spread: spread, wrap: wrap), content: content)
 }
 
 /// Creates a horizontal flex container arranging children left-to-right.
-@MainActor public func Row(spacing: Double = 0, lineSpacing: Double = 0, alignment: Alignment = .center, spread: Spread? = nil, wrap: Bool = false, children: [any View]) -> Flex {
+@MainActor public func Row(spacing: Double = 8, lineSpacing: Double = 0, alignment: Alignment = .centerLeft, spread: Spread? = nil, wrap: Bool = false, children: [any View]) -> Flex {
     Flex(FlexStyle(axis: .horizontal, spacing: spacing, lineSpacing: lineSpacing, alignment: alignment, spread: spread, wrap: wrap), children: children)
 }
 
@@ -97,6 +97,22 @@ public extension View {
     /// Mark this view as a flexible child within a `Flex` container.
     func flex(_ weight: Double = 1, stretch: Bool = false) -> ParentData<FlexData> {
         ParentData(FlexData(flex: weight, stretch: stretch)) { self }
+    }
+    
+    func trailing(_ axis: Axis = .horizontal, spacing: Double = 8, alignment: Alignment = .center, content: any View) -> some View {
+        if axis == .horizontal {
+            Row(spacing: spacing, alignment: alignment) { self ; content }
+        } else {
+            Column(spacing: spacing, alignment: alignment) { self ; content }
+        }
+    }
+    
+    func leading(_ axis: Axis = .horizontal, spacing: Double = 8, alignment: Alignment = .center, content: any View) -> some View {
+        if axis == .horizontal {
+            Row(spacing: spacing, alignment: alignment) { content ; self }
+        } else {
+            Column(spacing: spacing, alignment: alignment) { content ; self }
+        }
     }
 }
 
@@ -193,6 +209,8 @@ final class FlexView: UIView {
         } else {
             lines = [FlexLine(slots: slots, bounds: lineBounds(slots))]
         }
+        /// re-measure stretch children against their line's cross extent
+        remeasureStretchChildren(in: &lines, size: size)
         /// now we compute the bounding box of all children - positioning the children and lines can wait until layout
         measuredSizeCache = boundingBox(in: size)
         proposedSizeCache = size
@@ -203,13 +221,28 @@ final class FlexView: UIView {
         var slots = subviews.enumerated().map { FlexSlot(index: $0, view: $1) }
         slots.indices.forEach { i in
             let child = slots[i].view
-            slots[i].measured = Size(child.sizeThatFits(size.cgSize))
+            slots[i].measured = Size(child.sizeThatFits(size.only(main).cgSize))
             if let data = parentData(FlexData.self, from: child) {
                 slots[i].flex = data.flex
                 slots[i].stretch = data.stretch
             }
         }
         return slots
+    }
+    
+    /// Re-measure stretch children with their line's cross extent as the proposed cross size.
+    /// This lets stretch children adapt their main-axis size to the actual cross constraint.
+    func remeasureStretchChildren(in lines: inout [FlexLine], size: Size) {
+        for i in lines.indices {
+            let lineCross = lines[i].bounds.on(cross)
+            var needsRecalc = false
+            for j in lines[i].slots.indices where lines[i].slots[j].stretch {
+                let proposal = Size.on(main, main: size.on(main), cross: lineCross).cgSize
+                lines[i].slots[j].measured = Size(lines[i].slots[j].view.sizeThatFits(proposal))
+                needsRecalc = true
+            }
+            if needsRecalc { lines[i].bounds = lineBounds(lines[i].slots) }
+        }
     }
     
     func splitLines(slots: [FlexSlot], size: Size) -> [FlexLine] {
@@ -304,9 +337,9 @@ final class FlexView: UIView {
                     slotMain = slot.measured.on(main)
                 }
 
-                // Cross-axis: align within the line
-                let slotCross = slot.measured.on(cross)
-                let crossOffset = currentCross + (lineCross - slotCross) * crossAlign
+                // Cross-axis: stretch to line height or align within the line
+                let slotCross = slot.stretch ? lineCross : slot.measured.on(cross)
+                let crossOffset = slot.stretch ? currentCross : currentCross + (lineCross - slotCross) * crossAlign
                 
                 let size = Size(slotMain, slotCross)
                 let origin = Point(currentMain, crossOffset)
