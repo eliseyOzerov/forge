@@ -80,11 +80,12 @@ final class SafeAreaTests: XCTestCase {
 
     // MARK: - sizeThatFits
 
-    func testSizeThatFitsAddsInsets() {
+    func testSizeThatFitsDelegatesToChild() {
         let (h, _) = host(childSize: CGSize(width: 200, height: 100), insets: UIEdgeInsets(top: 44, left: 0, bottom: 34, right: 0))
         let size = h.sizeThatFits(CGSize(width: 400, height: 800))
+        // SafeArea is a passthrough for sizing — reports child size
         XCTAssertEqual(size.width, 200)
-        XCTAssertEqual(size.height, 100 + 44 + 34)
+        XCTAssertEqual(size.height, 100)
     }
 
     func testSizeThatFitsNoChild() {
@@ -132,7 +133,7 @@ final class SafeAreaTests: XCTestCase {
         container.frame = CGRect(x: 0, y: 0, width: 400, height: 800)
         container.layoutSubviews()
 
-        XCTAssertEqual(container.safeAreaPadding.padding.top, 44, accuracy: 0.5)
+        XCTAssertEqual(container.insets.top, 44, accuracy: 0.5)
     }
 }
 

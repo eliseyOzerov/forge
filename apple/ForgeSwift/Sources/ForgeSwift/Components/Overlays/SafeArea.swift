@@ -1,15 +1,3 @@
-// MARK: - SafeAreaPadding
-
-/// Wrapper around `Padding` to give safe area its own type in the Provided system.
-/// Descendants read it via `context.tryRead(SafeAreaPadding.self)`.
-public struct SafeAreaPadding {
-    public var padding: Padding
-
-    public init(_ padding: Padding = .zero) {
-        self.padding = padding
-    }
-}
-
 // MARK: - SafeArea
 
 /// Consumes safe area padding for the requested edges, insetting its child.
@@ -119,13 +107,22 @@ final class SafeAreaRenderer: ProxyRenderer {
 /// Insets its child by the resolved safe area padding for the requested edges.
 /// Reads provided `SafeAreaPadding` from the node context if available,
 /// otherwise falls back to platform `safeAreaInsets`.
-class SafeAreaHostView: UIView {
+class SafeAreaHostView: UIView, SafeAreaProvider {
     var edges: Edge.Set = .all
+    
+    var insets: Padding {
+        let provided = findProvidedSafeArea()
+        let system = safeAreaInsets
+        return provided ?? .from(system)
+    }
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        let insets = resolvedInsets()
-        subviews.first?.frame = bounds.inset(by: insets)
+        subviews.first?.frame = bounds.inset(by: insets.filter(by: edges).uiEdgeInsets)
+    }
+
+    override func sizeThatFits(_ size: CGSize) -> CGSize {
+        subviews.first?.sizeThatFits(size) ?? .zero
     }
 
     override func safeAreaInsetsDidChange() {
@@ -133,40 +130,13 @@ class SafeAreaHostView: UIView {
         setNeedsLayout()
     }
 
-    override func sizeThatFits(_ size: CGSize) -> CGSize {
-        guard let child = subviews.first else { return .zero }
-        let insets = resolvedInsets()
-        let available = CGSize(
-            width: max(0, size.width - insets.left - insets.right),
-            height: max(0, size.height - insets.top - insets.bottom)
-        )
-        let childSize = child.sizeThatFits(available)
-        return CGSize(
-            width: childSize.width + insets.left + insets.right,
-            height: childSize.height + insets.top + insets.bottom
-        )
-    }
-
-    /// Resolve insets: use provided safe area if available, fall back to platform.
-    private func resolvedInsets() -> UIEdgeInsets {
-        let provided = findProvidedSafeArea()
-        let platform = safeAreaInsets
-
-        // For each edge: use provided if available (non-zero), otherwise platform
-        let top = edges.hasTop ? (provided?.padding.top ?? platform.top) : 0
-        let bottom = edges.hasBottom ? (provided?.padding.bottom ?? platform.bottom) : 0
-        let leading = edges.hasLeading ? (provided?.padding.leading ?? platform.left) : 0
-        let trailing = edges.hasTrailing ? (provided?.padding.trailing ?? platform.right) : 0
-        return UIEdgeInsets(top: top, left: leading, bottom: bottom, right: trailing)
-    }
-
     /// Walk the Forge node tree to find the nearest provided SafeAreaPadding.
-    private func findProvidedSafeArea() -> SafeAreaPadding? {
+    private func findProvidedSafeArea() -> Padding? {
         // Walk superview chain to find a Provided slot
         var view: UIView? = superview
         while let v = view {
-            if let provider = v as? SafeAreaPaddingProvider {
-                return provider.safeAreaPadding
+            if let provider = v as? SafeAreaProvider {
+                return provider.insets
             }
             view = v.superview
         }
@@ -201,14 +171,26 @@ final class SafeInsetRenderer: ContainerRenderer {
 }
 
 /// Overlays content at an edge and provides updated safe area padding downstream.
-final class SafeInsetHostView: UIView, SafeAreaPaddingProvider {
+final class SafeInsetHostView: UIView, SafeAreaProvider {
     var edge: Edge = .top
-    private(set) var safeAreaPadding: SafeAreaPadding = SafeAreaPadding()
+
+    var insets: Padding {
+        let inherited = findProvidedSafeArea() ?? .from(safeAreaInsets)
+        var result = inherited
+        guard subviews.count >= 2 else { return result }
+        let overlaySize = subviews[1].sizeThatFits(bounds.size)
+        switch edge {
+        case .top: result.top += overlaySize.height
+        case .bottom: result.bottom += overlaySize.height
+        case .leading: result.leading += overlaySize.width
+        case .trailing: result.trailing += overlaySize.width
+        }
+        return result
+    }
 
     override func layoutSubviews() {
         super.layoutSubviews()
 
-        // children[0] = content, children[1] = overlay
         guard subviews.count >= 2 else {
             subviews.first?.frame = bounds
             return
@@ -216,10 +198,8 @@ final class SafeInsetHostView: UIView, SafeAreaPaddingProvider {
 
         let content = subviews[0]
         let overlay = subviews[1]
-
         let overlaySize = overlay.sizeThatFits(bounds.size)
 
-        // Position overlay at the specified edge
         switch edge {
         case .top:
             overlay.frame = CGRect(x: 0, y: 0, width: bounds.width, height: overlaySize.height)
@@ -233,49 +213,28 @@ final class SafeInsetHostView: UIView, SafeAreaPaddingProvider {
                                    width: overlaySize.width, height: bounds.height)
         }
 
-        // Content fills entire bounds
         content.frame = bounds
-
-        // Resolve current safe area and add overlay size
-        let inherited = resolveInherited()
-        var updated = inherited
-        switch edge {
-        case .top: updated.padding.top += overlaySize.height
-        case .bottom: updated.padding.bottom += overlaySize.height
-        case .leading: updated.padding.leading += overlaySize.width
-        case .trailing: updated.padding.trailing += overlaySize.width
-        }
-
-        if safeAreaPadding.padding != updated.padding {
-            safeAreaPadding = updated
-            content.setNeedsLayout()
-        }
     }
 
     override func sizeThatFits(_ size: CGSize) -> CGSize {
         subviews.first?.sizeThatFits(size) ?? .zero
     }
 
-    /// Resolve the inherited safe area: walk up for a provider, fall back to platform.
-    private func resolveInherited() -> SafeAreaPadding {
+    private func findProvidedSafeArea() -> Padding? {
         var view: UIView? = superview
         while let v = view {
-            if let provider = v as? SafeAreaPaddingProvider {
-                return provider.safeAreaPadding
-            }
+            if let provider = v as? SafeAreaProvider { return provider.insets }
             view = v.superview
         }
-        // Fall back to platform insets
-        let s = safeAreaInsets
-        return SafeAreaPadding(Padding(top: s.top, bottom: s.bottom, leading: s.left, trailing: s.right))
+        return nil
     }
 }
 
 // MARK: - SafeAreaPaddingProvider
 
 /// Protocol for views that provide safe area padding to descendants.
-@MainActor protocol SafeAreaPaddingProvider: AnyObject {
-    var safeAreaPadding: SafeAreaPadding { get }
+@MainActor protocol SafeAreaProvider: AnyObject {
+    var insets: Padding { get }
 }
 
 #endif
