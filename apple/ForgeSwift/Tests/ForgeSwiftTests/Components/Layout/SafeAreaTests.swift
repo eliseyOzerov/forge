@@ -142,6 +142,128 @@ final class SafeAreaTests: XCTestCase {
         XCTAssertEqual(container.insets.top, 44, accuracy: 0.5)
     }
 
+    // MARK: - SafeInset leading/trailing
+
+    func testSafeInsetOverlayPositionedAtLeading() {
+        let container = SafeInsetHostView()
+        container.edge = .leading
+        let content = FixedSizeView(size: CGSize(width: 400, height: 800))
+        let overlay = FixedSizeView(size: CGSize(width: 60, height: 800))
+        container.addSubview(content)
+        container.addSubview(overlay)
+        container.frame = CGRect(x: 0, y: 0, width: 400, height: 800)
+        container.layoutSubviews()
+
+        XCTAssertEqual(overlay.frame.origin.x, 0, accuracy: 0.5)
+        XCTAssertEqual(overlay.frame.size.width, 60, accuracy: 0.5)
+        XCTAssertEqual(overlay.frame.size.height, 800, accuracy: 0.5)
+    }
+
+    func testSafeInsetOverlayPositionedAtTrailing() {
+        let container = SafeInsetHostView()
+        container.edge = .trailing
+        let content = FixedSizeView(size: CGSize(width: 400, height: 800))
+        let overlay = FixedSizeView(size: CGSize(width: 60, height: 800))
+        container.addSubview(content)
+        container.addSubview(overlay)
+        container.frame = CGRect(x: 0, y: 0, width: 400, height: 800)
+        container.layoutSubviews()
+
+        XCTAssertEqual(overlay.frame.origin.x, 340, accuracy: 0.5)
+        XCTAssertEqual(overlay.frame.size.width, 60, accuracy: 0.5)
+    }
+
+    func testSafeInsetAddsToInsetsLeading() {
+        let container = SafeInsetHostView()
+        container.edge = .leading
+        let content = FixedSizeView(size: CGSize(width: 400, height: 800))
+        let overlay = FixedSizeView(size: CGSize(width: 60, height: 800))
+        container.addSubview(content)
+        container.addSubview(overlay)
+        container.frame = CGRect(x: 0, y: 0, width: 400, height: 800)
+
+        XCTAssertEqual(container.insets.leading, 60, accuracy: 0.5)
+        XCTAssertEqual(container.insets.top, 0, accuracy: 0.5)
+    }
+
+    // MARK: - SafeInset sizing
+
+    func testSafeInsetSizeThatFitsDelegatesToContent() {
+        let container = SafeInsetHostView()
+        container.edge = .top
+        let content = FixedSizeView(size: CGSize(width: 200, height: 300))
+        let overlay = FixedSizeView(size: CGSize(width: 200, height: 44))
+        container.addSubview(content)
+        container.addSubview(overlay)
+
+        let size = container.sizeThatFits(CGSize(width: 400, height: 800))
+        XCTAssertEqual(size.width, 200, accuracy: 0.5)
+        XCTAssertEqual(size.height, 300, accuracy: 0.5)
+    }
+
+    // MARK: - Chained SafeInsets
+
+    func testChainedSafeInsetsStack() {
+        // Outer: top inset of 44. Inner: bottom inset of 49.
+        // Inner should see top=44 from outer and add bottom=49.
+        let outer = SafeInsetHostView()
+        outer.edge = .top
+        let inner = SafeInsetHostView()
+        inner.edge = .bottom
+
+        let content = FixedSizeView(size: CGSize(width: 400, height: 800))
+        let topOverlay = FixedSizeView(size: CGSize(width: 400, height: 44))
+        let bottomOverlay = FixedSizeView(size: CGSize(width: 400, height: 49))
+
+        // Build tree: outer > inner > content, outer has topOverlay, inner has bottomOverlay
+        inner.addSubview(content)
+        inner.addSubview(bottomOverlay)
+        outer.addSubview(inner)
+        outer.addSubview(topOverlay)
+
+        outer.frame = CGRect(x: 0, y: 0, width: 400, height: 800)
+        outer.layoutSubviews()
+        inner.frame = CGRect(x: 0, y: 0, width: 400, height: 800)
+        inner.layoutSubviews()
+
+        // Outer provides top=44
+        XCTAssertEqual(outer.insets.top, 44, accuracy: 0.5)
+        XCTAssertEqual(outer.insets.bottom, 0, accuracy: 0.5)
+
+        // Inner inherits top=44 from outer, adds bottom=49
+        XCTAssertEqual(inner.insets.top, 44, accuracy: 0.5)
+        XCTAssertEqual(inner.insets.bottom, 49, accuracy: 0.5)
+    }
+
+    // MARK: - SafeArea inside SafeInset
+
+    func testSafeAreaInsideSafeInsetFindsProvider() {
+        // SafeInset provides top=44. SafeArea inside should consume it.
+        let insetHost = SafeInsetHostView()
+        insetHost.edge = .top
+        let safeHost = SafeAreaHostView()
+        safeHost.edges = .all
+
+        let content = FixedSizeView(size: CGSize(width: 400, height: 800))
+        let overlay = FixedSizeView(size: CGSize(width: 400, height: 44))
+
+        safeHost.addSubview(content)
+        insetHost.addSubview(safeHost)
+        insetHost.addSubview(overlay)
+
+        insetHost.frame = CGRect(x: 0, y: 0, width: 400, height: 800)
+        insetHost.layoutSubviews()
+        safeHost.frame = CGRect(x: 0, y: 0, width: 400, height: 800)
+        safeHost.layoutSubviews()
+
+        // SafeArea should have inset the child by top=44
+        XCTAssertEqual(content.frame.origin.y, 44, accuracy: 0.5)
+        XCTAssertEqual(content.frame.size.height, 756, accuracy: 0.5)
+
+        // SafeArea re-provides with top zeroed
+        XCTAssertEqual(safeHost.insets.top, 0, accuracy: 0.5)
+    }
+
     // MARK: - Edge.Set
 
     func testEdgeSetInverse() {
