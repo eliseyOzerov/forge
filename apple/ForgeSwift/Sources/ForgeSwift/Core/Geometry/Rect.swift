@@ -186,6 +186,9 @@ public enum Edge: Int8, CaseIterable, Sendable {
         public var hasBottom: Bool { contains(.bottom) }
         public var hasLeading: Bool { contains(.leading) }
         public var hasTrailing: Bool { contains(.trailing) }
+
+        /// The complement — all edges NOT in this set.
+        public var inverse: Set { Set.all.subtracting(self) }
     }
 }
 

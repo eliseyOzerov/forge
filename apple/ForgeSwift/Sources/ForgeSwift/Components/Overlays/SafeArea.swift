@@ -107,18 +107,19 @@ final class SafeAreaRenderer: ProxyRenderer {
 /// Insets its child by the resolved safe area padding for the requested edges.
 /// Reads provided `SafeAreaPadding` from the node context if available,
 /// otherwise falls back to platform `safeAreaInsets`.
-class SafeAreaHostView: UIView, SafeAreaProvider {
+class SafeAreaHostView: UIView, InsetsProvider {
     var edges: Edge.Set = .all
-    
-    var insets: Padding {
-        let provided = findProvidedSafeArea()
-        let system = safeAreaInsets
-        return provided ?? .from(system)
-    }
+
+    /// What this view inherited from above.
+    private var inherited: Padding { findProvidedSafeArea() ?? .from(safeAreaInsets) }
+
+    /// What's left for descendants — consumed edges zeroed out.
+    var insets: Padding { inherited.filter(by: edges.inverse) }
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        subviews.first?.frame = bounds.inset(by: insets.filter(by: edges).uiEdgeInsets)
+        let consumed = inherited.filter(by: edges)
+        subviews.first?.frame = bounds.inset(by: consumed.uiEdgeInsets)
     }
 
     override func sizeThatFits(_ size: CGSize) -> CGSize {
@@ -135,7 +136,7 @@ class SafeAreaHostView: UIView, SafeAreaProvider {
         // Walk superview chain to find a Provided slot
         var view: UIView? = superview
         while let v = view {
-            if let provider = v as? SafeAreaProvider {
+            if let provider = v as? InsetsProvider {
                 return provider.insets
             }
             view = v.superview
@@ -171,49 +172,67 @@ final class SafeInsetRenderer: ContainerRenderer {
 }
 
 /// Overlays content at an edge and provides updated safe area padding downstream.
-final class SafeInsetHostView: UIView, SafeAreaProvider {
+final class SafeInsetHostView: UIView, InsetsProvider {
     var edge: Edge = .top
+       
+    var content: UIView? { subviews.first }
+    
+    var overlay: UIView? { subviews.last }
+    var overlaySize: Size { Size(overlay?.sizeThatFits(bounds.size) ?? .zero) }
 
     var insets: Padding {
-        let inherited = findProvidedSafeArea() ?? .from(safeAreaInsets)
-        var result = inherited
-        guard subviews.count >= 2 else { return result }
-        let overlaySize = subviews[1].sizeThatFits(bounds.size)
+        var result = inheritedInsets
         switch edge {
-        case .top: result.top += overlaySize.height
-        case .bottom: result.bottom += overlaySize.height
-        case .leading: result.leading += overlaySize.width
-        case .trailing: result.trailing += overlaySize.width
+            case .top: result.top += overlaySize.height
+            case .bottom: result.bottom += overlaySize.height
+            case .leading: result.leading += overlaySize.width
+            case .trailing: result.trailing += overlaySize.width
         }
         return result
     }
+    
+    var inheritedInsets: Padding { findProvidedSafeArea() ?? .from(safeAreaInsets) }
 
     override func layoutSubviews() {
         super.layoutSubviews()
 
-        guard subviews.count >= 2 else {
-            subviews.first?.frame = bounds
+        guard let overlay = overlay else {
+            content?.frame = bounds
             return
         }
 
-        let content = subviews[0]
-        let overlay = subviews[1]
-        let overlaySize = overlay.sizeThatFits(bounds.size)
-
         switch edge {
         case .top:
-            overlay.frame = CGRect(x: 0, y: 0, width: bounds.width, height: overlaySize.height)
+            overlay.frame = CGRect(
+                x: inheritedInsets.leading,
+                y: inheritedInsets.top,
+                width: bounds.width,
+                height: overlaySize.height
+            )
         case .bottom:
-            overlay.frame = CGRect(x: 0, y: bounds.height - overlaySize.height,
-                                   width: bounds.width, height: overlaySize.height)
+            overlay.frame = CGRect(
+                x: 0,
+                y: bounds.height - overlaySize.height,
+                width: bounds.width,
+                height: overlaySize.height
+            )
         case .leading:
-            overlay.frame = CGRect(x: 0, y: 0, width: overlaySize.width, height: bounds.height)
+            overlay.frame = CGRect(
+                x: 0,
+                y: 0,
+                width: overlaySize.width,
+                height: bounds.height
+            )
         case .trailing:
-            overlay.frame = CGRect(x: bounds.width - overlaySize.width, y: 0,
-                                   width: overlaySize.width, height: bounds.height)
+            overlay.frame = CGRect(
+                x: bounds.width - overlaySize.width,
+                y: 0,
+                width: overlaySize.width,
+                height: bounds.height
+            )
         }
 
-        content.frame = bounds
+        content?.frame = bounds
     }
 
     override func sizeThatFits(_ size: CGSize) -> CGSize {
@@ -223,7 +242,7 @@ final class SafeInsetHostView: UIView, SafeAreaProvider {
     private func findProvidedSafeArea() -> Padding? {
         var view: UIView? = superview
         while let v = view {
-            if let provider = v as? SafeAreaProvider { return provider.insets }
+            if let provider = v as? InsetsProvider { return provider.insets }
             view = v.superview
         }
         return nil
@@ -233,7 +252,7 @@ final class SafeInsetHostView: UIView, SafeAreaProvider {
 // MARK: - SafeAreaPaddingProvider
 
 /// Protocol for views that provide safe area padding to descendants.
-@MainActor protocol SafeAreaProvider: AnyObject {
+@MainActor protocol InsetsProvider: AnyObject {
     var insets: Padding { get }
 }
 
