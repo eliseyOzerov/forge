@@ -1,13 +1,25 @@
+// MARK: - SafeAreaPadding
+
+/// Provided type for safe area insets. Wraps `Padding` to give it a
+/// distinct identity in the Provided system.
+public struct SafeAreaPadding: Equatable {
+    public var padding: Padding
+    public init(_ padding: Padding = .zero) { self.padding = padding }
+}
+
+public extension ViewContext {
+    /// Read the current safe area padding from the nearest provider.
+    var safeArea: Padding { tryWatch(SafeAreaPadding.self)?.padding ?? .zero }
+}
+
 // MARK: - SafeArea
 
 /// Consumes safe area padding for the requested edges, insetting its child.
-///
-/// If an ancestor provides `SafeAreaPadding`, those values are used.
-/// Otherwise, reads platform safe area insets directly.
+/// Reads `SafeAreaPadding` from context and re-provides with consumed edges zeroed.
 ///
 ///     SafeArea { content }              // all edges
 ///     SafeArea(edges: .top) { content } // top only
-public struct SafeArea: ProxyView {
+public struct SafeArea: BuiltView {
     public let child: any View
     public let edges: Edge.Set
 
@@ -16,12 +28,13 @@ public struct SafeArea: ProxyView {
         self.child = content()
     }
 
-    public func makeRenderer() -> ProxyRenderer {
-        #if canImport(UIKit)
-        SafeAreaRenderer(edges: edges)
-        #else
-        fatalError("SafeArea not yet implemented for this platform")
-        #endif
+    public func build(context: ViewContext) -> any View {
+        let insets = context.safeArea
+        let consumed = insets.filter(by: edges)
+        let remaining = SafeAreaPadding(insets.filter(by: edges.inverse))
+        return Provided(remaining) {
+            Box(padding: consumed) { child }
+        }
     }
 }
 
@@ -76,74 +89,6 @@ public extension View {
 
 #if canImport(UIKit)
 import UIKit
-
-// MARK: - SafeAreaRenderer
-
-final class SafeAreaRenderer: ProxyRenderer {
-    weak var node: ProxyNode?
-    private weak var hostView: SafeAreaHostView?
-    private var edges: Edge.Set
-
-    init(edges: Edge.Set) {
-        self.edges = edges
-    }
-
-    func mount() -> PlatformView {
-        let view = SafeAreaHostView()
-        self.hostView = view
-        view.edges = edges
-        return view
-    }
-
-    func update(from newView: any View) {
-        guard let sa = newView as? SafeArea, let hostView else { return }
-        guard edges != sa.edges else { return }
-        edges = sa.edges
-        hostView.edges = edges
-        hostView.setNeedsLayout()
-    }
-}
-
-/// Insets its child by the resolved safe area padding for the requested edges.
-/// Reads provided `SafeAreaPadding` from the node context if available,
-/// otherwise falls back to platform `safeAreaInsets`.
-class SafeAreaHostView: UIView, InsetsProvider {
-    var edges: Edge.Set = .all
-
-    /// What this view inherited from above.
-    private var inherited: Padding { findProvidedSafeArea() ?? .from(safeAreaInsets) }
-
-    /// What's left for descendants — consumed edges zeroed out.
-    var insets: Padding { inherited.filter(by: edges.inverse) }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        let consumed = inherited.filter(by: edges)
-        subviews.first?.frame = bounds.inset(by: consumed.uiEdgeInsets)
-    }
-
-    override func sizeThatFits(_ size: CGSize) -> CGSize {
-        subviews.first?.sizeThatFits(size) ?? .zero
-    }
-
-    override func safeAreaInsetsDidChange() {
-        super.safeAreaInsetsDidChange()
-        setNeedsLayout()
-    }
-
-    /// Walk the Forge node tree to find the nearest provided SafeAreaPadding.
-    private func findProvidedSafeArea() -> Padding? {
-        // Walk superview chain to find a Provided slot
-        var view: UIView? = superview
-        while let v = view {
-            if let provider = v as? InsetsProvider {
-                return provider.insets
-            }
-            view = v.superview
-        }
-        return nil
-    }
-}
 
 // MARK: - SafeInsetRenderer
 

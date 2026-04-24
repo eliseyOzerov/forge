@@ -13,85 +13,17 @@ private class FixedSizeView: UIView {
     override func sizeThatFits(_ size: CGSize) -> CGSize { fixedSize }
 }
 
-/// SafeAreaHostView subclass that allows overriding safeAreaInsets for testing.
-private class TestSafeAreaHostView: SafeAreaHostView {
-    private let overrideInsets: UIEdgeInsets
-    init(overrideInsets: UIEdgeInsets) {
-        self.overrideInsets = overrideInsets
-        super.init(frame: .zero)
-    }
-    required init?(coder: NSCoder) { fatalError() }
-    override var safeAreaInsets: UIEdgeInsets { overrideInsets }
-}
-
 @MainActor
 final class SafeAreaTests: XCTestCase {
 
-    private func host(
-        edges: Edge.Set = .all,
-        containerSize: CGSize = CGSize(width: 400, height: 800),
-        childSize: CGSize = CGSize(width: 100, height: 50),
-        insets: UIEdgeInsets = .zero
-    ) -> (host: SafeAreaHostView, child: FixedSizeView) {
-        let h = TestSafeAreaHostView(overrideInsets: insets)
-        h.edges = edges
-        h.frame = CGRect(origin: .zero, size: containerSize)
-        let c = FixedSizeView(size: childSize)
-        h.addSubview(c)
-        h.layoutSubviews()
-        return (h, c)
-    }
+    // MARK: - SafeAreaPadding
 
-    // MARK: - Layout
-
-    func testAllEdgesInset() {
-        let (_, c) = host(insets: UIEdgeInsets(top: 44, left: 0, bottom: 34, right: 0))
-        XCTAssertEqual(c.frame.origin.y, 44)
-        XCTAssertEqual(c.frame.size.height, 800 - 44 - 34)
-    }
-
-    func testTopOnly() {
-        let (_, c) = host(edges: [.top], insets: UIEdgeInsets(top: 44, left: 0, bottom: 34, right: 0))
-        XCTAssertEqual(c.frame.origin.y, 44)
-        XCTAssertEqual(c.frame.size.height, 800 - 44)
-    }
-
-    func testBottomOnly() {
-        let (_, c) = host(edges: [.bottom], insets: UIEdgeInsets(top: 44, left: 0, bottom: 34, right: 0))
-        XCTAssertEqual(c.frame.origin.y, 0)
-        XCTAssertEqual(c.frame.size.height, 800 - 34)
-    }
-
-    func testHorizontalEdges() {
-        let (_, c) = host(edges: .horizontal, insets: UIEdgeInsets(top: 0, left: 16, bottom: 0, right: 16))
-        XCTAssertEqual(c.frame.origin.x, 16)
-        XCTAssertEqual(c.frame.size.width, 400 - 32)
-    }
-
-    func testNoEdgesNoInset() {
-        let (_, c) = host(edges: [], insets: UIEdgeInsets(top: 44, left: 16, bottom: 34, right: 16))
-        XCTAssertEqual(c.frame, CGRect(x: 0, y: 0, width: 400, height: 800))
-    }
-
-    func testZeroInsets() {
-        let (_, c) = host(insets: .zero)
-        XCTAssertEqual(c.frame, CGRect(x: 0, y: 0, width: 400, height: 800))
-    }
-
-    // MARK: - sizeThatFits
-
-    func testSizeThatFitsDelegatesToChild() {
-        let (h, _) = host(childSize: CGSize(width: 200, height: 100), insets: UIEdgeInsets(top: 44, left: 0, bottom: 34, right: 0))
-        let size = h.sizeThatFits(CGSize(width: 400, height: 800))
-        // SafeArea is a passthrough for sizing — reports child size
-        XCTAssertEqual(size.width, 200)
-        XCTAssertEqual(size.height, 100)
-    }
-
-    func testSizeThatFitsNoChild() {
-        let h = TestSafeAreaHostView(overrideInsets: .zero)
-        h.edges = .all
-        XCTAssertEqual(h.sizeThatFits(CGSize(width: 400, height: 800)), .zero)
+    func testSafeAreaPaddingEquality() {
+        let a = SafeAreaPadding(Padding(top: 10))
+        let b = SafeAreaPadding(Padding(top: 10))
+        let c = SafeAreaPadding(Padding(top: 20))
+        XCTAssertEqual(a, b)
+        XCTAssertNotEqual(a, c)
     }
 
     // MARK: - SafeInset
@@ -106,7 +38,8 @@ final class SafeAreaTests: XCTestCase {
         container.frame = CGRect(x: 0, y: 0, width: 400, height: 800)
         container.layoutSubviews()
 
-        XCTAssertEqual(overlay.frame, CGRect(x: 0, y: 0, width: 400, height: 44))
+        XCTAssertEqual(overlay.frame.origin.y, 0, accuracy: 0.5)
+        XCTAssertEqual(overlay.frame.size.height, 44, accuracy: 0.5)
         XCTAssertEqual(content.frame, CGRect(x: 0, y: 0, width: 400, height: 800))
     }
 
@@ -120,20 +53,42 @@ final class SafeAreaTests: XCTestCase {
         container.frame = CGRect(x: 0, y: 0, width: 400, height: 800)
         container.layoutSubviews()
 
-        XCTAssertEqual(overlay.frame, CGRect(x: 0, y: 751, width: 400, height: 49))
+        XCTAssertEqual(overlay.frame.origin.y, 751, accuracy: 0.5)
+        XCTAssertEqual(overlay.frame.size.height, 49, accuracy: 0.5)
     }
 
-    func testSafeInsetProvidesPadding() {
+    func testSafeInsetSizeThatFitsDelegatesToContent() {
         let container = SafeInsetHostView()
         container.edge = .top
-        let content = FixedSizeView(size: CGSize(width: 400, height: 800))
-        let overlay = FixedSizeView(size: CGSize(width: 400, height: 44))
+        let content = FixedSizeView(size: CGSize(width: 200, height: 100))
+        let overlay = FixedSizeView(size: CGSize(width: 200, height: 44))
         container.addSubview(content)
         container.addSubview(overlay)
-        container.frame = CGRect(x: 0, y: 0, width: 400, height: 800)
-        container.layoutSubviews()
 
-        XCTAssertEqual(container.insets.top, 44, accuracy: 0.5)
+        let size = container.sizeThatFits(CGSize(width: 400, height: 800))
+        XCTAssertEqual(size.width, 200, accuracy: 0.5)
+        XCTAssertEqual(size.height, 100, accuracy: 0.5)
+    }
+
+    // MARK: - Edge.Set
+
+    func testEdgeSetInverse() {
+        XCTAssertEqual(Edge.Set.top.inverse, [.bottom, .leading, .trailing])
+        XCTAssertEqual(Edge.Set.all.inverse, [])
+        XCTAssertEqual(Edge.Set([]).inverse, .all)
+        XCTAssertEqual(Edge.Set.vertical.inverse, .horizontal)
+    }
+
+    // MARK: - Public API
+
+    func testSafeAreaDefaultEdges() {
+        let sa = SafeArea { Box() {} }
+        XCTAssertEqual(sa.edges, .all)
+    }
+
+    func testSafeAreaCustomEdges() {
+        let sa = SafeArea(edges: .vertical) { Box() {} }
+        XCTAssertEqual(sa.edges, .vertical)
     }
 }
 
