@@ -262,19 +262,10 @@ final class ScrollableHostView: UIView {
         child.frame = CGRect(origin: .zero, size: childSize)
         scrollView.contentSize = childSize
         
-        let inheritedInsets = findInsetsProvider()
-        let defaultInsets = Padding(safeAreaInsets)
-        let insets = (inheritedInsets ?? defaultInsets)?.filter(by: safeArea).uiEdgeInsets
+        let insets = (findInsetsProvider() ?? Padding(safeAreaInsets))?.filter(by: safeArea).uiEdgeInsets ?? .zero
         
-        // Padding → content inset
-        let newInsets = insets ?? .zero
-        if scrollView.contentInset != newInsets {
-            let wasZero = scrollView.contentInset == .zero
-            scrollView.contentInset = newInsets
-            if wasZero {
-                scrollView.contentOffset = CGPoint(x: -newInsets.left, y: -newInsets.top)
-            }
-        }
+        scrollView.contentInset = insets ?? .zero
+        scrollView.contentOffset = Point(x: -insets.left, y: -insets.top).cgPoint
 
         model?.content = Size(childSize)
     }

@@ -141,6 +141,11 @@ public struct NavigationItem {
         self.alignment = alignment
         self.padding = padding
     }
+
+    /// True when no navigation content has been configured.
+    public var isEmpty: Bool {
+        title == nil && main == nil && leading == nil && trailing == nil && bottom == nil
+    }
 }
 
 // MARK: - Navigation (BuiltView)

@@ -336,7 +336,7 @@ public final class RouterBuilder: ViewBuilder<RouterModel> {
         let navbar: any View = Buildable { ctx in
             guard let obs = topNavItem else { return EmptyView() }
             let item = ctx.watch(obs)
-            if item.hidden { return EmptyView() }
+            if item.hidden || item.isEmpty { return EmptyView() }
             return NavigationBar(
                 leading: item.leading,
                 main: item.main ?? item.title.map { Text($0) },
@@ -350,7 +350,7 @@ public final class RouterBuilder: ViewBuilder<RouterModel> {
 
         let handle: any RouterHandle = model
         return Provided(handle, model) {
-            SafeInset(.top, overlay: { navbar }) {
+            SafeInset(.top, overlay: { navbar.debug() }) {
                 Box(frame: .fill, children: routeViews)
             }
         }
