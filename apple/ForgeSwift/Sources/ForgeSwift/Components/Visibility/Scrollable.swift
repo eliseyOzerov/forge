@@ -13,6 +13,7 @@
 ///
 /// scroll.model?.scrollToTop()
 /// ```
+@Copy
 public struct Scrollable: ModelView {
     public let child: any View
     public var style: ScrollableStyle
@@ -29,6 +30,27 @@ public struct Scrollable: ModelView {
 
     public func model(context: ViewContext) -> ScrollableModel { ScrollableModel(context: context) }
     public func builder(model: ScrollableModel) -> ScrollableBuilder { ScrollableBuilder(model: model) }
+}
+
+extension Scrollable {
+    public init(
+        axis: Axis = .vertical,
+        bounces: Bool = true,
+        enabled: Bool = true,
+        scrollbar: Bool = false,
+        safeArea: Edge.Set = .all,
+        padding: Padding = .zero,
+        keyboardDismiss: KeyboardDismiss = .onDrag,
+        @ChildBuilder content: () -> any View
+    ) {
+        self.child = content()
+        self.style = .init()
+    }
+    
+    /// Configure style. The callback receives the current style for modification.
+    func style(_ build: (ScrollableStyle) -> ScrollableStyle) -> Self {
+        self.style(build(self.style))
+    }
 }
 
 // MARK: - ScrollableStyle
@@ -161,6 +183,7 @@ final class ScrollableHostView: UIView {
     private var axis: Axis = .vertical
     private var bounces: Bool = true
     weak var model: ScrollableModel?
+    private var safeArea: Edge.Set = .all
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -176,25 +199,12 @@ final class ScrollableHostView: UIView {
     func configure(_ style: ScrollableStyle) {
         axis = style.axis
         bounces = style.bounces
+        safeArea = style.safeArea
         scrollView.isScrollEnabled = style.enabled
         scrollView.bounces = style.bounces
         scrollView.showsHorizontalScrollIndicator = style.scrollbar && style.axis == .horizontal
         scrollView.showsVerticalScrollIndicator = style.scrollbar && style.axis == .vertical
-
-        // Safe area
-        if style.safeArea.isEmpty {
-            scrollView.contentInsetAdjustmentBehavior = .never
-        } else {
-            scrollView.contentInsetAdjustmentBehavior = .automatic
-        }
-
-        // Padding → content inset
-        scrollView.contentInset = UIEdgeInsets(
-            top: style.padding.top,
-            left: style.padding.leading,
-            bottom: style.padding.bottom,
-            right: style.padding.trailing
-        )
+        scrollView.contentInsetAdjustmentBehavior = .never
 
         // Keyboard dismiss
         switch style.keyboardDismiss {
@@ -251,6 +261,20 @@ final class ScrollableHostView: UIView {
 
         child.frame = CGRect(origin: .zero, size: childSize)
         scrollView.contentSize = childSize
+        
+        let inheritedInsets = findInsetsProvider()
+        let defaultInsets = Padding(safeAreaInsets)
+        let insets = (inheritedInsets ?? defaultInsets)?.filter(by: safeArea).uiEdgeInsets
+        
+        // Padding → content inset
+        let newInsets = insets ?? .zero
+        if scrollView.contentInset != newInsets {
+            let wasZero = scrollView.contentInset == .zero
+            scrollView.contentInset = newInsets
+            if wasZero {
+                scrollView.contentOffset = CGPoint(x: -newInsets.left, y: -newInsets.top)
+            }
+        }
 
         model?.content = Size(childSize)
     }
