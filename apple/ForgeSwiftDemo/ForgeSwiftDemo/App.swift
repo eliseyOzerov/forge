@@ -4,7 +4,12 @@ import ForgeSwift
 @main
 class ForgeDemo: App {
     override var body: any View {
-        Router { CatalogScreen() }
+        Row {
+            Box(frame: .flex(.h).fill(.v), surface: .color(.blue))
+            Text("Hello World!").framed(.fix(.v, 30))
+            Box(frame: .flex(.h).fill(.v), surface: .color(.red))
+        }
+        .centered()
     }
 }
 
@@ -12,10 +17,20 @@ class ForgeDemo: App {
 
 struct CatalogScreen: BuiltView {
     func build(context: ViewContext) -> any View {
-        Scroll(.vertical) {
+        Scrollable(.vertical) {
             Column(spacing: 28, alignment: .topLeft) {
                 Text("Forge", style: TextStyle(font: Font(size: 32, weight: 800), color: Color(0.1, 0.1, 0.12)))
-                Text("Component Catalog", style: TextStyle(font: Font(size: 15, weight: 500), color: subtitle))
+                
+                ListItem(
+                    title: "Hello World!",
+                    subtitle: "This is a list item",
+                    trailing: Symbol("chevron.right")
+                )
+
+                CatalogSection("Layout") {
+                    CatalogCard("Box", preview: BoxPreview()) { BoxDemo() }
+                    CatalogCard("Flex", preview: FlexPreview()) { FlexDemo() }
+                }
 
                 CatalogSection("Content") {
                     CatalogCard("Text", preview: TextPreview()) { TextDemo() }
@@ -31,17 +46,9 @@ struct CatalogScreen: BuiltView {
                     CatalogCard("Segmented", preview: SegmentedPreview()) { SegmentedDemo() }
                     CatalogCard("TextField", preview: TextFieldPreview()) { TextFieldDemo() }
                 }
-
-                CatalogSection("Layout") {
-                    CatalogCard("Box", preview: BoxPreview()) { BoxDemo() }
-                    CatalogCard("Flex", preview: FlexPreview()) { FlexDemo() }
-                }
             }
             .padded(Padding(top: 16, bottom: 40, leading: 20, trailing: 20))
         }
-        .navigation(title: nil, hidden: true)
-        .framed(.fill)
-        .style { s in s.copy { $0.surface = .color(bg) } }
     }
 }
 
@@ -57,10 +64,10 @@ struct CatalogSection: BuiltView {
     }
 
     func build(context: ViewContext) -> any View {
-        Column(spacing: 12, alignment: .topLeft) {
+        Column {
             Text(title, style: sectionTitle)
-                .padded(Padding(leading: 4))
-            Column(spacing: 10, alignment: .topLeft, children: children)
+                .padded(.leading(4))
+            Column(children: children)
         }
     }
 }
@@ -79,15 +86,24 @@ struct CatalogCard: BuiltView {
     func build(context: ViewContext) -> any View {
         let router = context.router
         return Button(onTap: { router.push(Screen { screen() }) }) {
-            Box(frame: .fillWidth, padding: Padding(top: 16, bottom: 12, leading: 16, trailing: 16), alignment: .topLeft, surface: cardShadow.color(cardBg), shape: .roundedRect(radius: cardRadius)) {
-                Row(spacing: 12, alignment: .center) {
-                    Box(frame: .fixed(48, 48), alignment: .center, surface: .color(Color(0.94, 0.94, 0.96)), shape: .roundedRect(radius: 10)) {
-                        preview
-                    }
-                    Text(title, style: cardTitle)
-                    Box(frame: .fillWidth)
-                    Text("›", style: TextStyle(font: Font(size: 22, weight: 300), color: Color(0.75, 0.75, 0.78)))
-                }
+            Box(
+                frame: .fill(.horizontal),
+                padding: Padding(top: 16, bottom: 12, leading: 16, trailing: 16),
+                alignment: .topLeft,
+                surface: cardShadow.color(cardBg),
+                shape: .roundedRect(radius: cardRadius)
+            ) {
+                ListItem(
+                    leading: Box(
+                        frame: .fixed(48, 48),
+                        alignment: .center,
+                        surface: .color(Color(0.94, 0.94, 0.96)),
+                        shape: .roundedRect(radius: 10)
+                    ) { preview },
+                    primary: Text(title, style: cardTitle),
+                    trailing: Text("›", style: TextStyle(font: Font(size: 22, weight: 300), color: Color(0.75, 0.75, 0.78))),
+                    style: ListItemStyle(padding: .zero)
+                )
             }
         }
     }
