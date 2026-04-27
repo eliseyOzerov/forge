@@ -78,6 +78,13 @@ public struct Size {
     }
     
     public func on(_ axis: Axis) -> Double { axis.isHorizontal ? width : height }
+    public func only(_ axis: Axis) -> Size { Size(axis.isHorizontal ? width : 0, axis.isVertical ? height : 0) }
+}
+
+public enum Dimension {
+    case width
+    case height
+    case depth
 }
 
 extension Size: Equatable, Hashable, Sendable {}

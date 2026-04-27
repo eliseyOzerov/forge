@@ -75,4 +75,13 @@ func parentData<T>(_ type: T.Type, from view: UIView) -> T? {
     return nil
 }
 
+/// Extract the Frame from a child view, unwrapping through PassthroughViews to find a BoxView.
+func childFrame(from view: UIView) -> Frame? {
+    if let box = view as? BoxView { return box.sizing }
+    if let proxy = view as? PassthroughView {
+        return proxy.subviews.first.flatMap { childFrame(from: $0) }
+    }
+    return nil
+}
+
 #endif

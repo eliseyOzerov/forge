@@ -54,40 +54,49 @@ public struct FlexStyle: Sendable {
     public var lineSpacing: Double = 8
     public var alignment: Alignment = .center
     public var spread: Spread? = nil
-    public var wrap: Bool = true
+    public var wrap: Bool = false
+    public var crossFill: CrossFill = .sibling
 }
 
 // MARK: - Column & Row
 
 /// Creates a vertical flex container arranging children top-to-bottom.
-@MainActor public func Column(spacing: Double = 8, lineSpacing: Double = 0, alignment: Alignment = .topLeft, spread: Spread? = nil, wrap: Bool = false, @ChildrenBuilder content: () -> [any View]) -> Flex {
-    Flex(FlexStyle(axis: .vertical, spacing: spacing, lineSpacing: lineSpacing, alignment: alignment, spread: spread, wrap: wrap), content: content)
+@MainActor public func Column(spacing: Double = 8, alignment: Alignment = .topLeft, spread: Spread? = nil, crossFill: CrossFill = .sibling, @ChildrenBuilder content: () -> [any View]) -> Flex {
+    Flex(FlexStyle(axis: .vertical, spacing: spacing, alignment: alignment, spread: spread, crossFill: crossFill), content: content)
 }
 
 /// Creates a vertical flex container arranging children top-to-bottom.
-@MainActor public func Column(spacing: Double = 8, lineSpacing: Double = 0, alignment: Alignment = .topLeft, spread: Spread? = nil, wrap: Bool = false, children: [any View]) -> Flex {
-    Flex(FlexStyle(axis: .vertical, spacing: spacing, lineSpacing: lineSpacing, alignment: alignment, spread: spread, wrap: wrap), children: children)
+@MainActor public func Column(spacing: Double = 8, alignment: Alignment = .topLeft, spread: Spread? = nil, crossFill: CrossFill = .sibling, children: [any View]) -> Flex {
+    Flex(FlexStyle(axis: .vertical, spacing: spacing, alignment: alignment, spread: spread, crossFill: crossFill), children: children)
 }
 
 /// Creates a horizontal flex container arranging children left-to-right.
-@MainActor public func Row(spacing: Double = 8, lineSpacing: Double = 0, alignment: Alignment = .centerLeft, spread: Spread? = nil, wrap: Bool = false, @ChildrenBuilder content: () -> [any View]) -> Flex {
-    Flex(FlexStyle(axis: .horizontal, spacing: spacing, lineSpacing: lineSpacing, alignment: alignment, spread: spread, wrap: wrap), content: content)
+@MainActor public func Row(spacing: Double = 8, alignment: Alignment = .centerLeft, spread: Spread? = nil, crossFill: CrossFill = .sibling, @ChildrenBuilder content: () -> [any View]) -> Flex {
+    Flex(FlexStyle(axis: .horizontal, spacing: spacing, alignment: alignment, spread: spread, crossFill: crossFill), content: content)
 }
 
 /// Creates a horizontal flex container arranging children left-to-right.
-@MainActor public func Row(spacing: Double = 8, lineSpacing: Double = 0, alignment: Alignment = .centerLeft, spread: Spread? = nil, wrap: Bool = false, children: [any View]) -> Flex {
-    Flex(FlexStyle(axis: .horizontal, spacing: spacing, lineSpacing: lineSpacing, alignment: alignment, spread: spread, wrap: wrap), children: children)
+@MainActor public func Row(spacing: Double = 8, alignment: Alignment = .centerLeft, spread: Spread? = nil, crossFill: CrossFill = .sibling, children: [any View]) -> Flex {
+    Flex(FlexStyle(axis: .horizontal, spacing: spacing, alignment: alignment, spread: spread, crossFill: crossFill), children: children)
+}
+
+/// Creates a horizontal flex container arranging children left-to-right.
+@MainActor public func Wrap(axis: Axis = .horizontal, spacing: Double = 8, lineSpacing: Double = 8, alignment: Alignment = .centerLeft, spread: Spread? = nil, crossFill: CrossFill = .sibling, @ChildrenBuilder content: () -> [any View]) -> Flex {
+    Flex(FlexStyle(axis: axis, spacing: spacing, lineSpacing: lineSpacing, alignment: alignment, spread: spread, wrap: true, crossFill: crossFill), content: content)
+}
+
+/// Creates a horizontal flex container arranging children left-to-right.
+@MainActor public func Wrap(axis: Axis = .horizontal, spacing: Double = 8, lineSpacing: Double = 8, alignment: Alignment = .centerLeft, spread: Spread? = nil, crossFill: CrossFill = .sibling, children: [any View]) -> Flex {
+    Flex(FlexStyle(axis: axis, spacing: spacing, lineSpacing: lineSpacing, alignment: alignment, spread: spread, wrap: true, crossFill: crossFill), children: children)
 }
 
 /// Flex child metadata. Tells a `Flex` container how to distribute
 /// remaining space to this child. Has no effect outside flex layouts.
 public struct FlexData: Sendable {
     public var flex: Double
-    public var stretch: Bool
 
-    public init(flex: Double = 1, stretch: Bool = false) {
+    public init(flex: Double = 1) {
         self.flex = flex
-        self.stretch = stretch
     }
 }
 
@@ -95,8 +104,8 @@ public struct FlexData: Sendable {
 
 public extension View {
     /// Mark this view as a flexible child within a `Flex` container.
-    func flex(_ weight: Double = 1, stretch: Bool = false) -> ParentData<FlexData> {
-        ParentData(FlexData(flex: weight, stretch: stretch)) { self }
+    func flex(_ weight: Double = 1) -> ParentData<FlexData> {
+        ParentData(FlexData(flex: weight)) { self }
     }
     
     func trailing(_ axis: Axis = .horizontal, spacing: Double = 8, alignment: Alignment = .center, content: any View) -> some View {
@@ -158,8 +167,8 @@ struct FlexSlot {
     var measured: Size = .zero
     var resolved: Size = .zero
     var origin: Point = .zero
-    var flex: Double? = nil
-    var stretch: Bool = false
+    var main: Extent = .fit()
+    var cross: Extent = .fit()
 }
 
 struct FlexLine {
@@ -174,7 +183,7 @@ final class FlexView: UIView {
     
     var isPacked: Bool { style.spread == .packed || style.spread == nil }
     var spacing: Double { isPacked ? style.spacing : 0 }
-
+    
     /// Key for caching the resolved size and flex slots
     var proposedSizeCache: Size?
     /// Result of the last measurement for the cached proposal
@@ -195,53 +204,96 @@ final class FlexView: UIView {
     
     override func sizeThatFits(_ size: CGSize) -> CGSize {
         guard !subviews.isEmpty else { return .zero }
-        return measure(Size(size)).cgSize
+        let size = Size(size)
+        /// if we already have a size computed for the given proposal, we just return that
+        if let proposed = proposedSizeCache, proposed == size { return measuredSizeCache!.cgSize }
+        /// if not, we measure all children - this is only expensive in the first run if children cache their sizes as well
+        var slots = buildSlots()
+        return measure(&slots, size: size).cgSize
     }
     
-    func measure(_ size: Size) -> Size {
-        /// if we already have a size computed for the given proposal, we just return that
-        if let proposed = proposedSizeCache, proposed == size { return measuredSizeCache! }
-        /// if not, we measure all children - this is only expensive in the first run if children cache their sizes as well
-        let slots = measureChildren(size: size)
-        /// once we have children measured, if there's wrapping, we split the list into lines first
-        if style.wrap {
-            lines = splitLines(slots: slots, size: size)
-        } else {
-            lines = [FlexLine(slots: slots, bounds: lineBounds(slots))]
-        }
-        /// re-measure stretch children against their line's cross extent
-        remeasureStretchChildren(in: &lines, size: size)
+    func measure(_ slots: inout [FlexSlot], size: Size) -> Size {
+        /// measure non-flex first to get input for measuring remaining space later
+        measureNonFlex(&slots, size: size)
+        /// once we have non-flex children measured, if there's wrapping, we split the list into lines first
+        /// if we don't, we won't have any flexible space to distribute
+        lines = buildLines(slots, size: size)
+        /// now we need to distribute the flexible space - without that we can't know how large of a cross-axis each line wants to have
+        measureFlexible(&lines, size: size)
         /// now we compute the bounding box of all children - positioning the children and lines can wait until layout
-        measuredSizeCache = boundingBox(in: size)
+        measuredSizeCache = boundingBox(lines, size: size)
         proposedSizeCache = size
         return measuredSizeCache!
     }
     
-    func measureChildren(size: Size) -> [FlexSlot] {
-        var slots = subviews.enumerated().map { FlexSlot(index: $0, view: $1) }
-        slots.indices.forEach { i in
-            let child = slots[i].view
-            slots[i].measured = Size(child.sizeThatFits(size.only(main).cgSize))
-            if let data = parentData(FlexData.self, from: child) {
-                slots[i].flex = data.flex
-                slots[i].stretch = data.stretch
+    func buildSlots() -> [FlexSlot] {
+        subviews.enumerated().map { index, view in
+            var slot = FlexSlot(index: index, view: view)
+            if let frame = childFrame(from: view) {
+                slot.main = frame.on(main)
+                slot.cross = frame.on(cross)
             }
+            return slot
         }
-        return slots
     }
     
-    /// Re-measure stretch children with their line's cross extent as the proposed cross size.
-    /// This lets stretch children adapt their main-axis size to the actual cross constraint.
-    func remeasureStretchChildren(in lines: inout [FlexLine], size: Size) {
-        for i in lines.indices {
-            let lineCross = lines[i].bounds.on(cross)
-            var needsRecalc = false
-            for j in lines[i].slots.indices where lines[i].slots[j].stretch {
-                let proposal = Size.on(main, main: size.on(main), cross: lineCross).cgSize
-                lines[i].slots[j].measured = Size(lines[i].slots[j].view.sizeThatFits(proposal))
-                needsRecalc = true
+    func measureNonFlex(_ slots: inout [FlexSlot], size: Size) {
+        for i in slots.indices where !slots[i].main.isFlex {
+            let mainProposal = size.on(main)
+            let crossProposal: Double
+            switch slots[i].cross {
+            case .fit, .fix:
+                crossProposal = size.on(cross)
+            case .fill, .flex:
+                crossProposal = style.crossFill == .parent ? size.on(cross) : 0
             }
-            if needsRecalc { lines[i].bounds = lineBounds(lines[i].slots) }
+            let proposal = Size.on(main, main: mainProposal, cross: crossProposal)
+            slots[i].measured = Size(slots[i].view.sizeThatFits(proposal.cgSize))
+        }
+    }
+    
+    func buildLines(_ slots: [FlexSlot], size: Size) -> [FlexLine] {
+        /// flexes are non-wrapping by default, which is why this is the first case
+        if !style.wrap {
+            [FlexLine(
+                slots: slots,
+                bounds: lineBounds(slots, size: size),
+            )]
+        } else {
+            splitLines(slots: slots, size: size)
+        }
+    }
+    
+    func measureFlexible(_ lines: inout [FlexLine], size: Size) {
+        for i in lines.indices {
+            /// get all the indices and flexes of flex slots
+            let flexSlots = lines[i].slots.indices.compactMap { j in
+                lines[i].slots[j].main.flex.map { (index: j, flex: $0) }
+            }
+
+            let totalFlex = flexSlots.reduce(0.0) { $0 + $1.flex }
+
+            guard totalFlex > 0 else { continue }
+
+            let flexibleSpace = size.on(main) - lines[i].bounds.on(main)
+
+            for (j, flex) in flexSlots {
+                let mainProposal = flexibleSpace * flex / totalFlex
+                let crossProposal: Double
+
+                switch lines[i].slots[j].cross {
+                case .fit, .fix:
+                    crossProposal = size.on(cross)
+                case .fill, .flex:
+                    crossProposal = style.crossFill == .parent ? size.on(cross) : 0
+                }
+
+                let proposal = Size.on(main, main: mainProposal, cross: crossProposal).cgSize
+                let measured = lines[i].slots[j].view.sizeThatFits(proposal)
+                lines[i].slots[j].measured = Size(measured)
+            }
+
+            lines[i].bounds = lineBounds(lines[i].slots, size: size)
         }
     }
     
@@ -249,15 +301,15 @@ final class FlexView: UIView {
         guard !slots.isEmpty else { return [] }
         var lines: [FlexLine] = []
         var current: FlexLine = FlexLine()
-        /// null spread means packed but without expanding in parent
         slots.forEach { slot in
             /// finalize the current line only if its not empty and is would become larger than available space if appended a new slot
             if !current.slots.isEmpty && current.bounds.on(main) + spacing + slot.measured.on(main) > size.on(main) {
+                current.bounds = lineBounds(current.slots, size: size)
                 lines.append(current)
                 current = FlexLine(slots: [slot], bounds: slot.measured)
             } else {
                 current.slots.append(slot)
-                current.bounds = lineBounds(current.slots)
+                current.bounds = lineBounds(current.slots, size: size)
             }
         }
         /// append the last line if its not empty, because we might hit the last slot on the first branch
@@ -265,14 +317,14 @@ final class FlexView: UIView {
         return lines
     }
 
-    /// Compute the bounding size of a list of slots (sum on main axis, max on cross axis).
-    func lineBounds(_ slots: [FlexSlot]) -> Size {
+    /// Compute the intrinsic size of a list of slots (sum on main axis, max on cross axis).
+    func lineBounds(_ slots: [FlexSlot], size: Size) -> Size {
         let mainSize = slots.reduce(0.0) { $0 + $1.measured.on(main) } + spacing * Double(max(0, slots.count - 1))
         let crossSize = slots.reduce(0.0) { max($0, $1.measured.on(cross)) }
-        return main.isHorizontal ? Size(mainSize, crossSize) : Size(crossSize, mainSize)
+        return Size.on(main, main: mainSize, cross: crossSize)
     }
     
-    func boundingBox(in size: Size) -> Size {
+    func boundingBox(_ lines: [FlexLine], size: Size) -> Size {
         let mainSize: Double
         if style.spread != nil {
             mainSize = size.on(main)
@@ -298,8 +350,11 @@ final class FlexView: UIView {
         super.layoutSubviews()
         guard !subviews.isEmpty else { return }
         let s = Size(bounds.size)
-        if proposedSizeCache != s { measure(s) }
-        arrangeSlots(&lines)
+        if proposedSizeCache != s {
+            var slots = buildSlots()
+            _ = measure(&slots, size: s)
+        }
+        arrangeSlots(&lines, size: s)
         applyFrames(&lines)
     }
     
@@ -310,40 +365,46 @@ final class FlexView: UIView {
     /// Next we know the intrinsic size of the line on main axis, we need to determine the spacing for each child based on spread and flexibility
     /// Two possible approaches - flexible children take all available space regardless of spread or each child takes as much spacing as alotted by the spread
     /// I think the first approach makes more sense.
-    func arrangeSlots(_ lines: inout [FlexLine]) {
+    func arrangeSlots(_ lines: inout [FlexLine], size: Size) {
         guard let measured = measuredSizeCache else { return }
         let mainExtent = measured.on(main)
         let crossAlign = ((main.isHorizontal ? style.alignment.y : style.alignment.x) + 1) / 2
-        var currentCross: Double = 0.0
+        var currentCross = 0.0
 
         for i in lines.indices {
             let lineCross = lines[i].bounds.on(cross)
+            let hasFlex = lines[i].slots.contains { $0.main.isFlex }
             let intrinsic = lines[i].bounds.on(main)
             let remaining = max(0, mainExtent - intrinsic)
-
-            let totalFlex = lines[i].slots.reduce(0.0) { $0 + ($1.flex ?? 0) }
-
-            let (start, gap) = resolveMainSpacing(remaining: remaining, count: lines[i].slots.count, hasFlex: !totalFlex.isZero)
+            let (start, gap) = resolveMainSpacing(remaining: remaining, count: lines[i].slots.count, hasFlex: hasFlex)
 
             var currentMain = start
             for j in lines[i].slots.indices {
                 let slot = lines[i].slots[j]
 
-                // Resolve main-axis size: flex children expand, others keep measured size
-                let slotMain: Double
-                if let flex = slot.flex, !totalFlex.isZero {
-                    slotMain = slot.measured.on(main) + remaining * (flex / totalFlex)
-                } else {
-                    slotMain = slot.measured.on(main)
+                // Remeasure fill/flex cross children deferred from measurement
+                if (slot.cross.isFill || slot.cross.isFlex) && style.crossFill == .sibling {
+                    let proposal = Size.on(main, main: slot.measured.on(main), cross: lineCross)
+                    lines[i].slots[j].measured = Size(slot.view.sizeThatFits(proposal.cgSize))
                 }
 
-                // Cross-axis: stretch to line height or align within the line
-                let slotCross = slot.stretch ? lineCross : slot.measured.on(cross)
-                let crossOffset = slot.stretch ? currentCross : currentCross + (lineCross - slotCross) * crossAlign
-                
-                let size = Size(slotMain, slotCross)
+                // Main: flex children use their measured size (already allocated by measureFlexible)
+                let slotMain = slot.measured.on(main)
+
+                // Cross: fill children scale to line cross, others align within it
+                let slotCross: Double
+                let crossOffset: Double
+                if let fill = slot.cross.fill {
+                    slotCross = lineCross * fill
+                    crossOffset = currentCross
+                } else {
+                    slotCross = slot.measured.on(cross)
+                    crossOffset = currentCross + (lineCross - slotCross) * crossAlign
+                }
+
+                let resolved = Size(slotMain, slotCross)
                 let origin = Point(currentMain, crossOffset)
-                lines[i].slots[j].resolved = main.isHorizontal ? size : size.flipped
+                lines[i].slots[j].resolved = main.isHorizontal ? resolved : resolved.flipped
                 lines[i].slots[j].origin = main.isHorizontal ? origin : origin.flipped
 
                 currentMain += slotMain + gap

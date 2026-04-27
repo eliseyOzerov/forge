@@ -23,7 +23,7 @@ final class BoxLayoutTests: XCTestCase {
 
     /// Create a BoxView, add children, set frame, trigger layout, return the box.
     private func layoutBox(
-        sizing: Frame = .hug,
+        sizing: Frame = .fit,
         padding: Padding = .zero,
         alignment: Alignment = .center,
         clip: Bool = true,
@@ -51,7 +51,7 @@ final class BoxLayoutTests: XCTestCase {
 
     func testSizeThatFitsHugNoChildren() {
         let box = BoxView()
-        box.sizing = .hug
+        box.sizing = .fit
         let size = box.sizeThatFits(CGSize(width: 300, height: 300))
         XCTAssertEqual(size.width, 0, accuracy: acc)
         XCTAssertEqual(size.height, 0, accuracy: acc)
@@ -59,7 +59,7 @@ final class BoxLayoutTests: XCTestCase {
 
     func testSizeThatFitsHugNoChildrenWithPadding() {
         let box = BoxView()
-        box.sizing = .hug
+        box.sizing = .fit
         box.padding = .all(20)
         let size = box.sizeThatFits(CGSize(width: 300, height: 300))
         XCTAssertEqual(size.width, 40, accuracy: acc)
@@ -68,7 +68,7 @@ final class BoxLayoutTests: XCTestCase {
 
     func testSizeThatFitsHugOneChild() {
         let box = BoxView()
-        box.sizing = .hug
+        box.sizing = .fit
         box.addSubview(child(80, 60))
         let size = box.sizeThatFits(CGSize(width: 300, height: 300))
         XCTAssertEqual(size.width, 80, accuracy: acc)
@@ -77,7 +77,7 @@ final class BoxLayoutTests: XCTestCase {
 
     func testSizeThatFitsHugOneChildWithPadding() {
         let box = BoxView()
-        box.sizing = .hug
+        box.sizing = .fit
         box.padding = Padding(top: 10, bottom: 20, leading: 5, trailing: 15)
         box.addSubview(child(80, 60))
         let size = box.sizeThatFits(CGSize(width: 300, height: 300))
@@ -87,7 +87,7 @@ final class BoxLayoutTests: XCTestCase {
 
     func testSizeThatFitsHugMultipleChildrenTakesMax() {
         let box = BoxView()
-        box.sizing = .hug
+        box.sizing = .fit
         box.addSubview(child(80, 40))
         box.addSubview(child(50, 90))
         let size = box.sizeThatFits(CGSize(width: 300, height: 300))
@@ -118,7 +118,7 @@ final class BoxLayoutTests: XCTestCase {
 
     func testSizeThatFitsFillReturnsProposed() {
         let box = BoxView()
-        box.sizing = .fill
+        box.sizing = .fill()
         let size = box.sizeThatFits(CGSize(width: 300, height: 250))
         XCTAssertEqual(size.width, 300, accuracy: acc)
         XCTAssertEqual(size.height, 250, accuracy: acc)
@@ -149,7 +149,7 @@ final class BoxLayoutTests: XCTestCase {
 
     func testSizeThatFitsFillIgnoresChildren() {
         let box = BoxView()
-        box.sizing = .fill
+        box.sizing = .fill()
         box.addSubview(child(500, 500))
         let size = box.sizeThatFits(CGSize(width: 200, height: 200))
         XCTAssertEqual(size.width, 200, accuracy: acc)
@@ -389,7 +389,7 @@ final class BoxLayoutTests: XCTestCase {
 
     func testFillChildExpandsToInset() {
         let fillChild = BoxView()
-        fillChild.sizing = .fill
+        fillChild.sizing = .fill()
         // Give the fill child a small intrinsic size so we can verify it expands
         let box = layoutBox(
             sizing: .fixed(200, 200),
@@ -477,14 +477,14 @@ final class BoxLayoutTests: XCTestCase {
 
     func testIntrinsicContentSizeHug() {
         let box = BoxView()
-        box.sizing = .hug
+        box.sizing = .fit
         XCTAssertEqual(box.intrinsicContentSize.width, UIView.noIntrinsicMetric)
         XCTAssertEqual(box.intrinsicContentSize.height, UIView.noIntrinsicMetric)
     }
 
     func testIntrinsicContentSizeFill() {
         let box = BoxView()
-        box.sizing = .fill
+        box.sizing = .fill()
         XCTAssertEqual(box.intrinsicContentSize.width, UIView.noIntrinsicMetric)
         XCTAssertEqual(box.intrinsicContentSize.height, UIView.noIntrinsicMetric)
     }

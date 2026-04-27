@@ -164,7 +164,7 @@ public struct TextFieldStyle {
     public var obscureCharacter: Character
 
     public init(
-        field: BoxStyle = .frame(.fillWidth.height(.fix(48))).surface(.color(Color(0.95, 0.95, 0.95))).shape(.roundedRect(radius: 8)).padding(.horizontal(12)),
+        field: BoxStyle = .frame(.fill(.horizontal).height(.fix(48))).surface(.color(Color(0.95, 0.95, 0.95))).shape(.roundedRect(radius: 8)).padding(.horizontal(12)),
         text: TextStyle = .font(.size(16)),
         placeholder: TextStyle = .font(.size(16)).color(.gray),
         label: TextStyle = .font(.size(14).weight(500)),
@@ -461,7 +461,7 @@ public extension TextField where T == String {
         lines: ClosedRange<Int> = 3...10,
         onChanged: ValueHandler<String>? = nil,
         style: StateProperty<TextFieldStyle> = .constant(TextFieldStyle(
-            field: .frame(.fillWidth.height(.fit(min: 80))).surface(.color(Color(0.95, 0.95, 0.95))).shape(.roundedRect(radius: 8)).padding(.all(12))
+            field: .frame(.fill(.horizontal).height(.fit(min: 80))).surface(.color(Color(0.95, 0.95, 0.95))).shape(.roundedRect(radius: 8)).padding(.all(12))
         ))
     ) -> TextField {
         TextField(text: text, logic: TextFieldLogic(

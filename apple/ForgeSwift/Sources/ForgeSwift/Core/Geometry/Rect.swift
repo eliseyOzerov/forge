@@ -181,6 +181,7 @@ public enum Edge: Int8, CaseIterable, Sendable {
         public static let horizontal: Set = [.leading, .trailing]
         public static let vertical: Set = [.top, .bottom]
         public static let all: Set = [.top, .bottom, .leading, .trailing]
+        public static let none: Set = []
 
         public var hasTop: Bool { contains(.top) }
         public var hasBottom: Bool { contains(.bottom) }
@@ -230,6 +231,8 @@ public struct Alignment: Equatable, Hashable, Sendable {
     public var isCenter: Bool { x == 0 && y == 0 }
     
     public func on(_ axis: Axis) -> Double { axis.isHorizontal ? x : y }
+    
+    public var normalized: Alignment { Alignment( (x + 1) / 2, (y + 1) / 2 ) }
 }
 
 /// Horizontal or vertical direction.
@@ -242,3 +245,15 @@ public enum Axis: Sendable {
     
     var cross: Axis { isHorizontal ? .vertical : .horizontal }
 }
+
+extension Axis {
+    public static var h: Axis { .horizontal }
+    public static var v: Axis { .vertical }
+}
+
+/// Enables choosing the bounds to use when proposing the size to a layout child
+public enum CrossFill: Sendable {
+    case parent
+    case sibling
+}
+

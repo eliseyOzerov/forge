@@ -26,7 +26,7 @@ final class ComposedLayoutTests: XCTestCase {
 
     /// Create a BoxView with given sizing, padding, alignment, and children.
     private func makeBox(
-        sizing: Frame = .hug,
+        sizing: Frame = .fit,
         padding: Padding = .zero,
         alignment: Alignment = .center,
         children: [UIView] = []
@@ -42,7 +42,7 @@ final class ComposedLayoutTests: XCTestCase {
     /// Create a ParentDataView wrapping a BoxView for flex distribution testing.
     private func makeFlexible(
         weight: Double = 1,
-        sizing: Frame = .hug,
+        sizing: Frame = .fit,
         children: [UIView] = []
     ) -> ParentDataView<FlexData> {
         let box = makeBox(sizing: sizing, children: children)
@@ -87,7 +87,7 @@ final class ComposedLayoutTests: XCTestCase {
 
     func testHugBoxInColumn() {
         let innerChild = child(60, 40)
-        let box = makeBox(sizing: .hug, children: [innerChild])
+        let box = makeBox(sizing: .fit, children: [innerChild])
         let column = makeFlex(axis: .vertical, children: [box])
 
         layout(column, size: CGSize(width: 200, height: 400))
@@ -99,7 +99,7 @@ final class ComposedLayoutTests: XCTestCase {
 
     func testFillWidthBoxInColumn() {
         let innerChild = child(60, 40)
-        let box = makeBox(sizing: .fillWidth, children: [innerChild])
+        let box = makeBox(sizing: .fill(.horizontal), children: [innerChild])
         let column = makeFlex(axis: .vertical, children: [box])
 
         layout(column, size: CGSize(width: 200, height: 400))
@@ -153,7 +153,7 @@ final class ComposedLayoutTests: XCTestCase {
         let c1 = child(40, 30)
         let c2 = child(60, 30)
         let row = makeFlex(axis: .horizontal, spacing: 5, children: [c1, c2])
-        let box = makeBox(sizing: .hug, children: [row])
+        let box = makeBox(sizing: .fit, children: [row])
 
         let size = box.sizeThatFits(CGSize(width: 400, height: 400))
 
@@ -253,7 +253,7 @@ final class ComposedLayoutTests: XCTestCase {
         let c2 = child(40, 30)
         let c3 = child(40, 30)
         let row = makeFlex(axis: .horizontal, spacing: 10, children: [c1, c2, c3])
-        let box = makeBox(sizing: .hug, padding: .all(15), children: [row])
+        let box = makeBox(sizing: .fit, padding: .all(15), children: [row])
 
         let size = box.sizeThatFits(CGSize(width: 500, height: 500))
 
@@ -267,8 +267,8 @@ final class ComposedLayoutTests: XCTestCase {
 
     func testFillBoxInsideFillBoxInsideFlex() {
         let innerContent = child(30, 30)
-        let innerBox = makeBox(sizing: .fill, children: [innerContent])
-        let flexHost = makeFlexible(sizing: .fill, children: [innerBox])
+        let innerBox = makeBox(sizing: .fill(), children: [innerContent])
+        let flexHost = makeFlexible(sizing: .fill(), children: [innerBox])
         let row = makeFlex(axis: .horizontal, alignment: .topLeft, children: [flexHost])
 
         layout(row, size: CGSize(width: 300, height: 200))
@@ -302,8 +302,8 @@ final class ComposedLayoutTests: XCTestCase {
 
     func testRowWithSpacingAndPaddedBoxChildren() {
         // Each box has 10px padding containing a 40x30 child
-        let b1 = makeBox(sizing: .hug, padding: .all(10), children: [child(40, 30)])
-        let b2 = makeBox(sizing: .hug, padding: .all(10), children: [child(40, 30)])
+        let b1 = makeBox(sizing: .fit, padding: .all(10), children: [child(40, 30)])
+        let b2 = makeBox(sizing: .fit, padding: .all(10), children: [child(40, 30)])
         let row = makeFlex(axis: .horizontal, spacing: 20, alignment: .topLeft, children: [b1, b2])
 
         layout(row, size: CGSize(width: 400, height: 200))
@@ -318,8 +318,8 @@ final class ComposedLayoutTests: XCTestCase {
     // MARK: - sizeThatFits Composition
 
     func testSizeThatFitsColumnOfBoxes() {
-        let b1 = makeBox(sizing: .hug, padding: .all(5), children: [child(40, 20)])
-        let b2 = makeBox(sizing: .hug, children: [child(60, 30)])
+        let b1 = makeBox(sizing: .fit, padding: .all(5), children: [child(40, 20)])
+        let b2 = makeBox(sizing: .fit, children: [child(60, 30)])
         let column = makeFlex(axis: .vertical, spacing: 10, children: [b1, b2])
 
         let size = column.sizeThatFits(CGSize(width: 300, height: 300))

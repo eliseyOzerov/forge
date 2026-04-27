@@ -11,6 +11,11 @@ public extension Double {
         if let max { v = Swift.min(v, max) }
         return v
     }
+    
+    /// The returned value will be at least [other]
+    func min(_ other: Double? = nil) -> Double { if let other { Swift.max(self, other) } else { self } }
+    /// The returned value will be at most [other]
+    func max(_ other: Double? = nil) -> Double { if let other { Swift.min(self, other) } else { self } }
 }
 
 // MARK: - Vector Protocol
@@ -223,6 +228,10 @@ extension Point {
     }
     
     public var flipped: Point { Point(y, x) }
+    
+    public static func &(lhs: Vec2, rhs: Size) -> Rect {
+        Rect(x: lhs.x, y: lhs.y, width: rhs.width, height: rhs.height)
+    }
 }
 
 // MARK: - Vec3

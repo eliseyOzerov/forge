@@ -361,8 +361,8 @@ public struct TrackStyle {
     public var divisions: TrackDivisions?
 
     public init(
-        inactive: BoxStyle = .frame(.fillWidth.height(.fix(4))).surface(.color(Color(0.85, 0.85, 0.85))).shape(.capsule()),
-        active: BoxStyle = .frame(.fillWidth.height(.fix(4))).surface(.color(Color(0.2, 0.5, 1.0))).shape(.capsule()),
+        inactive: BoxStyle = .frame(.fill(.horizontal).height(.fix(4))).surface(.color(Color(0.85, 0.85, 0.85))).shape(.capsule()),
+        active: BoxStyle = .frame(.fill(.horizontal).height(.fix(4))).surface(.color(Color(0.2, 0.5, 1.0))).shape(.capsule()),
         mark: BoxStyle? = nil,
         divisions: TrackDivisions? = nil
     ) {

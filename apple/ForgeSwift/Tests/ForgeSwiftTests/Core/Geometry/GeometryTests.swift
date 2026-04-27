@@ -375,42 +375,42 @@ final class GeometryTests: XCTestCase {
     }
 
     func testFrameFill() {
-        let f = Frame.fill
+        let f = Frame.fill()
         if case .fill = f.width {} else { XCTFail("fill.width should be .fill") }
         if case .fill = f.height {} else { XCTFail("fill.height should be .fill") }
     }
 
-    func testFrameFillWidth() {
-        let f = Frame.fillWidth
+    func testFrameFillHorizontal() {
+        let f = Frame.fill(.horizontal)
         if case .fill = f.width {} else { XCTFail() }
         if case .fit = f.height {} else { XCTFail() }
     }
 
-    func testFrameFillHeight() {
-        let f = Frame.fillHeight
+    func testFrameFillVertical() {
+        let f = Frame.fill(.vertical)
         if case .fit = f.width {} else { XCTFail() }
         if case .fill = f.height {} else { XCTFail() }
     }
 
     func testFrameWidthChain() {
-        let f = Frame.fillWidth.height(.fix(48))
+        let f = Frame.fill(.horizontal).height(.fix(48))
         if case .fill = f.width {} else { XCTFail() }
         if case .fix(let h) = f.height { XCTAssertEqual(h, 48) } else { XCTFail() }
     }
 
     func testFrameHeightChain() {
-        let f = Frame.fillHeight.width(.fix(200))
+        let f = Frame.fill(.vertical).width(.fix(200))
         if case .fix(let w) = f.width { XCTAssertEqual(w, 200) } else { XCTFail() }
         if case .fill = f.height {} else { XCTFail() }
     }
 
     func testFrameHeightDoubleChain() {
-        let f = Frame.fillWidth.height(100)
+        let f = Frame.fill(.horizontal).fix(.vertical, 100)
         if case .fix(let h) = f.height { XCTAssertEqual(h, 100) } else { XCTFail() }
     }
 
     func testFrameWidthDoubleChain() {
-        let f = Frame.fillHeight.width(200)
+        let f = Frame.fill(.vertical).fix(.horizontal, 200)
         if case .fix(let w) = f.width { XCTAssertEqual(w, 200) } else { XCTFail() }
     }
 
